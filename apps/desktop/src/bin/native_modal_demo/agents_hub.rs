@@ -6,7 +6,7 @@
 //! `search` (Skills filtered by "asc"), `nomatch`, `dirty` (an unsaved edit), `empty` (an empty
 //! catalog), `loading` (no catalog yet), `fileloading` (the file body never arrives),
 //! `fileerror` (the file cannot be read), `sync` (Agent Sync overview), `syncfix` (a fix row
-//! open), `syncdetail` (Kiro CLI), `syncnotinstalled`, `syncplan` (the plan sheet), `syncresult`
+//! open), `syncdetail` (Kiro CLI), `syncnotinstalled`, `syncplan` (the plan sheet), `syncplanempty` (the sheet when nothing needs changing), `syncresult`
 //! (the sheet after an apply with a failure), `syncsynced` (every agent in sync), `syncloading`
 //! (no report yet), `syncerror` (the scan failed), `syncprofiles` (All filter, Claude Code's
 //! profiles open). The `key*` states drive the keyboard contract through
@@ -193,9 +193,36 @@ fn sync_report(synced: bool) -> serde_json::Value {
     serde_json::from_str(text).expect("the Agent Sync fixture report")
 }
 
-fn sync_plan() -> serde_json::Value {
-    serde_json::from_str(include_str!("agents_hub_fixture/sync-plan.json"))
-        .expect("the Agent Sync fixture plan")
+/// The fixture plan with the groups that have nothing to change the app's planner also reports
+/// (`moveBackups`, `removeRedundantLinks`), which the sheet must leave out; `syncplanempty` has
+/// no change in any group at all.
+fn sync_plan(all_in_sync: bool) -> serde_json::Value {
+    let mut plan: serde_json::Value =
+        serde_json::from_str(include_str!("agents_hub_fixture/sync-plan.json"))
+            .expect("the Agent Sync fixture plan");
+    let groups = plan["groups"].as_array_mut().expect("plan groups");
+    if all_in_sync {
+        groups.clear();
+    }
+    for (kind, title) in [
+        ("moveBackups", "Move backup folders out of skills folders"),
+        (
+            "removeRedundantLinks",
+            "Remove links agents that read ~/.agents/skills do not need",
+        ),
+    ] {
+        groups.insert(
+            0,
+            json!({
+                "changeCount": 0,
+                "enabledByDefault": true,
+                "kind": kind,
+                "ops": [],
+                "title": title,
+            }),
+        );
+    }
+    plan
 }
 
 /// Answers after the window exists, the way the app answers from its background executor.
@@ -333,7 +360,7 @@ pub(super) fn open(demo: &super::DemoEnv, cx: &mut App) {
                 });
             }
             AgentsHubModalCommand::RequestSyncPlan { scope } => {
-                let mut plan = sync_plan();
+                let mut plan = sync_plan(state == "syncplanempty");
                 plan["scope"] = json!(scope);
                 let plan = SyncPlan::from_json(plan);
                 later(cx, move |cx| {
@@ -402,7 +429,7 @@ fn apply_result(scope: &str) -> serde_json::Value {
             }
         ],
         "generatedAt": "2026-09-16T12:00:00.000Z",
-        "plan": sync_plan(),
+        "plan": sync_plan(false),
         "scope": scope,
         "skippedKeeps": 3,
         "type": "agentSyncApplyResult",
@@ -454,7 +481,7 @@ fn apply_preview_state(slot: &Slot, state: &str, cx: &mut App) {
         "syncdetail" => modal.preview_select_sync_agent("kiro-cli", cx),
         "syncnotinstalled" => modal.preview_select_sync_agent("goose", cx),
         "syncfix" => modal.preview_open_fix("danglingLinks", cx),
-        "syncplan" => modal.open_sync_plan("all".to_string(), None, cx),
+        "syncplan" | "syncplanempty" => modal.open_sync_plan("all".to_string(), None, cx),
         "syncresult" => {
             modal.open_sync_plan("all".to_string(), None, cx);
             modal.apply_sync_plan(cx);

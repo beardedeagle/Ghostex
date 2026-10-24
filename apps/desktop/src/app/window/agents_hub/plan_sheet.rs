@@ -298,6 +298,16 @@ impl GpuiAgentsHubModalWindow {
                         .child(StyledText::new(text).with_runs(runs))
                         .into_any_element(),
                 ));
+                if plan.groups.is_empty() {
+                    body = body.child(
+                        div()
+                            .px(px(14.0))
+                            .py(px(12.0))
+                            .text_size(px(13.0))
+                            .text_color(hsla(hp.muted))
+                            .child("Everything is in sync. There is nothing to change."),
+                    );
+                }
                 for (index, group) in plan.groups.iter().enumerate() {
                     body = body.child(self.render_plan_group(hp, index, group, &enabled, cx));
                 }
@@ -350,7 +360,7 @@ impl GpuiAgentsHubModalWindow {
                         }
                         .into(),
                     ),
-                    plan.is_none() || applying,
+                    plan.is_none_or(|plan| plan.groups.is_empty()) || applying,
                     |this: &mut Self, _window, cx| this.copy_sync_script(cx),
                     cx,
                 ))
@@ -401,7 +411,7 @@ impl GpuiAgentsHubModalWindow {
             .w_full()
             .max_w(px(896.0))
             .max_h_full()
-            .bg(hsla(hp.raised))
+            .bg(hsla(hp.modal.solid_surface))
             .border_1()
             .border_color(hsla(hp.ink(0.14)))
             .rounded(px(12.0))
@@ -428,7 +438,7 @@ impl GpuiAgentsHubModalWindow {
             .p(px(20.0))
             .bg(hsla(modal_rgba(
                 0x000000,
-                if hp.light { 0.35 } else { 0.55 },
+                if hp.light { 0.5 } else { 0.72 },
             )))
             .child(sheet_box)
             .into_any_element()
@@ -509,52 +519,42 @@ impl GpuiAgentsHubModalWindow {
                 .into_any_element()
         };
         let mut lines: Vec<AnyElement> = Vec::new();
-        if changes.is_empty() {
+        for op in changes.iter().take(visible) {
             lines.push(dim(op_line(
                 hp,
-                "keep",
-                hp.muted,
-                None,
-                "nothing to change",
+                &op.verb,
+                verb_color(hp, &op.verb),
+                Some(op),
+                "",
             )));
-        } else {
-            for op in changes.iter().take(visible) {
-                lines.push(dim(op_line(
-                    hp,
-                    &op.verb,
-                    verb_color(hp, &op.verb),
-                    Some(op),
-                    "",
-                )));
-            }
-            let hidden = changes.len() - visible;
-            if hidden > 0 || (expanded && changes.len() > PLAN_GROUP_LIMIT) {
-                let kind = group.kind.clone();
-                let foreground = hp.foreground;
-                lines.push(
-                    div()
-                        .id(("agents-hub-sync-plan-more", index))
-                        .w_full()
-                        .px(px(14.0))
-                        .pt(px(6.0))
-                        .pb(px(8.0))
-                        .text_size(px(12.0))
-                        .text_color(hsla(hp.muted))
-                        .hover(move |this| this.text_color(hsla(foreground)))
-                        .on_click(cx.listener(move |this, _: &ClickEvent, _window, cx| {
-                            if !this.sync.expanded_plan_groups.remove(&kind) {
-                                this.sync.expanded_plan_groups.insert(kind.clone());
-                            }
-                            cx.notify();
-                        }))
-                        .child(if hidden > 0 {
-                            format!("+ {hidden} more")
-                        } else {
-                            "Show fewer".to_string()
-                        })
-                        .into_any_element(),
-                );
-            }
+        }
+        let hidden = changes.len() - visible;
+        if hidden > 0 || (expanded && changes.len() > PLAN_GROUP_LIMIT) {
+            let kind = group.kind.clone();
+            let foreground = hp.foreground;
+            lines.push(
+                div()
+                    .id(("agents-hub-sync-plan-more", index))
+                    .w_full()
+                    .px(px(14.0))
+                    .pt(px(6.0))
+                    .pb(px(8.0))
+                    .text_size(px(12.0))
+                    .text_color(hsla(hp.muted))
+                    .hover(move |this| this.text_color(hsla(foreground)))
+                    .on_click(cx.listener(move |this, _: &ClickEvent, _window, cx| {
+                        if !this.sync.expanded_plan_groups.remove(&kind) {
+                            this.sync.expanded_plan_groups.insert(kind.clone());
+                        }
+                        cx.notify();
+                    }))
+                    .child(if hidden > 0 {
+                        format!("+ {hidden} more")
+                    } else {
+                        "Show fewer".to_string()
+                    })
+                    .into_any_element(),
+            );
         }
         v_flex()
             .w_full()
