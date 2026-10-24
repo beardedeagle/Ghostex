@@ -200,6 +200,9 @@ pub enum Effect {
         report: crate::attention::AgentActivityReport,
         agent_name: Option<String>,
     },
+    /// The user saw an orchestrator with threads that may have finished unseen: ask its machine
+    /// (`/api/acknowledgeCoordinatorThreads`) to mark their finished turns seen.
+    AcknowledgeCoordinatorThreads { session: SessionKey },
     /// A live delta moved a session of this computer into unacknowledged attention: play the
     /// completion sound unless the user turned it off.
     SessionAttentionRaised { session: SessionKey },

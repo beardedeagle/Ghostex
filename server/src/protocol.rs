@@ -527,6 +527,7 @@ pub fn endpoint_for(path: &str) -> Option<EndpointDescriptor> {
         | "/api/watchAgentMessageDelivery"
         | "/api/openCoordinatorThread"
         | "/api/promoteCoordinator"
+        | "/api/acknowledgeCoordinatorThreads"
         | "/api/toggleCloseAfterDone"
         | "/api/openConversation"
         | "/api/restorePreviousSession"

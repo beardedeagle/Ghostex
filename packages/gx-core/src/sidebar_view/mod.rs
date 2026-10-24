@@ -82,10 +82,10 @@ pub use spaces::{Space, SpacesState, OTHER_SPACE_ID};
 pub use tags::{TagListItem, TagListItemKind, TagPresentation, UNTAGGED_TAG_FILTER};
 pub use view::{
     rename_shake_key, CollectionView, CoordinatorBadge, CoordinatorBadgeTone, DelayedSendView,
-    EmptyState, GroupCore, GroupSummary, GroupView, LabelDeadline, MachineNotice, MachineSummary,
-    MachineTabView, OrderItem, OrderKind, ProjectContextView, RemoteMachineView, RowNesting,
-    SectionView, SessionMenuFacts, SessionRow, SessionTiming, SessionView, SidebarView, SpaceView,
-    ThreadTally, WorktreeView, RENAME_SHAKE_FRESH_MS,
+    EmptyState, FoldedStatus, GroupCore, GroupSummary, GroupView, LabelDeadline, MachineNotice,
+    MachineSummary, MachineTabView, OrderItem, OrderKind, ProjectContextView, RemoteMachineView,
+    RowNesting, SectionView, SessionMenuFacts, SessionRow, SessionTiming, SessionView, SidebarView,
+    SpaceView, ThreadTally, WorktreeView, RENAME_SHAKE_FRESH_MS,
 };
 pub use work::{SessionWork, WorkGithubIssue, WorkLinearIssue, WorkLinearProject, WorkPullRequest};
 pub use workspaces::{

@@ -2404,8 +2404,13 @@ version of the Projects features in Cursor and Claude Code.
   "N older threads" row at the end, which lists them all (and "Hide older
   threads" tucks them away again; both remembered across restarts). The chevron
   that replaces the crown when you hover the orchestrator folds its threads away
-  and back, and a folded orchestrator keeps its number and colour. Opening a
-  orchestrator's chat leaves both as you set them; opening one of its threads
+  and back, and a folded orchestrator keeps its number and colour. While its
+  threads are folded, the orchestrator's row shows their status dots (with its
+  own) overlapping in place of its time, like a computer tab's dots, so a thread
+  that is working, finished or asking something is never hidden. Opening an
+  orchestrator marks its finished threads as seen, so their blue dots clear
+  (a thread waiting on a question or approval keeps its dot); otherwise opening
+  its chat leaves the fold and the older threads as you set them; opening one of its threads
   unfolds the orchestrator so the thread shows. Click a thread to watch it or
   talk to it directly; answer its questions and approvals there. A thread is
   named after the area it works on and keeps the name its orchestrator gave it,

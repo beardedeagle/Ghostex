@@ -117,6 +117,9 @@ impl GhostexGpuiApp {
             .unwrap_or(0)
             > 0;
         let question_fill = super::status::pending_question_fill(&hud["settings"], question);
+        let failed = session.model_selection_failed || session.program_status_failed;
+        let folded_dots = (!failed).then(|| super::threads::folded_status_indicator(session, scale, super::status::session_row_ring(appearance, highlighted, visible, question_fill, hovered))).flatten();
+        let question = question && folded_dots.is_none();
         let timer = session.details.get("timerLabel").and_then(Value::as_str);
         let show_time = hud
             .get("settings")
@@ -179,11 +182,12 @@ impl GhostexGpuiApp {
                 .when(!hovered, |row| row.children(self.render_voice_call_badge(&session.session_id, appearance)))
                 .when(!hovered, |row| row.children(super::agentbox::agentbox_badge(session, appearance, tooltip_span, self.native_sidebar.pointer_inside && self.native_sidebar.menu.is_none() && !cx.has_active_drag())))
                 .when(!hovered, |row| row.children(super::claude_cloud::claude_cloud_badge(session, appearance, tooltip_span, self.native_sidebar.pointer_inside && self.native_sidebar.menu.is_none() && !cx.has_active_drag())))
-                .when(!hovered && !question, |row| row.children(super::status::activity_indicator(&session.activity, session.has_background_work, session.model_selection_failed || session.program_status_failed, scale)))
+                .when(!hovered && folded_dots.is_none() && !question, |row| row.children(super::status::activity_indicator(&session.activity, session.has_background_work, session.model_selection_failed || session.program_status_failed, scale)))
                 // CDXC:SessionStatus 2026-09-13 DECISION: User: hide Last Active while the question dot is shown so they do not overlap, including when the session is not working.
-                .when(!hovered && !question && !session.model_selection_failed && !session.program_status_failed && (timer.is_some() || (show_time && session.activity != "working" && session.activity != "attention" && !session.has_background_work)), |row| row.child(div().text_size(px(13.55 * scale)).text_color(if sleeping { chrome_color(0x686868, 0x959595) } else { chrome_color(0xa6a6a6, 0x424242) }).child(time)))
+                .when(!hovered && folded_dots.is_none() && !question && !session.model_selection_failed && !session.program_status_failed && (timer.is_some() || (show_time && session.activity != "working" && session.activity != "attention" && !session.has_background_work)), |row| row.child(div().text_size(px(13.55 * scale)).text_color(if sleeping { chrome_color(0x686868, 0x959595) } else { chrome_color(0xa6a6a6, 0x424242) }).child(time)))
                 .when(hovered, |row| row.child(self.render_native_session_hover_actions(group, session, appearance, cx)))
-                .when(question, |row| row.child(super::status::question_indicator(&session.activity, scale, super::status::session_row_ring(appearance, highlighted, visible, question_fill, hovered)))))
+                .when(question, |row| row.child(super::status::question_indicator(&session.activity, scale, super::status::session_row_ring(appearance, highlighted, visible, question_fill, hovered))))
+                .children(folded_dots))
                 .children(self.render_native_session_work_chips(session, indent, tooltip_span, appearance, cx))
                 .when(can_drag && self.native_sidebar.menu.is_none(), |row| row.sidebar_drag_source(dragged, cx))
 .sidebar_drop_target("session", drag_id, Some(drag_group_id), cx)

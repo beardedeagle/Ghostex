@@ -303,6 +303,30 @@ impl GhostexGpuiApp {
     }
 }
 
+/// The overlapping dots a folded coordinator draws for the threads its fold hides, with its own
+/// status (gx-core `RowNesting::folded_status`); `None` while its threads are open or none has a dot.
+///
+/// CDXC:Coordinators 2026-10-24 SEE-ALSO: the user's decision on gx-core `RowNesting::folded_status` ("show 2 dots (yellow and blue) in this case (they need to be overlapping dots pls)"); the phone draws the same stack in apps/mobile/app/src/components/sessions/SessionRow.tsx.
+pub(crate) fn folded_status_indicator(
+    session: &NativeSidebarSession,
+    scale: f32,
+    ring: gpui::Hsla,
+) -> Option<AnyElement> {
+    let status = session
+        .details
+        .get("coordinatorThreads")?
+        .get("foldedStatus")?;
+    let flag = |name: &str| status.get(name).and_then(Value::as_bool) == Some(true);
+    Some(super::status::folded_status_indicator(
+        flag("working"),
+        flag("attention"),
+        flag("backgroundWork"),
+        flag("question"),
+        scale,
+        ring,
+    ))
+}
+
 /// Whether a coordinator's threads can be folded, and if so whether they are folded now.
 pub(crate) fn coordinator_fold_state(session: &NativeSidebarSession) -> Option<bool> {
     let threads = session.details.get("coordinatorThreads")?;

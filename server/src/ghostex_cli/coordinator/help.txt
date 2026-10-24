@@ -20,6 +20,7 @@ USAGE
   ghostex orchestrator resolve <thread-ref> [--keep-open] [--json]
   ghostex orchestrator reopen <thread-ref> [--json]
   ghostex orchestrator sleep-inactive-threads [<orchestrator-ref>] [--orchestrator <ref>] [--json]
+  ghostex orchestrator acknowledge-threads [<orchestrator-ref>] [--orchestrator <ref>] [--json]
   ghostex orchestrator remember <note> [--orchestrator <ref>]
   ghostex orchestrator forget <number> [--orchestrator <ref>]
   ghostex orchestrator set-goal <text> [--orchestrator <ref>]
@@ -125,6 +126,9 @@ THREADS
   Sleep Inactive Threads on its sidebar menu: threads that are working, waiting
   on a question or approval, or running a background shell stay awake, and so
   does the orchestrator. Nothing is parked or closed.
+  acknowledge-threads marks the orchestrator's finished threads as seen, as
+  opening the orchestrator does: their blue dot clears, while a thread waiting
+  on a question or approval keeps its dot.
 
 MEMORY AND INSTRUCTIONS
   remember saves a one-line note (a preference, a decision, a pitfall); every

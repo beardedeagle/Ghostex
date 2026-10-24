@@ -482,6 +482,33 @@ pub(super) async fn route_sessions_http(
             )
             .await
         }
+        "/api/acknowledgeCoordinatorThreads" => {
+            let params = match read_domain_rpc_params(&body_json) {
+                Ok(params) => params,
+                Err(error) => return Ok(domain_error_response(endpoint.path, request_id, error)),
+            };
+            let blocking_state = state.clone();
+            match tokio::task::spawn_blocking(move || {
+                crate::coordinators::acknowledge_coordinator_threads(&blocking_state, &params)
+            })
+            .await
+            {
+                Ok(Ok(result)) => routed_json(
+                    Some(endpoint.path),
+                    StatusCode::OK,
+                    rpc_success(request_id, result),
+                ),
+                Ok(Err(error)) => domain_error_response(endpoint.path, request_id, error),
+                Err(error) => domain_error_response(
+                    endpoint.path,
+                    request_id,
+                    DomainStateError {
+                        code: "internalError",
+                        message: format!("Orchestrator threads task failed: {error}"),
+                    },
+                ),
+            }
+        }
         "/api/promoteCoordinator" => handle_domain_http(
             &state,
             endpoint.path,

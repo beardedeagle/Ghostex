@@ -903,6 +903,15 @@ fn build_session(
                 "containsActive": session.nesting.contains_active_session,
             }),
         );
+        let folded = session.nesting.folded_status;
+        if folded.any() {
+            details["coordinatorThreads"]["foldedStatus"] = json!({
+                "working": folded.working,
+                "attention": folded.attention,
+                "backgroundWork": folded.background_work,
+                "question": folded.question,
+            });
+        }
     }
     insert_optional(&mut details, "threadState", row.thread_state.clone());
     // The box an agentbox session runs in, drawn by native_sidebar/agentbox.rs.

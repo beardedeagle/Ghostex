@@ -115,19 +115,58 @@ pub(crate) fn status_dot_stack(
     scale: f32,
     backdrop: DotBackdrop,
 ) -> gpui::Div {
-    let background = working_count == 0 && background_work_count > 0;
-    let dots: Vec<Hsla> = [
-        (question_count > 0, rgb(QUESTION_COLOR).into()),
-        (background, background_work_color().into()),
-        (working_count > 0, rgb(WORKING_COLOR).into()),
-        (attention_count > 0, rgb(0x95d7f6).into()),
+    let dots = stack_colors(
+        working_count > 0,
+        attention_count > 0,
+        background_work_count > 0,
+        question_count > 0,
+    );
+    let hover = backdrop.hover;
+    overlapped_dots(dots, scale, backdrop.rest, Some((hover, backdrop.group)))
+}
+
+/// The colours of a [`status_dot_stack`], back to front.
+fn stack_colors(
+    working: bool,
+    attention: bool,
+    background_work: bool,
+    question: bool,
+) -> Vec<Hsla> {
+    [
+        (question, rgb(QUESTION_COLOR).into()),
+        (!working && background_work, background_work_color().into()),
+        (working, rgb(WORKING_COLOR).into()),
+        (attention, rgb(0x95d7f6).into()),
     ]
     .into_iter()
     .filter(|(shown, _)| *shown)
     .map(|(_, color)| color)
-    .collect();
-    let hover = backdrop.hover;
-    overlapped_dots(dots, scale, backdrop.rest, Some((hover, backdrop.group)))
+    .collect()
+}
+
+/// A folded coordinator's [`status_dot_stack`] (gx-core `RowNesting::folded_status`), in a session row's status slot; `ring` is the row's fill.
+pub(crate) fn folded_status_indicator(
+    working: bool,
+    attention: bool,
+    background_work: bool,
+    question: bool,
+    scale: f32,
+    ring: Hsla,
+) -> AnyElement {
+    div()
+        .min_w(px(STATUS_SLOT_WIDTH * scale))
+        .h(px(16.0 * scale))
+        .flex_shrink_0()
+        .flex()
+        .items_center()
+        .justify_center()
+        .child(overlapped_dots(
+            stack_colors(working, attention, background_work, question),
+            scale,
+            ring,
+            None,
+        ))
+        .into_any_element()
 }
 
 /// The overlapped dots of [`status_dot_stack`], each with a 1px ring in `ring` (what the stack sits on); `hover` is the ring colour while the pointer is over the owner group.

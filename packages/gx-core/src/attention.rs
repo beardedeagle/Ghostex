@@ -282,6 +282,11 @@ pub(crate) fn acknowledge(
     let Some(session) = effective(store, key) else {
         return;
     };
+    if has_finished_thread(store, key, &session) {
+        output.effects.push(Effect::AcknowledgeCoordinatorThreads {
+            session: key.clone(),
+        });
+    }
     if session.activity != SessionActivity::Attention {
         return;
     }
@@ -301,6 +306,48 @@ pub(crate) fn acknowledge(
         }
     }
     complete(tracker, store, key, entered, now_ms, output);
+}
+
+/// Whether the session is an orchestrator with a thread under it (at any depth) that may hold a
+/// finished turn the user has not seen: in attention without a question card. gxserver decides
+/// which of them really finished (`/api/acknowledgeCoordinatorThreads`), since only it knows why a
+/// session is in attention.
+///
+/// CDXC:Coordinators 2026-10-24 SEE-ALSO: the user's decision on `acknowledge_coordinator_threads` in server/src/coordinators/seen_threads.rs ("when i see the main thread itself then that should clear the blue dot on all the sub threads below it"); the phone asks the same through `ghostex orchestrator acknowledge-threads` (apps/mobile/app/src/terminal/attention.ts).
+fn has_finished_thread(
+    store: &PresentationStore,
+    key: &SessionKey,
+    session: &PresentationSession,
+) -> bool {
+    if session.coordinator_role.as_deref() != Some("coordinator") {
+        return false;
+    }
+    let (Some(machine), Some(loaded)) = (store.machine(&key.machine), store.loaded(&key.machine))
+    else {
+        return false;
+    };
+    let mut parents: HashSet<(String, String)> =
+        HashSet::from([(key.project_id.clone(), key.session_id.clone())]);
+    let mut pending = vec![(key.project_id.clone(), key.session_id.clone())];
+    while let Some(parent) = pending.pop() {
+        for thread in loaded.server_sessions().filter(|thread| {
+            thread.coordinator_project_id.as_deref() == Some(parent.0.as_str())
+                && thread.coordinator_session_id.as_deref() == Some(parent.1.as_str())
+        }) {
+            let thread_key = (thread.project_id.clone(), thread.session_id.clone());
+            if !parents.insert(thread_key.clone()) {
+                continue;
+            }
+            let effective = machine.effective_session(&thread.project_id, &thread.session_id);
+            if effective.is_some_and(|thread| {
+                thread.activity == SessionActivity::Attention && thread.pending_question_count == 0
+            }) {
+                return true;
+            }
+            pending.push(thread_key);
+        }
+    }
+    false
 }
 
 /// The armed timer fired. A timer whose attention was cleared or replaced since is stale.

@@ -86,6 +86,7 @@ impl GxStoreHost {
                 // completion sound (gx_store/attention/).
                 effect @ (Effect::ArmAttentionAcknowledge { .. }
                 | Effect::ReportAgentActivity { .. }
+                | Effect::AcknowledgeCoordinatorThreads { .. }
                 | Effect::SessionAttentionRaised { .. }) => self.app_effects.push(effect),
                 // The core's effect list grows with each milestone; a new one is wired when the
                 // milestone that introduces it lands.
@@ -137,6 +138,7 @@ impl GhostexGpuiApp {
             }
             effect @ (Effect::ArmAttentionAcknowledge { .. }
             | Effect::ReportAgentActivity { .. }
+            | Effect::AcknowledgeCoordinatorThreads { .. }
             | Effect::SessionAttentionRaised { .. }) => {
                 self.gx_store_perform_attention_effect(effect, cx)
             }
