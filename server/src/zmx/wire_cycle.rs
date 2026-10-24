@@ -325,25 +325,31 @@ pub(crate) fn cycle_wire_incompatible_zmx_session_daemons(
             .map(|(_, _, zmx_name, _, _)| zmx_name.as_str())
             .collect::<Vec<_>>(),
     );
-    for ((project_id, session_id, zmx_name, recorded_generation, stopped), live) in
-        candidates.into_iter().zip(live)
+    let live_candidates: Vec<_> = candidates
+        .into_iter()
+        .zip(live)
+        .filter_map(|(candidate, live)| live.then_some(candidate))
+        .collect();
+    let outcomes = cycle_wire_incompatible_zmx_session_daemon_batch(
+        repository,
+        &live_candidates
+            .iter()
+            .map(|(project_id, session_id, zmx_name, _, stopped)| {
+                (
+                    LifecycleParams {
+                        project_id: project_id.clone(),
+                        session_id: session_id.clone(),
+                    },
+                    zmx_name.as_str(),
+                    wire_cycle_target_lifecycle(*stopped),
+                )
+            })
+            .collect::<Vec<_>>(),
+    );
+    for ((project_id, session_id, zmx_name, recorded_generation, stopped), outcome) in
+        live_candidates.into_iter().zip(outcomes)
     {
-        if !live {
-            continue;
-        }
-        // A closed session keeps its terminal state; only a session that can be
-        // woken becomes sleeping.
-        let target_lifecycle = if stopped { "stopped" } else { "sleeping" };
-        let lifecycle = LifecycleParams {
-            project_id: project_id.clone(),
-            session_id: session_id.clone(),
-        };
-        let outcome = cycle_wire_incompatible_zmx_session_daemon(
-            repository,
-            &lifecycle,
-            &zmx_name,
-            target_lifecycle,
-        );
+        let target_lifecycle = wire_cycle_target_lifecycle(stopped);
         let details = json!({
             "currentZmxWireGeneration": current_generation,
             "lifecycleState": target_lifecycle,
@@ -407,21 +413,71 @@ fn zmx_session_daemons_present(zmx_names: &[&str]) -> Vec<bool> {
     present
 }
 
-/// Terminates one incompatible daemon and records the ordinary sleeping state.
-/// Returns how the daemon was stopped.
+/// A closed session keeps its terminal state; only a session that can be woken
+/// becomes sleeping.
+fn wire_cycle_target_lifecycle(stopped: bool) -> &'static str {
+    if stopped {
+        "stopped"
+    } else {
+        "sleeping"
+    }
+}
+
+/// Ends every incompatible daemon in one go and records each session's sleeping
+/// (or closed) state. Returns how each daemon was stopped, in order.
+///
+/// CDXC:ZmxWireGeneration 2026-10-25 WHY:
+/// The pass used to send each daemon `zmx kill`, trusting the Kill tag to be frozen across generations. Generation 3 changed the IPC header itself (protocol version and reserved bytes before the length), so a generation-2 daemon reads a new client's Kill as a header asking for one more payload byte and waits for it: every kill sat out the 5 s command timeout, then a `zmx list` probe, then fell back to SIGTERM, about 8 s per session one after another while gxserver answered "starting". After the 10.33.0 update 40 sessions held gxserver in "starting" for about 270 s, past the app's 180 s patience, so it showed that gxserver failed to start, and a reporter restarted Ghostex four or five times before their sessions came back. A daemon of another generation is now never spoken to: SIGTERM is the daemon's own graceful shutdown (socket unlinked, SIGHUP then SIGKILL to the shell, as `Kill` does) in every zmx generation, so all of them are signalled at once from one process snapshot and the pass takes about a second however many sessions there are.
+#[cfg(unix)]
+fn cycle_wire_incompatible_zmx_session_daemon_batch(
+    repository: &DomainRepository<'_>,
+    daemons: &[(LifecycleParams, &str, &str)],
+) -> Vec<Result<String, String>> {
+    let terminations = terminate_zmx_session_daemon_processes(
+        &daemons
+            .iter()
+            .map(|(_, zmx_name, _)| *zmx_name)
+            .collect::<Vec<_>>(),
+    );
+    daemons
+        .iter()
+        .zip(terminations)
+        .map(|((lifecycle, _, target_lifecycle), termination)| {
+            termination?;
+            apply_cycled_session_provider_state(repository, lifecycle, target_lifecycle)
+                .map_err(|error| error.message)?;
+            Ok("terminated".to_string())
+        })
+        .collect()
+}
+
+#[cfg(windows)]
+fn cycle_wire_incompatible_zmx_session_daemon_batch(
+    repository: &DomainRepository<'_>,
+    daemons: &[(LifecycleParams, &str, &str)],
+) -> Vec<Result<String, String>> {
+    daemons
+        .iter()
+        .map(|(lifecycle, zmx_name, target_lifecycle)| {
+            cycle_wire_incompatible_zmx_session_daemon(
+                repository,
+                lifecycle,
+                zmx_name,
+                target_lifecycle,
+            )
+        })
+        .collect()
+}
+
+/// Terminates one incompatible Windows session host and records the ordinary
+/// sleeping state. Returns how it was stopped.
+#[cfg(windows)]
 fn cycle_wire_incompatible_zmx_session_daemon(
     repository: &DomainRepository<'_>,
     lifecycle: &LifecycleParams,
     zmx_name: &str,
     target_lifecycle: &str,
 ) -> Result<String, String> {
-    /*
-    `zmx kill` rides the frozen upstream Kill tag and only needs the session's
-    socket file, so it reaches pre-wire-break daemons and leaves exactly the
-    state an auto-sleep would. It is still not guaranteed: it blocks on the
-    daemon's hangup, so a daemon wedged in an older event loop trips the
-    lifecycle command timeout instead of dying.
-    */
     let killed = kill_and_cache_session_provider(repository, lifecycle, target_lifecycle)
         .map(|(kill, _)| kill.killed)
         .map_err(zmx_endpoint_error_message)?;
@@ -452,31 +508,49 @@ fn apply_cycled_session_provider_state(
 }
 
 /*
-A daemon that will not answer the frozen Kill tag is signalled directly. Its
-own argv (`<zmx> run <name> -d …`) survives daemonization, so `ps` identifies
-the process without asking the daemon anything. zmx frees a session's socket
-only on its own graceful shutdown, so the socket is unlinked afterwards or the
-name stays unusable and the restored session cannot claim it back.
+Daemons are signalled, never asked over IPC. A daemon's own argv
+(`<zmx> run <name> -d …`) survives daemonization, so `ps` identifies the
+process without asking the daemon anything. SIGTERM runs zmx's graceful
+shutdown; a daemon still alive after the grace gets SIGKILL, which skips it, so
+the socket is unlinked afterwards or the name stays unusable and the restored
+session cannot claim it back. The session's launchd job is retired as
+`zmx kill` callers do.
 */
 #[cfg(unix)]
-fn terminate_zmx_session_daemon_process(zmx_name: &str) -> Result<(), String> {
-    let ps_output = read_process_snapshot()?;
-    let Some(process_id) = find_zmx_daemon_process_id(&ps_output, zmx_name) else {
-        // Nothing owns the name any more; the socket is all that is left.
-        remove_zmx_session_socket(zmx_name);
-        return Ok(());
+fn terminate_zmx_session_daemon_processes(zmx_names: &[&str]) -> Vec<Result<(), String>> {
+    let ps_output = match read_process_snapshot() {
+        Ok(ps_output) => ps_output,
+        Err(error) => return zmx_names.iter().map(|_| Err(error.clone())).collect(),
     };
-    unsafe { libc::kill(process_id as libc::pid_t, libc::SIGTERM) };
-    if !wait_for_process_exit(process_id, ZMX_DAEMON_TERMINATION_GRACE) {
-        unsafe { libc::kill(process_id as libc::pid_t, libc::SIGKILL) };
-        if !wait_for_process_exit(process_id, ZMX_DAEMON_TERMINATION_GRACE) {
-            return Err(format!(
-                "the zmx daemon process {process_id} did not exit after SIGTERM and SIGKILL"
-            ));
-        }
+    let process_ids: Vec<Option<i64>> = zmx_names
+        .iter()
+        .map(|zmx_name| find_zmx_daemon_process_id(&ps_output, zmx_name))
+        .collect();
+    let mut running: Vec<i64> = process_ids.iter().flatten().copied().collect();
+    for process_id in &running {
+        unsafe { libc::kill(*process_id as libc::pid_t, libc::SIGTERM) };
     }
-    remove_zmx_session_socket(zmx_name);
-    Ok(())
+    running = wait_for_processes_exit(running, ZMX_DAEMON_TERMINATION_GRACE);
+    for process_id in &running {
+        unsafe { libc::kill(*process_id as libc::pid_t, libc::SIGKILL) };
+    }
+    running = wait_for_processes_exit(running, ZMX_DAEMON_TERMINATION_GRACE);
+    zmx_names
+        .iter()
+        .zip(process_ids)
+        .map(|(zmx_name, process_id)| match process_id {
+            Some(process_id) if running.contains(&process_id) => Err(format!(
+                "the zmx daemon process {process_id} did not exit after SIGTERM and SIGKILL"
+            )),
+            // Exited, or nothing owned the name any more and the socket is all that is left.
+            _ => {
+                remove_zmx_session_socket(zmx_name);
+                #[cfg(target_os = "macos")]
+                cleanup_macos_zmx_launchd_job(zmx_name);
+                Ok(())
+            }
+        })
+        .collect()
 }
 
 #[cfg(windows)]
@@ -495,15 +569,14 @@ fn terminate_zmx_session_daemon_process(zmx_name: &str) -> Result<(), String> {
     Ok(())
 }
 
+/// The processes still alive once they have all exited or `grace` has passed.
 #[cfg(unix)]
-fn wait_for_process_exit(process_id: i64, grace: Duration) -> bool {
+fn wait_for_processes_exit(mut process_ids: Vec<i64>, grace: Duration) -> Vec<i64> {
     let deadline = Instant::now() + grace;
     loop {
-        if unsafe { libc::kill(process_id as libc::pid_t, 0) } != 0 {
-            return true;
-        }
-        if Instant::now() >= deadline {
-            return false;
+        process_ids.retain(|process_id| unsafe { libc::kill(*process_id as libc::pid_t, 0) } == 0);
+        if process_ids.is_empty() || Instant::now() >= deadline {
+            return process_ids;
         }
         std::thread::sleep(Duration::from_millis(25));
     }
@@ -524,6 +597,7 @@ fn read_process_snapshot() -> Result<String, String> {
     Ok(String::from_utf8_lossy(&output.stdout).to_string())
 }
 
+#[cfg(windows)]
 fn zmx_endpoint_error_message(error: ZmxEndpointError) -> String {
     match error {
         ZmxEndpointError::DependencyUnavailable(message) => message,
@@ -550,16 +624,33 @@ pub(crate) fn end_unowned_zmx_session_daemons(
     if unowned.is_empty() {
         return;
     }
-    let Ok(zmx) = require_zmx() else {
-        return;
-    };
-    for zmx_name in unowned {
-        let kill = kill_zmx_session(&zmx_name, &zmx.executable_path);
-        let outcome = if kill.killed && zmx_session_daemon_socket_present(&zmx_name) != Some(true) {
-            Ok("killed".to_string())
-        } else {
-            terminate_zmx_session_daemon_process(&zmx_name).map(|()| "terminated".to_string())
+    // Signalled like the wire cycle's daemons: an unowned daemon may be of an older generation too.
+    #[cfg(unix)]
+    let outcomes: Vec<Result<String, String>> = terminate_zmx_session_daemon_processes(
+        &unowned.iter().map(String::as_str).collect::<Vec<_>>(),
+    )
+    .into_iter()
+    .map(|termination| termination.map(|()| "terminated".to_string()))
+    .collect();
+    #[cfg(windows)]
+    let outcomes: Vec<Result<String, String>> = {
+        let Ok(zmx) = require_zmx() else {
+            return;
         };
+        unowned
+            .iter()
+            .map(|zmx_name| {
+                let kill = kill_zmx_session(zmx_name, &zmx.executable_path);
+                if kill.killed && zmx_session_daemon_socket_present(zmx_name) != Some(true) {
+                    Ok("killed".to_string())
+                } else {
+                    terminate_zmx_session_daemon_process(zmx_name)
+                        .map(|()| "terminated".to_string())
+                }
+            })
+            .collect()
+    };
+    for (zmx_name, outcome) in unowned.into_iter().zip(outcomes) {
         let _ = logger.log(GxserverLogInput {
             level: LogLevel::Warn,
             event: match outcome {
