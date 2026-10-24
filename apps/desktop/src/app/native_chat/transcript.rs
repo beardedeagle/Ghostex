@@ -482,8 +482,9 @@ impl NativeChatView {
                 && message["tools"]
                     .as_array()
                     .is_some_and(|tools| !tools.is_empty());
-            // The running turn's thinking is a card (gx-chat-core `transcript/thinking_card.rs`).
-            let card = reasoning && message["thinkingCard"].is_object();
+            // The running turn's thought is one closed line, and so is every thought in Simple
+            // mode that owns no calls (gx-chat-core `transcript/thinking_card.rs`).
+            let card = reasoning && (message["thinkingCard"].is_object() || (p.simple && !tools));
             if card {
                 // The calls the thought made stay in view below its card, drawn by the run below
                 // as a reply's flat calls are.

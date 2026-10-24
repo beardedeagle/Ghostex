@@ -575,7 +575,7 @@ fn is_codex_refused_tool_output(output: &str) -> bool {
 }
 
 /// CDXC:SessionChat 2026-10-17 WHY:
-/// Codex 0.163 runs commands through its code-mode `exec` tool, whose result is a "Script completed\nWall time … seconds\nOutput:" header followed by `text(r)` of the `exec_command` reply: a JSON object `{"chunk_id", "wall_time_seconds", "exit_code", "original_token_count", "output"}`. Shown as recorded, a command's Result was that JSON with its escapes, literal `\r\n` on Windows. When the script printed such replies, the result is their `output` text with CRLF folded (the header goes, since the row shows its own duration), and a non-zero `exit_code` marks the call failed. Anything else the script printed stays as it was.
+/// Codex 0.163 runs commands through its code-mode `exec` tool, whose result is a "Script completed\nWall time … seconds\nOutput:" header followed by `text(r)` of the `exec_command` reply: a JSON object `{"chunk_id", "wall_time_seconds", "exit_code", "original_token_count", "output"}`. Shown as recorded, a command's Result was that JSON with its escapes, literal `\r\n` on Windows. When the script printed such replies, the result is their `output` text with CRLF folded (the header goes, since the row shows its own duration), and a non-zero `exit_code` marks the call failed and leads its output as "Exit code N" (2026-10-24: the failed row said "ok add", its first printed line). Anything else the script printed stays as it was.
 fn codex_exec_command_output(content: &Value) -> Option<(String, bool)> {
     let texts: Vec<String> = match content {
         Value::Array(items) => items
@@ -604,11 +604,16 @@ fn codex_exec_command_output(content: &Value) -> Option<(String, bool)> {
             return None;
         }
         let output = record.get("output")?.as_str()?;
-        let failed = record
-            .get("exit_code")
-            .and_then(Value::as_i64)
-            .is_some_and(|code| code != 0);
-        Some((output.replace("\r\n", "\n").trim_end().to_string(), failed))
+        let output = output.replace("\r\n", "\n").trim_end().to_string();
+        // A failed command leads with its exit code, as Claude's Bash results do, so its row
+        // says "Exit code 1" rather than the first line the command printed.
+        match record.get("exit_code").and_then(Value::as_i64) {
+            Some(code) if code != 0 => Some((
+                format!("Exit code {code}\n{output}").trim_end().to_string(),
+                true,
+            )),
+            _ => Some((output, false)),
+        }
     };
     if !texts.iter().any(|text| envelope(text).is_some()) {
         return None;

@@ -27,12 +27,12 @@ const ROW_GAP: f32 = 2.0;
 
 /// A tool row's padding beside its glyph tile; its detail's rail is moved in by the same
 /// amount so the line still runs down from the middle of the tile.
-const ROW_PAD_X: f32 = 8.0;
+pub(super) const ROW_PAD_X: f32 = 8.0;
 /// The glyph tile's side.
-const TILE: f32 = 22.0;
+pub(super) const TILE: f32 = 22.0;
 /// A described tool row's label: the agent's prose colour, 20% dimmer.
 /// SEE-ALSO: apps/mobile/app/src/chat/native/transcript/ToolRows.tsx (`DESCRIBED_LABEL_OPACITY`).
-const DESCRIBED_LABEL_OPACITY: f32 = 0.8;
+pub(super) const DESCRIBED_LABEL_OPACITY: f32 = 0.8;
 
 /// The bundled icon for each glyph `sessionChatToolGlyph` classifies a tool into.
 fn glyph_icon(glyph: &str) -> &'static str {

@@ -20,6 +20,7 @@ use crate::transcript::question_exchange::answered_question_exchange;
 use crate::transcript::sent_message::sent_agent_messages;
 use crate::transcript::subagent::{is_subagent_self, tool_subagent};
 use crate::transcript::tool_fold::ToolPair;
+use crate::transcript::tool_label::tool_label;
 use crate::transcript::tool_rows::{
     clip_tool_body, is_command_tool, tool_glyph, tool_preview, tool_run_fold,
 };
@@ -134,17 +135,26 @@ pub fn tool_rows(
                 pair.call_name().unwrap_or("Result").into(),
             );
             row.insert(
-                "glyph".to_string(),
-                tool_glyph(pair.call_name().unwrap_or_default()).into(),
-            );
-            row.insert(
                 "preview".to_string(),
                 tool_preview(pair, working_directory).into(),
             );
             // A call the agent described is named by that description in every mode, and its
-            // command preview gives way to it (`tool_description`); the call's own name is the
-            // label otherwise.
-            let description = tool_description(pair.call_input().unwrap_or(&Value::Null));
+            // command preview gives way to it (`tool_description`). A call it did not describe is
+            // named by what it did (`tool_label`), drawn the same way; the call's own name is the
+            // label only when neither reads.
+            let input = pair.call_input().unwrap_or(&Value::Null);
+            let mut description = tool_description(input);
+            let mut glyph = tool_glyph(pair.call_name().unwrap_or_default());
+            if description.is_empty() {
+                if let Some(label) = pair
+                    .call_name()
+                    .and_then(|name| tool_label(name, input, working_directory))
+                {
+                    description = label.text;
+                    glyph = label.glyph.unwrap_or(glyph);
+                }
+            }
+            row.insert("glyph".to_string(), glyph.into());
             row.insert(
                 "label".to_string(),
                 if description.is_empty() {

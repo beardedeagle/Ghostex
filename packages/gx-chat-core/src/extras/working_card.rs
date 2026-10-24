@@ -120,6 +120,11 @@ fn running_call_label(state: &ChatState) -> Option<String> {
                     if !description.is_empty() {
                         return Some(description);
                     }
+                    if let Some(label) =
+                        crate::transcript::tool_label::tool_label(name, input, None)
+                    {
+                        return Some(label.text);
+                    }
                     let preview = tool_preview(
                         &ToolPair {
                             call: Some(block),

@@ -15,6 +15,9 @@ pub struct ShellCommand {
     pub stdout_file: Option<String>,
     /// The here-document fed to standard input, without its delimiter lines.
     pub heredoc: Option<String>,
+    /// True when a single `|` feeds this command the previous one's output (`… | head`), so a
+    /// summary of the line can tell a pipeline's filters from the command doing the work.
+    pub piped: bool,
 }
 
 /// The simple commands of a script, in the order they appear.
@@ -155,6 +158,13 @@ impl Reader<'_> {
                 }
                 ';' | '&' | '|' => {
                     builder.end_command();
+                    if character == '|' {
+                        if self.peek_at(1) == Some('|') {
+                            self.at += 1;
+                        } else {
+                            builder.current.piped = true;
+                        }
+                    }
                     self.at += 1;
                 }
                 '(' => {

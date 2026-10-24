@@ -55,6 +55,7 @@ pub mod subagent;
 pub mod system_cards;
 pub mod thinking_card;
 pub mod tool_fold;
+pub mod tool_label;
 pub mod tool_rows;
 pub mod tool_summary;
 #[allow(clippy::module_inception)]

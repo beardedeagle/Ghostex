@@ -377,6 +377,23 @@ fn codex_decodes_custom_tool_and_hosted_tool_lanes() {
         }]
     );
 
+    // A code-mode command that exited non-zero (Codex 0.163, 2026-10-24): its row reads the exit
+    // code, as Claude's Bash results do, not the command's first printed line.
+    let failed = decode_codex_transcript_line(
+        r#"{"type":"response_item","payload":{"type":"custom_tool_call_output","call_id":"call_t","output":[{"type":"input_text","text":"Script completed\nWall time 0.2 seconds\nOutput:\n"},{"type":"input_text","text":"{\"chunk_id\":\"c4c80b\",\"wall_time_seconds\":0.00000725,\"exit_code\":1,\"original_token_count\":20,\"output\":\"ok add\\nok mul\\nFAIL average: got 5, want 4\\n\"}"}]}}"#,
+        "fb",
+    )
+    .expect("failed exec output decodes");
+    assert_eq!(
+        failed.blocks,
+        vec![SessionChatBlock::ToolResult {
+            output: "Exit code 1\nok add\nok mul\nFAIL average: got 5, want 4".to_string(),
+            is_error: Some(true),
+            call_id: Some("call_t".to_string()),
+            patch: None,
+        }]
+    );
+
     // Some builds write the same payload as a plain string.
     let string_output = decode_codex_transcript_line(
         r#"{"type":"response_item","payload":{"type":"custom_tool_call_output","call_id":"call_x","output":"Exit code: 0"}}"#,

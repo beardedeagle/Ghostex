@@ -1,15 +1,17 @@
-//! The running turn's thinking drawn as a one-line card from its first word, instead of the open
-//! thinking lane (`thinking.rs`). gx-chat-core marks the rows (`thinkingCard`,
-//! `transcript/thinking_card.rs`, where the user's decision is); this draws them with the fold's
-//! card look (`SINGLE_LINE_CARD`): a brain tile, "Thinking…" while the thought is being written or
-//! "Thought" once the agent moved on, and the thought's newest finished line while it is closed.
-//! One click opens or closes the thought below the header. The phone's `ThinkingCard` in
-//! `MessageRow.tsx` is the same card.
+//! A thought drawn as one slim line shaped like a tool row, instead of the open thinking lane
+//! (`thinking.rs`): a brain tile, "Thinking…" while the thought is being written or "Thought" once
+//! the agent moved on, and the thought's line (its newest finished line while it streams, its first
+//! line after). One click opens or closes the full thought below it. gx-chat-core marks the rows
+//! (`thinkingCard` for the running turn, `thinkingRow` for every thought; the user's decision is in
+//! its `transcript/thinking_card.rs`). The phone's `ThinkingLine` in `MessageRow.tsx` is the same
+//! row.
 
-use super::cards::{SINGLE_LINE_CARD, card_hover_fill};
+use super::disclosure_body::{DisclosureRail, disclosure_body};
+use super::tool_run::{DESCRIBED_LABEL_OPACITY, ROW_PAD_X, TILE};
 use super::transcript::text;
 use super::{appearance::ChatAppearance, state::NativeChatView};
 use crate::app::native_chat::cursor::ChatCursor as _;
+use gpui::prelude::FluentBuilder as _;
 use gpui::{
     AnyElement, Context, InteractiveElement as _, IntoElement, ParentElement as _, SharedString,
     StatefulInteractiveElement as _, Styled as _, div, px,
@@ -20,6 +22,8 @@ use serde_json::Value;
 const OPEN_CAP: f32 = 288.0;
 
 impl NativeChatView {
+    /// The thought as one closed line. `message["thinkingCard"]` (the running turn) supplies the
+    /// live flag and the newest finished line; any other thought reads its `thinkingRow`.
     pub(super) fn thinking_card(
         &self,
         id: &str,
@@ -29,12 +33,18 @@ impl NativeChatView {
         cx: &Context<Self>,
     ) -> AnyElement {
         let s = p.scale;
-        let card = &*SINGLE_LINE_CARD;
-        let info = &message["thinkingCard"];
-        let live = info["live"] == true;
+        let card = &message["thinkingCard"];
+        let running = card.is_object();
+        let live = card["live"] == true;
         let key = format!("thinking-card:{id}");
         let expanded = self.is_expanded(&key, false);
-        let preview = text(info, "preview");
+        let row = &message["thinkingRow"];
+        let preview = match text(card, "preview") {
+            preview if preview.is_empty() => text(row, "preview"),
+            preview => preview,
+        };
+        // A Codex reasoning summary is often its headline alone: there is nothing to open.
+        let expandable = running || row["expandable"] != false;
         let lane = p.thinking_lane();
         let title = if live { "Thinking…" } else { "Thought" };
 
@@ -46,55 +56,61 @@ impl NativeChatView {
             } else {
                 format!("{title} {preview}")
             })
-            .aria_expanded(expanded)
+            .when(expandable, |this| this.aria_expanded(expanded))
             .flex()
             .items_center()
-            .w_full()
-            .h(px(card.header_height(s)))
-            .flex_shrink_0()
-            .gap(px(10.0 * s))
-            .px(px(card.padding_x * s))
-            .chat_cursor_pointer()
-            .hover(|style| style.bg(card_hover_fill(p)))
-            .child(card.tile("titlebar/brain.svg", p))
+            .min_w_0()
+            .gap(px(8.0 * s))
+            .px(px(ROW_PAD_X * s))
+            .py(px(5.0 * s))
+            .rounded(px(8.0 * s))
+            .text_size(px(13.5 * s))
             .child(
-                card.title(div().flex_shrink_0(), p)
-                    .text_color(p.foreground)
+                div()
+                    .size(px(TILE * s))
+                    .rounded(px(6.0 * s))
+                    .bg(p.foreground.opacity(0.05))
+                    .flex()
+                    .items_center()
+                    .justify_center()
+                    .flex_shrink_0()
+                    .child(
+                        gpui::svg()
+                            .path("titlebar/brain.svg")
+                            .size(px(13.0 * s))
+                            .text_color(p.muted),
+                    ),
+            )
+            .child(
+                div()
+                    .flex_shrink_0()
+                    .font_weight(gpui::FontWeight::MEDIUM)
+                    .text_color(p.muted)
                     .child(title),
             )
             .child(
                 div()
                     .flex_1()
                     .min_w_0()
-                    .text_size(px(13.0 * s))
-                    .text_color(p.muted)
                     .truncate()
+                    .text_size(px(14.0 * s))
+                    .text_color(p.prose.opacity(DESCRIBED_LABEL_OPACITY))
                     .child(if expanded { String::new() } else { preview }),
             )
-            .on_click({
+            .when(expandable, |this| {
                 let key = key.clone();
-                cx.listener(move |this, _, _, cx| {
-                    if expanded {
-                        this.expanded.remove(&key);
-                        this.collapsed.insert(key.clone());
-                    } else {
-                        this.collapsed.remove(&key);
-                        this.expanded.insert(key.clone());
-                    }
-                    cx.notify();
-                })
+                this.chat_cursor_pointer()
+                    .hover(|style| style.bg(p.foreground.opacity(0.03)))
+                    .on_click(cx.listener(move |view, _, _, cx| {
+                        view.toggle_marker_disclosure(key.clone(), expanded, cx)
+                    }))
             });
 
-        let mut shell = card
-            .shell(div(), p)
-            .w_full()
-            .flex()
-            .flex_col()
-            .overflow_hidden()
-            .child(header);
-        if expanded {
+        let mut column = div().w_full().min_w_0().flex().flex_col().gap(px(4.0 * s));
+        column = column.child(header);
+        if expanded && expandable {
             let body_key = SharedString::from(format!("{key}:body"));
-            // While it is being written the open card keeps the newest lines in view, the way a
+            // While it is being written the open thought keeps the newest lines in view, the way a
             // terminal does, until the reader scrolls up; scrolling back to the end follows again.
             if live {
                 let handle = self
@@ -107,28 +123,32 @@ impl NativeChatView {
                     handle.scroll_to_bottom();
                 }
             }
-            shell = shell.child(
-                self.nested_scroll(
+            let thought = self
+                .nested_scroll(
                     body_key,
-                    div()
-                        .min_w_0()
-                        .max_h(px(OPEN_CAP * s))
-                        .px(px(card.padding_x * s))
-                        .pb(px(12.0 * s))
-                        .child(self.markdown(
-                            format!("thinking-card-body:{id}"),
-                            body,
-                            &message["markdownReferences"],
-                            &lane,
-                            cx,
-                        )),
-                ),
-            );
+                    div().min_w_0().max_h(px(OPEN_CAP * s)).child(self.markdown(
+                        format!("thinking-card-body:{id}"),
+                        body,
+                        &message["markdownReferences"],
+                        &lane,
+                        cx,
+                    )),
+                )
+                .into_any_element();
+            column = column.child(div().pl(px(ROW_PAD_X * s)).child(disclosure_body(
+                p,
+                DisclosureRail::Marker,
+                4.0,
+                key.clone(),
+                "Collapse thinking",
+                [thought],
+                cx,
+            )));
         }
         div()
             .w_full()
-            .pb(px(13.0 * s))
-            .child(shell)
+            .pb(px(6.0 * s))
+            .child(column)
             .into_any_element()
     }
 }

@@ -143,7 +143,7 @@ fn at_word_boundary(text: &str, at: usize) -> bool {
 }
 
 /// A string literal starting at `at`, as `("(?:\\.|[^"\\])*"|'(?:\\.|[^'\\])*')` reads it.
-fn json_string_literal(text: &str, at: usize) -> Option<&str> {
+pub(crate) fn json_string_literal(text: &str, at: usize) -> Option<&str> {
     let bytes = text.as_bytes();
     let quote = match bytes.get(at) {
         Some(&quote @ (b'"' | b'\'')) => quote,
@@ -171,7 +171,7 @@ fn json_string_literal(text: &str, at: usize) -> Option<&str> {
 
 /// A string literal's value. Codex writes `cmd: '…'` as often as `cmd: "…"`, and a single-quoted
 /// literal is not JSON: its `\'` becomes `'` and a bare `"` is escaped before JSON reads it.
-fn js_string_value(literal: &str) -> Option<String> {
+pub(crate) fn js_string_value(literal: &str) -> Option<String> {
     let Some(inner) = literal.strip_prefix('\'') else {
         return serde_json::from_str::<String>(literal).ok();
     };
@@ -200,6 +200,12 @@ fn js_string_value(literal: &str) -> Option<String> {
 ///
 /// Returns the JSON string literals the commands hide behind, still quoted, in source order. Codex's code mode batches several `tools.exec_command({cmd})` calls into one script (`Promise.allSettled([...])`), so the first match alone hides the rest.
 fn embedded_command_literals(input: &str) -> Vec<&str> {
+    key_literals(input, &["cmd", "command"])
+}
+
+/// Every string literal written as the value of one of `keys` (`key: "…"`, `"key": '…'`) in a
+/// script or JSON-ish text, still quoted, in source order. A key matches only as a whole word.
+pub(crate) fn key_literals<'a>(input: &'a str, keys: &[&str]) -> Vec<&'a str> {
     let bytes = input.as_bytes();
     let mut literals = Vec::new();
     let mut resume = 0;
@@ -208,24 +214,26 @@ fn embedded_command_literals(input: &str) -> Vec<&str> {
             continue;
         }
         let rest = &input[start..];
-        let quoted = |word: &str| {
+        let head = keys.iter().find_map(|word| {
             let length = word.len() + 2;
-            rest.len() >= length
+            let quoted = rest.len() >= length
                 && matches!(bytes[start], b'"' | b'\'')
                 && matches!(bytes[start + length - 1], b'"' | b'\'')
-                && rest[1..word.len() + 1] == *word
-        };
-        let head = if rest.starts_with("cmd") && at_word_boundary(input, start) {
-            Some(3)
-        } else if quoted("cmd") {
-            Some(5)
-        } else if rest.starts_with("command") && at_word_boundary(input, start) {
-            Some(7)
-        } else if quoted("command") {
-            Some(9)
-        } else {
-            None
-        };
+                && rest[1..word.len() + 1] == **word;
+            if quoted {
+                Some(length)
+            } else if rest.starts_with(word)
+                && at_word_boundary(input, start)
+                && !rest[word.len()..]
+                    .chars()
+                    .next()
+                    .is_some_and(|next| next.is_ascii_alphanumeric() || next == '_')
+            {
+                Some(word.len())
+            } else {
+                None
+            }
+        });
         let Some(head) = head else {
             continue;
         };
@@ -373,7 +381,10 @@ pub fn tool_description(input: &Value) -> String {
     let Value::Object(entries) = input else {
         return String::new();
     };
-    let Some(description) = non_empty_string(entries.get("description")) else {
+    // OMP writes the same one line as `i` ("Reading project README").
+    let Some(description) =
+        non_empty_string(entries.get("description")).or_else(|| non_empty_string(entries.get("i")))
+    else {
         return String::new();
     };
     let collapsed = js_trim(&collapse_whitespace(description)).to_string();
@@ -387,13 +398,21 @@ fn non_empty_string(value: Option<&Value>) -> Option<&str> {
     }
 }
 
-/// The file a tool call names, under any of the four spellings the harnesses use.
+/// The file a tool call names, under any of the spellings the harnesses use: Claude's `file_path`,
+/// OpenCode's `filePath`, Pi's and Hermes's `path`, Grok's `target_file` and Antigravity's `Path`.
 pub fn tool_file_path(input: &Value) -> Option<&str> {
     let Value::Object(entries) = input else {
         return None;
     };
-    non_empty_string(entries.get("file_path"))
-        .or_else(|| non_empty_string(entries.get("filePath")))
-        .or_else(|| non_empty_string(entries.get("path")))
-        .or_else(|| non_empty_string(entries.get("notebook_path")))
+    [
+        "file_path",
+        "filePath",
+        "path",
+        "notebook_path",
+        "target_file",
+        "Path",
+        "AbsolutePath",
+    ]
+    .iter()
+    .find_map(|key| non_empty_string(entries.get(*key)))
 }

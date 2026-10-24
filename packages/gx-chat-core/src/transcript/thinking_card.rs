@@ -1,10 +1,11 @@
-//! The running turn's thinking as a one-line card from its first word (GitHub #272). Every
-//! reasoning row of the turn that is still running gets a `thinkingCard` holding whether it is the
-//! row being written right now (`live`) and its newest finished line (`preview`), so a renderer
-//! draws a closed card the reader opens with one click while the agent is still thinking. Once the
-//! turn settles the rows lose the mark and fold into the turn's "Previous turn" card as before.
+//! The one line a thought is drawn as. Every reasoning row carries a `thinkingRow` holding its first
+//! plain line (`preview`) and whether opening it shows more (`expandable`). Every reasoning row of
+//! the turn that is still running also gets a `thinkingCard` holding whether it is the row being
+//! written right now (`live`) and its newest finished line (`preview`), so a renderer draws a
+//! closed row the reader opens with one click while the agent is still thinking. Once the turn
+//! settles the rows lose the mark and fold into the turn's "Previous turn" card as before.
 //!
-//! CDXC:SessionChat 2026-10-23 DECISION: User (answering ferpart's #272 request 1): thinking becomes a card while it streams, by default, for every agent, with no setting. The card starts closed while it streams and shows "Thinking…" with the newest finished line ("newest finished line is good with me"), no word count. The tool calls a thought made stay in view below the card. No setting to hide thinking entirely ("not now"). Drawn by the desktop's `native_chat/thinking_card.rs` and the phone's `ThinkingCard` in `MessageRow.tsx`.
+//! CDXC:SessionChat 2026-10-24 DECISION: User, on Codex's thinking in Simple mode: "thinking has to be switched to a simple expandible area, it can't be this big card like it is now for codex. do same for all the agents we support chat for please". A thought is one slim row shaped like a tool row (brain tile, "Thinking…" while it is written or "Thought" after, then its line), closed by default, one click opening the full text below it; no bordered card. The running turn's thought is drawn that way in every mode, and in Simple mode every thought is, so a run of short Codex reasoning summaries reads as quiet lines between the calls instead of bold paragraphs. Supersedes the 2026-10-23 card look (ferpart's #272 request 1); what that decision chose stays: it starts closed while it streams, shows the newest finished line with no word count, the calls a thought made stay in view below it, and there is no setting to hide thinking. Drawn by the desktop's `native_chat/thinking_card.rs` and the phone's `ThinkingLine` in `MessageRow.tsx`.
 
 use ghostex_gx_protocol::{ChatBlock, ChatMessage, ChatRole};
 use serde_json::{json, Value};
@@ -99,4 +100,49 @@ fn preview(text: &str) -> String {
         .unwrap_or_default()
         .replace("**", "")
         .replace('`', "")
+}
+
+/// A thought's one line: its first plain line, and whether its full text says more than that.
+pub fn thinking_row(body: &str) -> Value {
+    let preview = crate::transcript::message_text::plain_reasoning_teaser(body);
+    let plain = crate::transcript::message_text::plain_reasoning_text(body);
+    let lines = plain
+        .split('\n')
+        .filter(|line| !line.trim().is_empty())
+        .count();
+    json!({
+        "preview": preview,
+        "expandable": lines > 1 || body.contains("```"),
+    })
+}
+
+#[cfg(test)]
+mod tests {
+    use super::thinking_row;
+    use serde_json::json;
+
+    #[test]
+    fn codex_summary_is_one_closed_line() {
+        // Codex 0.163 records only a reasoning summary's bold headline.
+        assert_eq!(
+            thinking_row("**Reading the main instructions**"),
+            json!({"preview": "Reading the main instructions", "expandable": false})
+        );
+    }
+
+    #[test]
+    fn claude_thinking_opens_to_its_full_text() {
+        let thought = "The user wants me to fix average().\n\nLikely cause: it adds 1 after dividing, and an empty list divides by zero.";
+        assert_eq!(
+            thinking_row(thought),
+            json!({"preview": "The user wants me to fix average().", "expandable": true})
+        );
+    }
+
+    #[test]
+    fn grok_thinking_with_a_heading() {
+        let thought = "**Planning the fix**\n\nRead the files first, then run the tests.";
+        assert_eq!(thinking_row(thought)["preview"], "Planning the fix");
+        assert_eq!(thinking_row(thought)["expandable"], true);
+    }
 }

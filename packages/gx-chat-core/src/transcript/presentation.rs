@@ -226,6 +226,12 @@ pub fn project_message(
             "body": agent_line_breaks(&reasoning.body, line_breaks),
         }),
     );
+    if message.role == ChatRole::Reasoning {
+        projected.insert(
+            "thinkingRow".to_string(),
+            crate::transcript::thinking_card::thinking_row(&body),
+        );
+    }
     projected.insert(
         "agentMessage".to_string(),
         match &agent_message {
