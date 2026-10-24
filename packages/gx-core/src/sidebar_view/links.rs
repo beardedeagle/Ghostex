@@ -362,14 +362,14 @@ impl SuggestedSessionLink {
 /// What a sidebar row shows of its session's links (`sidebarSessionLinks`).
 ///
 /// CDXC:SessionLinks 2026-10-24 DECISION:
-/// User, of the four ways to see a session's links without hovering: "i want a, b, c,d to be options in settings so people pick but they want (fully disabled should be option too)". Always (A), Selected session (B), Badge (C), Open work only (D) and Off. Badge is the default: rows stay one line now that every project's sessions gather links, the badge still says how many and the most pressing state, and the floating card has the rest.
+/// User, of the four ways to see a session's links without hovering: "i want a, b, c,d to be options in settings so people pick but they want (fully disabled should be option too)". Always (A), Selected session (B), Badge (C), Open work only (D) and Off. Always is the default: the user asked for every sidebar-links setting to default to what they have set ("i want all the settings related to the sidebar links we added to match what i have set now"), which replaces the earlier Badge default.
 /// CDXC:SessionLinks 2026-10-24 DECISION:
 /// User: "i think i we don't need a separate thing called "work mode" and instead we can just do this". Work mode cards follow this setting too; their permanent chip line (CDXC:WorkMode 2026-10-09) is gone, except while a merged PR's Clean up / Keep offer waits. This supersedes the 2026-10-24 rule that kept the sidebar line Work-mode-only.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub enum SessionLinksDisplay {
+    #[default]
     Always,
     Selected,
-    #[default]
     Badge,
     OpenOnly,
     Off,
@@ -385,7 +385,8 @@ impl SessionLinksDisplay {
             Some("selected") => Self::Selected,
             Some("open") => Self::OpenOnly,
             Some("off") => Self::Off,
-            _ => Self::Badge,
+            Some("badge") => Self::Badge,
+            _ => Self::Always,
         }
     }
 
@@ -590,7 +591,7 @@ mod tests {
     }
 
     #[test]
-    fn the_setting_reads_every_option_and_defaults_to_badge() {
+    fn the_setting_reads_every_option_and_defaults_to_always() {
         use SessionLinksDisplay::*;
         for (value, display) in [
             ("always", Always),
@@ -598,11 +599,11 @@ mod tests {
             ("badge", Badge),
             ("open", OpenOnly),
             ("off", Off),
-            ("nonsense", Badge),
+            ("nonsense", Always),
         ] {
             assert_eq!(SessionLinksDisplay::from_setting(Some(value)), display);
         }
-        assert_eq!(SessionLinksDisplay::from_setting(None), Badge);
+        assert_eq!(SessionLinksDisplay::from_setting(None), Always);
     }
 
     #[test]

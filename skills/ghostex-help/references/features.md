@@ -3387,9 +3387,9 @@ Right after a removal its row reads Removed · Undo for a few seconds, and every
 removed link stays under a Removed group, folded until you open it, at the bottom of the list
 (on the phone's sheet too) with Restore, which puts it back as it was and lets it
 join by itself again. In the sidebar, **Session links in the sidebar**
-(Settings > Session Cards) picks how a card shows them: Always (a line of chips
+(Settings > Session Cards) picks how a card shows them: Always (the default: a line of chips
 under every card that has links), Selected session (that line only under the
-session you have open), Badge (the default: a small count on the card, coloured by
+session you have open), Badge (a small count on the card, coloured by
 the most pressing link: red for failing checks or changes asked for, amber for a
 review asked for or checks still running), Open work only (a line of the ones
 still open, none once they are all merged or closed), or Off. A session with no

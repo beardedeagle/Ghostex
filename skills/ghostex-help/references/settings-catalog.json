@@ -674,7 +674,7 @@
       "section": "sessionCards",
       "sectionTitle": "Session Cards",
       "type": "enum",
-      "default": "badge",
+      "default": "always",
       "options": [
         {
           "label": "Always",
