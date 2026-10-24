@@ -42,6 +42,20 @@ pub(crate) enum SessionLinkRef {
 }
 
 impl SessionLinkRef {
+    /// Whether the link may join a session, or be suggested for it, without a person adding it:
+    /// a GitHub PR or issue only when it is in one of the session's own repos (`repos`, its
+    /// checkout's `origin` and `upstream`, lowercase); a Linear ticket always, as before (the pass
+    /// keeps only IDs of the Linear teams the project's key sees).
+    ///
+    /// CDXC:SessionLinks 2026-10-24 DECISION:
+    /// User: "completely unrelated pr from different repo being suggested to be linked to session in my own repo... doesn't make any sense pls fix" (a merged PR of joeblau/voice suggested for a Ghostex session whose chat had read it). Suggestions, PRs and issues the agent opened, and issues a linked PR closes come only from the project's own repos; a link to any repo can still be added by hand, and links a person added or pinned are never dropped.
+    pub(crate) fn in_repos(&self, repos: &[String]) -> bool {
+        match self {
+            Self::Github { repo, .. } => repos.iter().any(|own| own == repo),
+            Self::Linear { .. } => true,
+        }
+    }
+
     pub(crate) fn kind(&self) -> SessionLinkKind {
         match self {
             Self::Github { kind, .. } => *kind,

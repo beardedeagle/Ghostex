@@ -66,6 +66,8 @@ pub(super) struct GithubCache {
     pub(super) issues: HashMap<String, Cached<Option<WorkGithubIssueInfo>>>,
     /// `owner/repo` (lowercase) of each checkout's `origin`.
     repos: HashMap<String, Cached<Option<String>>>,
+    /// `owner/repo` (lowercase) of each checkout's `upstream` remote, the repo a fork comes from.
+    upstream_repos: HashMap<String, Cached<Option<String>>>,
 }
 
 pub(super) fn cache() -> &'static Mutex<GithubCache> {
@@ -115,9 +117,29 @@ pub(crate) fn refresh_work_repo(cwd: &str) {
         return;
     }
     let repo = super::work_repo_of(cwd);
+    let upstream = super::work_remote_repo_of(cwd, "upstream");
     if let Ok(mut cache) = cache().lock() {
         cache.repos.insert(cwd.to_string(), Cached::now(repo));
+        cache
+            .upstream_repos
+            .insert(cwd.to_string(), Cached::now(upstream));
     }
+}
+
+/// The GitHub repos a checkout belongs to, as the pass last read them: its `origin`, and the
+/// `upstream` it was forked from when it has one. Only links in these join a session by
+/// themselves or are suggested (CDXC:SessionLinks 2026-10-24 in server/src/session_links/reference.rs).
+pub(crate) fn cached_work_repos(cwd: &str) -> Vec<String> {
+    let Ok(cache) = cache().lock() else {
+        return Vec::new();
+    };
+    let mut repos: Vec<String> = [cache.repos.get(cwd), cache.upstream_repos.get(cwd)]
+        .into_iter()
+        .flatten()
+        .filter_map(|cached| cached.value.clone())
+        .collect();
+    repos.dedup();
+    repos
 }
 
 /// Stores a PR the Work details just read (by URL), unless the cache already knows it, so a card

@@ -29,10 +29,10 @@ use crate::session_links::{
 use crate::storage::open_gxserver_database;
 use crate::work_mode::{
     cached_linear_team_keys, cached_work_github_issue_url, cached_work_pull_request,
-    cached_work_repo, github_read_due, github_read_known, github_read_max_age, linear_api_key,
-    linear_key_fingerprint, refresh_github_reads, refresh_linear_issues, refresh_linear_team_keys,
-    refresh_work_repo, remember_project_linear_key, seed_github_read, session_is_idle, work_branch,
-    GithubRead,
+    cached_work_repo, cached_work_repos, github_read_due, github_read_known, github_read_max_age,
+    linear_api_key, linear_key_fingerprint, refresh_github_reads, refresh_linear_issues,
+    refresh_linear_team_keys, refresh_work_repo, remember_project_linear_key, seed_github_read,
+    session_is_idle, work_branch, GithubRead,
 };
 
 /// `gh` calls one pass may make (work mode's pass has its own).
@@ -133,8 +133,25 @@ pub(crate) fn run_session_links_refresh_once(
         if let Some(cwd) = cwd.as_deref() {
             refresh_work_repo(cwd);
         }
+        // The project's own GitHub repos (its checkout's origin and upstream): only their PRs and
+        // issues join or are suggested by themselves (`SessionLinkRef::in_repos`).
+        let own_repos = cwd.as_deref().map(cached_work_repos).unwrap_or_default();
         let mut stored = stored_session_links(session);
         let mut changed = false;
+        // Links to another repo that joined by themselves before this rule leave again; one a
+        // person added, the agent reported or anyone pinned stays.
+        if !own_repos.is_empty() {
+            let before = stored.items.len();
+            let pinned = stored.pinned.clone();
+            stored.items.retain(|item| {
+                !matches!(
+                    item.source,
+                    SessionLinkSource::AgentOpened | SessionLinkSource::Closes
+                ) || item.link.in_repos(&own_repos)
+                    || pinned.contains(&item.link.key())
+            });
+            changed |= stored.items.len() != before;
+        }
         let found = |link: SessionLinkRef, source: SessionLinkSource, via: Option<String>| {
             StoredSessionLink {
                 link,
@@ -173,7 +190,11 @@ pub(crate) fn run_session_links_refresh_once(
                     full_scans -= 1;
                 }
                 if let Some(links) = scan_transcript(agent, &path, &project_id, &session_id) {
-                    for link in links.opened {
+                    for link in links
+                        .opened
+                        .into_iter()
+                        .filter(|link| link.in_repos(&own_repos))
+                    {
                         changed |=
                             stored.add_found(found(link, SessionLinkSource::AgentOpened, None));
                     }
@@ -190,7 +211,13 @@ pub(crate) fn run_session_links_refresh_once(
                             ));
                         }
                     }
-                    remember_session_link_mentions(&project_id, &session_id, links.github_mentions);
+                    // A URL of another repo the chat read (research, a dependency) is not offered.
+                    let own_mentions = links
+                        .github_mentions
+                        .into_iter()
+                        .filter(|link| link.in_repos(&own_repos))
+                        .collect();
+                    remember_session_link_mentions(&project_id, &session_id, own_mentions);
                 }
             }
         }
@@ -212,6 +239,7 @@ pub(crate) fn run_session_links_refresh_once(
                 .closing_issues
                 .iter()
                 .filter_map(|url| parse_github_url(url))
+                .filter(|issue| issue.in_repos(&own_repos))
             {
                 changed |=
                     stored.add_found(found(issue, SessionLinkSource::Closes, Some(via.clone())));

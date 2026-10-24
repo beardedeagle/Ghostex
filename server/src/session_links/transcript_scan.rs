@@ -286,3 +286,40 @@ fn read_rows_since(
     }
     rows
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// What the links pass offers from a transcript (session_links_sync.rs): only mentions in the
+    /// project's own repos.
+    fn suggested(text: &str, own_repos: &[String]) -> Vec<String> {
+        let mut scanner = Scanner::default();
+        scanner.scan_text(text);
+        scanner
+            .links
+            .github_mentions
+            .into_iter()
+            .filter(|link| link.in_repos(own_repos))
+            .map(|link| link.key())
+            .collect()
+    }
+
+    #[test]
+    fn a_foreign_repo_url_in_the_transcript_is_not_suggested() {
+        let text = "Read https://github.com/joeblau/voice/pull/118 for the turn orchestrator, \
+                    then fix https://github.com/maddada/Ghostex/issues/283 here.";
+        let own = vec!["maddada/ghostex".to_string()];
+        assert_eq!(suggested(text, &own), vec!["issue:maddada/ghostex#283"]);
+        // The fork's upstream counts as the project's own repo.
+        let fork = vec!["me/ghostex".to_string(), "maddada/ghostex".to_string()];
+        assert_eq!(suggested(text, &fork), vec!["issue:maddada/ghostex#283"]);
+        // A project with no GitHub remote is offered nothing from GitHub.
+        assert!(suggested(text, &[]).is_empty());
+        // Linear tickets keep working as before.
+        assert!(SessionLinkRef::Linear {
+            identifier: "GHX-7".to_string()
+        }
+        .in_repos(&[]));
+    }
+}

@@ -806,6 +806,9 @@ impl Render for SessionLinksList {
         // web page sizes its card from `fitted_height` as it draws.
         #[cfg(not(target_arch = "wasm32"))]
         {
+            // Its rows' hover cards are often taller than this window, so they draw in the tooltip
+            // host window rather than inside it (window/frosted_host.rs).
+            crate::app::window::frosted_host::host_window_tooltips_always(window, cx);
             let fitted = self.fitted_height();
             if self.fitted_height != Some(fitted) {
                 self.fitted_height = Some(fitted);

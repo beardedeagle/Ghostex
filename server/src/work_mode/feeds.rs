@@ -458,7 +458,12 @@ fn logins(people: Option<&Value>) -> Vec<String> {
 
 /// `owner/repo` of a checkout's GitHub `origin`, lowercased.
 pub(crate) fn work_repo_of(cwd: &str) -> Option<String> {
-    let url = run_git_probe_command(cwd, &["remote", "get-url", "origin"])?;
+    work_remote_repo_of(cwd, "origin")
+}
+
+/// `owner/repo` (lowercased) of a checkout's GitHub remote `remote` (`origin`, `upstream`).
+pub(crate) fn work_remote_repo_of(cwd: &str, remote: &str) -> Option<String> {
+    let url = run_git_probe_command(cwd, &["remote", "get-url", remote])?;
     let url = url.trim();
     let rest = url
         .split_once("github.com/")

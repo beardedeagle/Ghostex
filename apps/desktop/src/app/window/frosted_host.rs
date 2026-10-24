@@ -569,6 +569,28 @@ fn set_visible(
 #[cfg(not(any(target_os = "macos", target_os = "windows")))]
 fn set_visible(_: AnyWindowHandle, _: Option<AnyWindowHandle>, _: bool, _: &mut App) {}
 
+thread_local! {
+    static TOOLTIPS_ALWAYS_HOSTED: RefCell<std::collections::HashSet<gpui::WindowId>> =
+        RefCell::default();
+}
+
+/// Hands `window`'s tooltips to the tooltip host window with glass on or off: for small pop-up
+/// windows whose tooltips are taller than they are (the links card beside the sidebar, the
+/// header's "+N" list), which a tooltip drawn inside them would be cut off by.
+///
+/// CDXC:SessionLinks 2026-10-24 WHY:
+/// The user saw a link's hover card cut off at its bottom ("Repo: joeblau/voice" was its last visible line): a GPUI tooltip is drawn inside its window, and the links card's window is often shorter than the card. The tooltip host window draws it above, at its full height; the bubble keeps its usual fill with glass off.
+pub(crate) fn host_window_tooltips_always(window: &mut Window, cx: &mut App) {
+    let new = TOOLTIPS_ALWAYS_HOSTED.with(|hosted| {
+        hosted
+            .borrow_mut()
+            .insert(window.window_handle().window_id())
+    });
+    if new {
+        sync_frosted_tooltip_presenter(window, cx);
+    }
+}
+
 /// Hands a window's tooltips to the frosted tooltip host while glass is on, and takes them back
 /// when it is off. Called on every root render (the main window's glass sync, and every other
 /// window through [`FrostedTooltipRootPlugin`]).
@@ -576,7 +598,13 @@ fn set_visible(_: AnyWindowHandle, _: Option<AnyWindowHandle>, _: bool, _: &mut 
 /// CDXC:Theming 2026-09-27 WHY:
 /// The user saw sidebar tooltips "appearing and disappearing multiple times per second when transparency is enabled". Every window with a presenter reports each frame it draws, `None` when it shows no tooltip, and that `None` hid the one shared tooltip host even when the tooltip belonged to another window; any other window redrawing (a Docs window, a frosted chat control, a modal) took the main window's tooltip down and the next main-window frame put it back. A window now hides the host only while the host shows its own tooltip.
 pub(crate) fn sync_frosted_tooltip_presenter(window: &mut Window, cx: &mut App) {
-    let wanted = frosted_hosting_active();
+    let wanted = frosted_hosting_active()
+        || (cfg!(any(target_os = "macos", target_os = "windows"))
+            && TOOLTIPS_ALWAYS_HOSTED.with(|hosted| {
+                hosted
+                    .borrow()
+                    .contains(&window.window_handle().window_id())
+            }));
     if window.tooltip_presenter_active() == wanted {
         return;
     }
