@@ -3346,10 +3346,12 @@ offered under Suggested instead, with a Link button. The work area header shows 
 to three of them after the session's title, open work first, each with its number,
 state and checks, then +N for the rest (or a List pill when they all fit), which
 opens the whole list: each link on two lines, its number, title and state, then
-its checks (passing, failing or running, shown only while it is open), its review
+its kind (Pull request, Issue or Linear), its checks (passing, failing or running,
+shown only while it is open), its review
 (review requested, approved or changes requested) and where it came from. The list
 leads with Open, the links that still need something, then Merged or closed
-(folded until you open it), Suggested and Removed. Each group folds with the
+(folded until you open it), Suggested and Removed, each listing pull requests,
+then issues, then Linear tickets. Each group folds with the
 chevron on its header and keeps its count; what you fold stays folded in every
 session and after a restart (the phone keeps its own). Click a link to open it; **Open
 session links in** (Settings > General > Browser) opens them in the internal

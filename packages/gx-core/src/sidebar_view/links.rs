@@ -62,6 +62,8 @@ pub struct SuggestedSessionLink {
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum SessionLinkGlyph {
     PullRequest,
+    PullRequestDraft,
+    PullRequestClosed,
     Merged,
     IssueOpen,
     IssueClosed,
@@ -159,9 +161,9 @@ impl SessionLink {
         let state = self.state.as_deref();
         match self.kind {
             SessionLinkKind::PullRequest => match state {
-                Some("draft") => (SessionLinkGlyph::PullRequest, SessionLinkTone::Draft),
+                Some("draft") => (SessionLinkGlyph::PullRequestDraft, SessionLinkTone::Draft),
                 Some("merged") => (SessionLinkGlyph::Merged, SessionLinkTone::Merged),
-                Some("closed") => (SessionLinkGlyph::PullRequest, SessionLinkTone::Closed),
+                Some("closed") => (SessionLinkGlyph::PullRequestClosed, SessionLinkTone::Closed),
                 Some(_) => (SessionLinkGlyph::PullRequest, SessionLinkTone::Open),
                 None => (SessionLinkGlyph::PullRequest, SessionLinkTone::Draft),
             },
@@ -213,7 +215,19 @@ impl SessionLink {
         Some(std::iter::once(first).chain(chars).collect())
     }
 
-    /// The second line: checks, review and where the link came from.
+    /// What kind of link it is, in words: the start of its second line.
+    pub fn kind_label(&self) -> &'static str {
+        match self.kind {
+            SessionLinkKind::PullRequest => "Pull request",
+            SessionLinkKind::Issue => "Issue",
+            SessionLinkKind::Linear => "Linear",
+        }
+    }
+
+    /// The second line: the kind, checks, review and where the link came from.
+    ///
+    /// CDXC:SessionLinks 2026-10-24 DECISION:
+    /// User: "i don't like that i can't diffrentiate issues vs prs anymore" (once Open / Merged or closed replaced the per-kind sections). Every entry's second line starts with its kind ("Pull request · Mentioned in the chat", "Issue · Closed by #284", "Linear · You added"), each group lists pull requests, then issues, then Linear, and closed and draft PRs get GitHub's own closed and draft PR icons so no PR shares a shape with an issue.
     pub fn detail_line(&self) -> String {
         let checks = match self.checks.as_deref() {
             Some("passing") => Some("Checks passing"),
@@ -227,12 +241,17 @@ impl SessionLink {
             Some("changesRequested") => Some("Changes requested"),
             _ => None,
         };
-        [checks, review, Some(self.source_label.as_str())]
-            .into_iter()
-            .flatten()
-            .filter(|part| !part.trim().is_empty())
-            .collect::<Vec<_>>()
-            .join(" · ")
+        [
+            Some(self.kind_label()),
+            checks,
+            review,
+            Some(self.source_label.as_str()),
+        ]
+        .into_iter()
+        .flatten()
+        .filter(|part| !part.trim().is_empty())
+        .collect::<Vec<_>>()
+        .join(" · ")
     }
 
     /// The tooltip and the list's title fallback: `#318 · Port the Find screen · Open`.

@@ -65,6 +65,8 @@ pub(crate) fn session_link_chips_that_fit(
 pub(crate) fn session_link_glyph_icon(glyph: SessionLinkGlyph) -> &'static str {
     match glyph {
         SessionLinkGlyph::PullRequest => "titlebar/git-pull-request.svg",
+        SessionLinkGlyph::PullRequestDraft => "titlebar/git-pull-request-draft.svg",
+        SessionLinkGlyph::PullRequestClosed => "titlebar/git-pull-request-closed.svg",
         SessionLinkGlyph::Merged => "titlebar/git-merge.svg",
         SessionLinkGlyph::IssueOpen => "titlebar/circle-dot.svg",
         SessionLinkGlyph::IssueClosed | SessionLinkGlyph::ChecksPassing => {

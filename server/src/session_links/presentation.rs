@@ -305,6 +305,15 @@ fn entry_value(
     Value::Object(output)
 }
 
+/// Where an entry's kind sorts: pull requests, then issues, then Linear tickets.
+fn kind_rank(item: &Value) -> u8 {
+    match item.get("kind").and_then(Value::as_str) {
+        Some("pullRequest") => 0,
+        Some("issue") => 1,
+        _ => 2,
+    }
+}
+
 /// A suggestion or a removed link as clients receive it: drawn like a linked entry (number, title
 /// and state, then its second line), without checks or review.
 ///
@@ -366,15 +375,10 @@ pub(crate) fn presentation_session_links(project: &Value, session: &Value) -> Op
         .collect();
     items.sort_by_key(|(index, item)| {
         let finished = item.get("finished").and_then(Value::as_bool) == Some(true);
-        let kind = match item.get("kind").and_then(Value::as_str) {
-            Some("pullRequest") => 0,
-            Some("issue") => 1,
-            _ => 2,
-        };
-        (finished, kind, *index)
+        (finished, kind_rank(item), *index)
     });
     let linked: HashSet<String> = entries.iter().map(|entry| entry.link.key()).collect();
-    let suggested: Vec<Value> = mentioned
+    let mut suggested: Vec<Value> = mentioned
         .iter()
         .rev()
         .filter(|link| {
@@ -401,7 +405,7 @@ pub(crate) fn presentation_session_links(project: &Value, session: &Value) -> Op
         })
         .collect();
     // The links a person removed, newest first, for the lists' "Removed (N)" group and its Restore.
-    let removed: Vec<Value> = stored
+    let mut removed: Vec<Value> = stored
         .removed
         .iter()
         .rev()
@@ -426,6 +430,10 @@ pub(crate) fn presentation_session_links(project: &Value, session: &Value) -> Op
             other_entry_value(&entry, source, cwd.as_deref(), repo.as_deref(), linear_key)
         })
         .collect();
+    // Suggested and Removed list pull requests, then issues, then Linear tickets, like the
+    // groups of linked ones; the sort keeps their own order within a kind.
+    suggested.sort_by_key(kind_rank);
+    removed.sort_by_key(kind_rank);
     if items.is_empty() && suggested.is_empty() && removed.is_empty() {
         return None;
     }
