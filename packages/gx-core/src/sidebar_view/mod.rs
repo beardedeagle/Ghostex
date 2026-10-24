@@ -90,7 +90,7 @@ pub use view::{
 };
 pub use links::{
     SessionLink, SessionLinkGlyph, SessionLinkKind, SessionLinkTone, SessionLinks,
-    SuggestedSessionLink,
+    SessionLinksBadge, SessionLinksDisplay, SessionLinksRow, SuggestedSessionLink,
 };
 pub use work::{SessionWork, WorkGithubIssue, WorkLinearIssue, WorkLinearProject, WorkPullRequest};
 pub use workspaces::{

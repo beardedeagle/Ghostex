@@ -448,6 +448,7 @@ pub const MAIN_SETTINGS_SCROLL_TARGET_SETTING_KEYS: &[(&str, &[&str])] = &[
             "renameSessionOnDoubleClick",
             "sessionCardHoverButtons",
             "showSessionCardHoverButtonsInContextMenu",
+            "sidebarSessionLinks",
             "sidebarSessionTagListItems",
         ],
     ),
@@ -595,6 +596,7 @@ pub const MAIN_SETTINGS_SCROLL_TARGET_SETTING_KEYS: &[(&str, &[&str])] = &[
         &[
             "sessionCardHoverButtons",
             "showSessionCardHoverButtonsInContextMenu",
+            "sidebarSessionLinks",
         ],
     ),
     (
@@ -791,6 +793,7 @@ pub const MAIN_SETTINGS_SECTION_SETTING_KEYS: &[(&str, &[&str])] = &[
             "renameSessionOnDoubleClick",
             "sessionCardHoverButtons",
             "showSessionCardHoverButtonsInContextMenu",
+            "sidebarSessionLinks",
             "sidebarSessionTagListItems",
         ],
     ),

@@ -5,7 +5,7 @@
 //! CDXC:SessionLinks 2026-10-24 DECISION:
 //! User: "yes" to one session linking several PRs and several GitHub issues, "and several linear tickets too". This replaces the work-mode rule "Linear issues are a list, the other kinds one each" for what a session shows; the Link to menu's own single PR and issue (`workLinks`) stay as they are and join this list as the session's branch links.
 //! CDXC:SessionLinks 2026-10-24 DECISION:
-//! User: "everywhere": every session gets its links, not only sessions of Work mode projects (the sidebar card's permanent chip line stays Work mode only, which the user asked to keep).
+//! User: "everywhere": every session gets its links, not only sessions of Work mode projects. How a sidebar row shows them is the "Session links in the sidebar" setting (CDXC:SessionLinks 2026-10-24 in packages/gx-core/src/sidebar_view/links.rs), which supersedes keeping the row's line Work-mode-only.
 //! CDXC:SessionLinks 2026-10-24 DECISION:
 //! User picked "two-line" for each entry: the number, title and state on the first line, then checks, review and where the link came from (`sourceLabel`) on the second.
 

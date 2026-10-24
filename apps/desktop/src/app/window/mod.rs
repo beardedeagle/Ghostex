@@ -37,7 +37,7 @@ pub(crate) mod quick_access;
 pub(crate) mod remote_gxserver_install_modal;
 pub(crate) mod remote_setup_modal;
 pub(crate) mod remote_sites;
-pub(crate) mod session_links_panel;
+pub(crate) mod session_links_card;
 pub(crate) mod rename_session_modal;
 pub(crate) mod rename_worktree_modal;
 mod resources_style;

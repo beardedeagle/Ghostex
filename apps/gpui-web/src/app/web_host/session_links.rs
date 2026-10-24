@@ -1,43 +1,102 @@
-//! A session's links list in the browser: the desktop opens it as a header dropdown (a native child
-//! window, apps/desktop/src/app/window/session_links_panel.rs), which a page does not have, so a
-//! hovered card's "+N" names the links in a toast instead.
+//! The floating links card in the browser: the desktop opens it as a native child window beside
+//! the sidebar (apps/desktop/src/app/window/session_links_card.rs), which a page does not have, so
+//! the page draws the same list (native_sidebar/links_list.rs) in its own canvas, beside the row.
 
-use ghostex_gx_core::SessionKey;
-use gpui::{Bounds, Context, Pixels, Window};
+use gpui::{
+    AnyElement, AppContext as _, Context, IntoElement, ParentElement as _, Styled as _, Window,
+    anchored, deferred, div, point, px,
+};
 
 use crate::GhostexGpuiApp;
+use crate::app::native_sidebar::links_list::{
+    SESSION_LINKS_CARD_WIDTH, SessionLinksList, SessionLinksListHost, session_links_list_height,
+};
+use ghostex_gx_core::SessionKey;
 
 impl GhostexGpuiApp {
-    pub(crate) fn open_session_links_list(
+    pub(crate) fn open_session_links_card(&mut self, session_id: String, cx: &mut Context<Self>) {
+        let Some(key) =
+            SessionKey::parse_sidebar_session_id(&session_id).filter(|key| key.machine.is_local())
+        else {
+            return;
+        };
+        let Some(links) = self.session_links_of(&key) else {
+            return;
+        };
+        let main_app = cx.weak_entity();
+        let list = cx.new(|cx| {
+            SessionLinksList::new(main_app, key, SessionLinksListHost::Card, Some(links), cx)
+        });
+        self.native_sidebar.links_card_session = Some(session_id);
+        self.native_sidebar.links_card_hovered = false;
+        self.native_sidebar.links_card_list = Some(list);
+        self.watch_session_links_card(cx);
+        cx.notify();
+    }
+
+    /// Whether the pointer is on the card the page drew last.
+    pub(crate) fn session_links_card_holds_pointer(&self, cx: &mut gpui::App) -> bool {
+        let (Some(handle), Some(bounds)) = (
+            self.web_host.main_window,
+            self.native_sidebar.links_card_bounds.get(),
+        ) else {
+            return false;
+        };
+        handle
+            .update(cx, |_, window, _| bounds.contains(&window.mouse_position()))
+            .unwrap_or(false)
+    }
+
+    pub(crate) fn close_session_links_card(&mut self, cx: &mut Context<Self>) {
+        self.native_sidebar.links_card_session = None;
+        self.native_sidebar.links_card_hovered = false;
+        self.native_sidebar.links_card_list = None;
+        self.native_sidebar.links_card_bounds.set(None);
+        cx.notify();
+    }
+
+    /// The page has no header dropdown, so only the card ever closes itself here.
+    pub(crate) fn close_session_links_host(
         &mut self,
-        key: SessionKey,
-        _anchor: Bounds<Pixels>,
+        _host: SessionLinksListHost,
         _window: &mut Window,
         cx: &mut Context<Self>,
     ) {
-        let sidebar_id = key.to_sidebar_session_id();
-        let links = self.native_sidebar.snapshot.as_ref().and_then(|snapshot| {
-            snapshot
-                .groups
-                .iter()
-                .flat_map(|group| group.sessions.iter())
-                .find(|session| session.session_id == sidebar_id)
-                .and_then(|session| session.links.clone())
-        });
-        let Some(links) = links else {
-            return;
-        };
-        let body = links
-            .items
-            .iter()
-            .map(|link| link.summary())
-            .collect::<Vec<_>>()
-            .join("\n");
-        self.dispatch_gpui_workspace_action_toast(
-            "info",
-            &format!("{} links", links.items.len()),
-            &body,
-            cx,
-        );
+        self.close_session_links_card(cx);
+    }
+
+    /// The card beside the row it belongs to, over the work area.
+    pub(crate) fn render_session_links_page_card(
+        &self,
+        _cx: &mut Context<Self>,
+    ) -> Option<AnyElement> {
+        let list = self.native_sidebar.links_card_list.clone()?;
+        let session_id = self.native_sidebar.links_card_session.as_ref()?;
+        let row = self.native_sidebar.session_card_bounds.get(session_id)?;
+        let key = SessionKey::parse_sidebar_session_id(session_id)?;
+        let height = session_links_list_height(self.session_links_of(&key).as_ref());
+        let sidebar = self.native_sidebar.bounds;
+        let origin = point(sidebar.right() + px(6.0), row.top());
+        self.native_sidebar
+            .links_card_bounds
+            .set(Some(gpui::Bounds::new(
+                origin,
+                gpui::size(px(SESSION_LINKS_CARD_WIDTH), px(height)),
+            )));
+        Some(
+            deferred(
+                anchored()
+                    .position(origin)
+                    .snap_to_window_with_margin(px(8.0))
+                    .child(
+                        div()
+                            .w(px(SESSION_LINKS_CARD_WIDTH))
+                            .h(px(height))
+                            .child(list),
+                    ),
+            )
+            .with_priority(30)
+            .into_any_element(),
+        )
     }
 }

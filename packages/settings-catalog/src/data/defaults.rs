@@ -51,6 +51,8 @@ pub const DEFAULT_GHOSTEX_SETTINGS: &[(&str, J)] = &[
     ("webLinkOpenTarget", J::Str("internal-browser")),
     // CDXC:SessionLinks 2026-10-24 DECISION: User: "user can pick to open in embedded or external browser in settings (default to embedded)".
     ("sessionLinkOpenTarget", J::Str("embedded")),
+    // CDXC:SessionLinks 2026-10-24 SEE-ALSO: `SessionLinksDisplay` in packages/gx-core/src/sidebar_view/links.rs (what each value shows, and why Badge is the default).
+    ("sidebarSessionLinks", J::Str("badge")),
     // CDXC:Navigation 2026-10-17 SEE-ALSO: these replace markdownFileOpenView, htmlFileOpenView and imageFileOpenTarget, which still decide until documentFileOpenTarget is saved (file_opening.rs).
     ("documentFileOpenTarget", J::Str("files")),
     ("otherFileOpenTarget", J::Str("files")),

@@ -64,7 +64,7 @@ pub(crate) fn titlebar_popup_menu_width(kind: GpuiTitlebarPopupKind) -> f32 {
         GpuiTitlebarPopupKind::AccountUsage(_) => 380.0,
         GpuiTitlebarPopupKind::RemoteSites => TITLEBAR_POPUP_RESOURCES_WIDTH,
         GpuiTitlebarPopupKind::SessionLinks => {
-            crate::app::window::session_links_panel::SESSION_LINKS_PANEL_WIDTH
+            crate::app::native_sidebar::links_list::SESSION_LINKS_LIST_WIDTH
         }
         GpuiTitlebarPopupKind::Actions
         | GpuiTitlebarPopupKind::ContextMenu

@@ -3273,11 +3273,10 @@ default for projects in a Work workspace and off in a Personal one; right-click
 a project and choose Work Mode, turn on **Work mode** for the project in Settings >
 Projects, or run `ghostex work-mode on` in its folder, to set it yourself, and a project keeps a choice you made when it moves to another
 workspace (otherwise it takes the new workspace's default). In a
-work-mode project, a session linked to a GitHub pull request, a GitHub issue, a
-Linear issue or a Linear project gets a second line on its card: the PR with its
-state and checks, the issue with its status, and the Linear project. Click a PR or
-issue chip to open its details in the Work view (see Views), or the Linear project
-chip to open it in the browser. Links come from the session's branch on their own (a branch named like
+work-mode project a session is linked to its GitHub pull request, its GitHub or
+Linear issues and a Linear project; its card shows its pull requests and issues the
+way every session's links show (the **Session links in the sidebar** setting,
+below), and the Work view (see Views) shows a ticket's details. Links come from the session's branch on their own (a branch named like
 `yahia/spx-1245-copy-link` or `yahia/218-arabic-plan-cards`), from the PR Linear
 attached to the issue, or by hand: right-click the session, choose Link to, then
 Pull request…, Linear issue…, Linear project… or GitHub issue…, and pick from the
@@ -3302,9 +3301,8 @@ to list would suggest. The phone's session menu has the same Link to, with the
 GitHub rows in a workspace whose primary tracker is GitHub. When a linked PR is merged, its card offers
 Clean up (remove the session's worktree and park the session; a worktree with
 uncommitted changes is kept) or Keep, once per PR; `ghostex work-mode cleanup
-<session> clean-up|keep` answers it from a terminal. The phone's session list
-shows the same second line (the GitHub Project chip included): tap a chip to open it in the browser, touch and hold
-it to copy its link, and tap Clean up or Keep to answer. A
+<session> clean-up|keep` answers it from a terminal. The offer takes the card's
+second line until you answer; on the phone's session list, tap Clean up or Keep. A
 session on a branch other than main is titled by that branch, without your name
 and the ticket ID, until you rename it. Linear status needs a Linear API key: set
 one per workspace in Settings > Workspaces; a project that needs a different key
@@ -3333,17 +3331,27 @@ or changes requested) and where it came from. Click a link to open it; **Open
 session links in** (Settings > General > Browser) opens them in the internal
 browser (the default) or your default browser. Click a link's × and then Remove?
 within three seconds to remove it; a removed link never comes back by itself
-(adding it again by hand does). In the sidebar, rest the pointer on a session's
-card for a moment and it opens a line with its links, number and state, with +N
-for the ones that do not fit; a Work mode card keeps its own second line instead.
-A red dot on +N means a link behind it has failing checks; Ghostex sends no
+(adding it again by hand does). In the sidebar, **Session links in the sidebar**
+(Settings > Session Cards) picks how a card shows them: Always (a line of chips
+under every card that has links), Selected session (that line only under the
+session you have open), Badge (the default: a small count on the card, coloured by
+the most pressing link: red for failing checks or changes asked for, amber for a
+review asked for or checks still running), Open work only (a line of the ones
+still open, none once they are all merged or closed), or Off. Rest the pointer on a
+card that has links and, after the tooltip delay, a card opens beside the sidebar
+listing them all, two lines each, with the same open, ×, Remove? and Link as the
+header's list; it stays while the pointer is on the card or its row (Off shows no
+card). A red dot on +N means a link behind it has failing checks; Ghostex sends no
 notifications for link changes. On the phone, the chat shows the same chips under
 its header: tap one to open it, touch and hold to copy its link, and tap +N or
-List for the whole list (× twice removes a link, Link adds a suggestion). States
+List for the whole list (× twice removes a link, Link adds a suggestion). The
+phone's session list follows the computer's Session links in the sidebar, and a
+session's long-press menu has a Links row that opens the same list. States
 refresh about once a minute, and merged or closed ones stop being checked.
 `ghostex link list [--session <session>]` prints a session's links and
-`ghostex link remove <link>` removes one. Setting: `sessionLinkOpenTarget`
-(`embedded` or `external`).
+`ghostex link remove <link>` removes one. Settings: `sessionLinkOpenTarget`
+(`embedded` or `external`), `sidebarSessionLinks` (`always`, `selected`, `badge`,
+`open` or `off`).
 
 To start a piece of work from a new ticket, open the project's "…" menu and choose
 Create Linear Ticket… (it shows once the project is in work mode and has a Linear

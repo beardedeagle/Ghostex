@@ -5,7 +5,7 @@
 //! User, of the chips in the work area header: "yes yes yes love this". Up to three chips (one when the header is compact) follow the title, open work first; the title gives way before them. The chips show for every session, not only in Work mode (the user's "everywhere").
 //!
 //! SEE-ALSO: apps/desktop/src/app/native_sidebar/link_chips.rs (the chip drawing),
-//! apps/desktop/src/app/window/session_links_panel.rs (the list).
+//! apps/desktop/src/app/native_sidebar/links_list.rs (the list).
 
 use gpui::prelude::FluentBuilder as _;
 use gpui::{
@@ -20,7 +20,7 @@ use crate::app::native_sidebar::link_chips::{
     open_session_link_command, session_link_chip_body, session_links_overflow_pill,
 };
 use crate::*;
-use ghostex_gx_core::{SessionKey, SessionLinks};
+use ghostex_gx_core::SessionKey;
 
 /// Chips the header shows before its "+N".
 const HEADER_CHIPS: usize = 3;
@@ -39,16 +39,6 @@ impl GhostexGpuiApp {
         let session_id = workspace.active_session_in_pane(pane_id)?;
         let key = self.agents_chat_local_key_for_session(session_id)?;
         Some(SessionKey::local(key.project_id, key.session_id))
-    }
-
-    /// A session's links as gxserver last published them.
-    pub(crate) fn session_links_of(&self, key: &SessionKey) -> Option<SessionLinks> {
-        let session = self.gx_store.core.presentation().session(key)?;
-        session
-            .links
-            .as_ref()
-            .map(SessionLinks::from_presentation)
-            .filter(|links| !links.is_empty())
     }
 
     /// Opens the session's links list under `anchor`.

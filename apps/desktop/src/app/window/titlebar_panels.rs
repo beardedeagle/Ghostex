@@ -68,7 +68,7 @@ pub(crate) enum GpuiTitlebarPopupContent {
     Menu(Entity<PopupMenu>),
     Reading(Entity<GpuiTitlebarReadingPanel>),
     RemoteSites(Entity<crate::app::window::remote_sites::RemoteSitesPanel>),
-    SessionLinks(Entity<crate::app::window::session_links_panel::SessionLinksPanel>),
+    SessionLinks(Entity<crate::app::native_sidebar::links_list::SessionLinksList>),
 }
 
 pub(crate) struct GpuiTitlebarPopupWindow {

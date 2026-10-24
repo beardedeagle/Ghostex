@@ -11,6 +11,7 @@ pub(crate) fn session_cards() -> Section {
             // CDXC:Sessions 2026-05-15-19:46:
             // Settings must not expose the card-hotkey visibility row; session-card shortcut visibility is no longer configurable from the modal.
             row("sessionCardHoverButtons", "Session hover buttons (click to toggle, drag to reorder)", "Buttons a session card shows when you hover it. Click an icon to turn it on or off; drag icons to reorder them. Buttons to the right of the chevron always show, buttons to its left hide until the chevron is clicked. By default the strip is Tag, Park, Sleep, chevron, Close."),
+            row("sidebarSessionLinks", "Session links in the sidebar", "How a session card shows the pull requests, issues and Linear tickets it is linked to. Always: a line of them under every card that has any. Selected session: that line only under the session you have open. Badge: a small count on the card, coloured by the most pressing one. Open work only: a line of the ones still open, none once they are all merged or closed. Hovering a card with links shows them all in a card beside the sidebar, except with Off, which shows nothing.").options(SIDEBAR_SESSION_LINKS_OPTIONS),
             row("showSessionCardHoverButtonsInContextMenu", "Hover buttons also in context menu", "Also list the enabled hover buttons in the session right-click menu, in their usual place in the menu. Close is never listed while it is on the card. Turn off to leave every button out of the menu once it is on the card."),
         ],
     )

@@ -1,11 +1,14 @@
-//! A session's PR, issue and Linear chips: the line a hovered sidebar card opens under its title,
-//! and the chip drawing the work area header shares (render/workarea_header/session_links.rs).
+//! A session's PR, issue and Linear chips: the line and the badge a sidebar row shows (as the
+//! "Session links in the sidebar" setting says), and the chip drawing the work area header shares
+//! (render/workarea_header/session_links.rs). Hovering a row opens the floating links card
+//! (window/session_links_card.rs on the desktop).
 //!
 //! CDXC:SessionLinks 2026-10-24 DECISION:
-//! User, of the hover card: "i want the session itself to expand to show the prs issues linear tickets that were mentioned inside it below it (just number and status, show ids and if there's more that dont fit show +7 in pill like u showed before)". A card resting under the pointer for the tooltip delay grows by one chip line; the line goes when the pointer leaves. A Work mode card already draws its links on its permanent second line (CDXC:WorkMode 2026-10-09), which the user asked to keep as it is, so it does not grow.
+//! User: "also didn't we agree to have a way to see these floating on the right of the sidebar when i hover somewhere? (instead of showing them just below the sidebar item". Hovering a row that has links opens a card beside the sidebar listing them all, after the tooltip delay; the row no longer grows by a line on hover. This supersedes the earlier 2026-10-24 rule that a hovered card expands to show its links below it.
 //!
-//! SEE-ALSO: packages/gx-core/src/sidebar_view/links.rs (glyphs, tones and words),
-//! apps/desktop/src/app/gx_store/session_links.rs (what a click sends).
+//! SEE-ALSO: packages/gx-core/src/sidebar_view/links.rs (`SessionLinksDisplay` and what a row
+//! shows, glyphs, tones and words), apps/desktop/src/app/gx_store/session_links.rs (what a click
+//! sends), apps/mobile/app/src/chat/native/sessionLinks.ts (the phone's copy of the row rule).
 
 use gpui::prelude::FluentBuilder;
 use gpui::{
@@ -21,7 +24,10 @@ use super::model::NativeSidebarSession;
 use super::tooltips::SidebarTooltipSpan;
 use crate::GhostexGpuiApp;
 use crate::app::helpers::*;
-use ghostex_gx_core::{SessionLink, SessionLinkGlyph, SessionLinkTone, SessionLinks};
+use ghostex_gx_core::{
+    SessionLink, SessionLinkGlyph, SessionLinkTone, SessionLinks, SessionLinksDisplay,
+    SessionLinksRow,
+};
 
 /// The line's height, the Work mode card's chip line's (work_chips.rs).
 pub(crate) const LINK_LINE_HEIGHT: f32 = 16.0;
@@ -165,33 +171,87 @@ pub(crate) fn session_links_overflow_pill(
         })
 }
 
-/// Where the card title's tooltip goes: under the title as usual, but beside the card for a card
-/// that opens a links line, which the tooltip would otherwise cover.
-///
-/// CDXC:SessionLinks 2026-10-24 WHY:
-/// The title's tooltip drops just under the card's first line, which is where the links line opens, and a tooltip is placed when hover starts, before the line opens. A card that can open the line shows its tooltip beside it instead (on the side with more room), so both stay readable.
-pub(super) fn session_title_tooltip_placement(
-    session: &NativeSidebarSession,
-    span: SidebarTooltipSpan,
-) -> gpui_component::tooltip::ManagedTooltipPlacement {
-    if session.work.is_none() && session.links.is_some() {
-        gpui_component::tooltip::ManagedTooltipPlacement::WiderSide
-    } else {
-        span.placement()
-    }
-}
-
 impl GhostexGpuiApp {
-    /// Whether this card shows its links line now: it is the card the pointer rested on, it has
-    /// links, and it is not a Work mode card (which shows them on its own second line).
-    pub(crate) fn native_session_shows_link_line(&self, session: &NativeSidebarSession) -> bool {
-        session.work.is_none()
-            && session.links.is_some()
-            && self.native_sidebar.link_line_session.as_deref() == Some(&session.session_id)
+    /// A session's links as gxserver last published them.
+    pub(crate) fn session_links_of(
+        &self,
+        key: &ghostex_gx_core::SessionKey,
+    ) -> Option<SessionLinks> {
+        let session = self.gx_store.core.presentation().session(key)?;
+        session
+            .links
+            .as_ref()
+            .map(SessionLinks::from_presentation)
+            .filter(|links| !links.is_empty())
     }
 
-    /// The hovered card's links line: the chips that fit, then "+N" for the rest, which opens the
-    /// session's whole list.
+    /// The "Session links in the sidebar" setting.
+    pub(crate) fn native_session_links_display(&self) -> SessionLinksDisplay {
+        let settings = crate::shared_settings::shared_sidebar_settings_snapshot();
+        SessionLinksDisplay::from_setting(
+            settings
+                .object()
+                .get(SessionLinksDisplay::SETTING_KEY)
+                .and_then(serde_json::Value::as_str),
+        )
+    }
+
+    /// What this row shows of its links (gx-core's rule), the session open in the window counting
+    /// as selected.
+    pub(crate) fn native_session_links_row(
+        &self,
+        session: &NativeSidebarSession,
+    ) -> SessionLinksRow {
+        let Some(links) = session.links.as_deref() else {
+            return SessionLinksRow::default();
+        };
+        let (selected, _) = self.gx_store_sidebar_row_focus(
+            &session.session_id,
+            session.is_browser(),
+            session.is_focused,
+            session.is_visible,
+        );
+        links.row(self.native_session_links_display(), selected)
+    }
+
+    /// Whether the row draws a second line: its links line, or a Work mode card's Clean up / Keep
+    /// offer for a merged PR (work_chips.rs), which takes the line while it waits.
+    pub(crate) fn native_session_has_second_line(&self, session: &NativeSidebarSession) -> bool {
+        session.work.as_ref().is_some_and(|work| work.offer_cleanup)
+            || !self.native_session_links_row(session).line.is_empty()
+    }
+
+    /// The badge a row shows with the Badge option: the number of links, coloured by the most
+    /// pressing one. Hidden while the row is hovered, like the row's other badges.
+    pub(super) fn render_native_session_links_badge(
+        &self,
+        session: &NativeSidebarSession,
+        appearance: &SidebarAppearance,
+    ) -> Option<AnyElement> {
+        let badge = self.native_session_links_row(session).badge?;
+        let scale = appearance.scale;
+        let color = session_link_tone_color(badge.tone);
+        Some(
+            div()
+                .flex()
+                .flex_shrink_0()
+                .items_center()
+                .gap(px(3.0 * scale))
+                .h(px(16.0 * scale))
+                .px(px(5.0 * scale))
+                .rounded_full()
+                .border_1()
+                .border_color(color.opacity(0.45))
+                .text_size(px(10.5 * scale))
+                .text_color(color)
+                .child(titlebar_svg_icon("titlebar/link.svg", 10.0 * scale, color))
+                .child(badge.count.to_string())
+                .into_any_element(),
+        )
+    }
+
+    /// The row's links line (the Always, Selected session and Open work only options): the chips
+    /// gx-core picked that fit, then "+N" for the rest, which opens the floating card.
     pub(super) fn render_native_session_link_line(
         &self,
         session: &NativeSidebarSession,
@@ -200,69 +260,77 @@ impl GhostexGpuiApp {
         appearance: &SidebarAppearance,
         cx: &mut gpui::Context<Self>,
     ) -> Option<AnyElement> {
-        if !self.native_session_shows_link_line(session) {
+        if session.work.as_ref().is_some_and(|work| work.offer_cleanup) {
+            return None;
+        }
+        let row = self.native_session_links_row(session);
+        if row.line.is_empty() {
             return None;
         }
         let links: &SessionLinks = session.links.as_deref()?;
+        let items: Vec<SessionLink> = row
+            .line
+            .iter()
+            .filter_map(|index| links.items.get(*index).cloned())
+            .collect();
         let scale = appearance.scale;
         // The card's width less its insets and the indent under the title.
         let available = self.sidebar_width / scale - 2.0 * 3.0 - (indent + 15.0 + 6.0) - 6.0 - 8.0;
-        let shown = session_link_chips_that_fit(&links.items, available, 10.0);
+        let shown = session_link_chips_that_fit(&items, available, 10.0);
         let hidden = links.items.len() - shown;
         let show_tooltips = self.native_sidebar.pointer_inside
             && self.native_sidebar.menu.is_none()
             && !cx.has_active_drag();
         let session_id = session.session_id.clone();
-        let chips = links
-            .items
-            .iter()
-            .take(shown)
-            .enumerate()
-            .map(|(index, link)| {
-                let click = open_session_link_command(link);
-                let tooltip = format!("{}\n{}", link.summary(), link.detail_line());
-                let foreground = appearance.foreground;
-                session_link_chip_body(link, scale, 11.5, appearance.muted)
-                    .id(format!("native-session-link-{index}-{session_id}"))
-                    .role(gpui::Role::Link)
-                    .aria_label(link.summary())
-                    .when_some(click, |chip, click| {
-                        chip.cursor_pointer()
-                            .hover(move |style| {
-                                style
-                                    .text_color(foreground)
-                                    .text_decoration_1()
-                                    .text_decoration_color(foreground)
-                            })
-                            .on_mouse_down(MouseButton::Left, |_, _, cx| cx.stop_propagation())
-                            .on_click(cx.listener(move |app, _, _, cx| {
-                                cx.stop_propagation();
-                                app.dispatch_native_sidebar_ui(click.clone(), cx);
-                            }))
-                    })
-                    .when(show_tooltips, |chip| {
-                        chip.managed_discrete_tooltip_with_placement(
-                            tooltip_span.placement(),
-                            appearance.tooltip_delay,
-                            move |window, cx| {
-                                super::tooltips::sidebar_tooltip(
-                                    tooltip.clone(),
-                                    tooltip_span,
-                                    scale,
-                                    window,
-                                    cx,
-                                )
-                            },
-                        )
-                    })
-                    .into_any_element()
-            });
+        let chips = items.iter().take(shown).enumerate().map(|(index, link)| {
+            let click = open_session_link_command(link);
+            let tooltip = format!("{}\n{}", link.summary(), link.detail_line());
+            let foreground = appearance.foreground;
+            session_link_chip_body(link, scale, 11.5, appearance.muted)
+                .id(format!("native-session-link-{index}-{session_id}"))
+                .role(gpui::Role::Link)
+                .aria_label(link.summary())
+                .when_some(click, |chip, click| {
+                    chip.cursor_pointer()
+                        .hover(move |style| {
+                            style
+                                .text_color(foreground)
+                                .text_decoration_1()
+                                .text_decoration_color(foreground)
+                        })
+                        .on_mouse_down(MouseButton::Left, |_, _, cx| cx.stop_propagation())
+                        .on_click(cx.listener(move |app, _, _, cx| {
+                            cx.stop_propagation();
+                            app.dispatch_native_sidebar_ui(click.clone(), cx);
+                        }))
+                })
+                .when(show_tooltips, |chip| {
+                    chip.managed_discrete_tooltip_with_placement(
+                        tooltip_span.placement(),
+                        appearance.tooltip_delay,
+                        move |window, cx| {
+                            super::tooltips::sidebar_tooltip(
+                                tooltip.clone(),
+                                tooltip_span,
+                                scale,
+                                window,
+                                cx,
+                            )
+                        },
+                    )
+                })
+                .into_any_element()
+        });
         let overflow = (hidden > 0).then(|| {
             let key = ghostex_gx_core::SessionKey::parse_sidebar_session_id(&session_id)
                 .filter(|key| key.machine.is_local());
+            let failing = links.items.iter().any(|link| {
+                link.checks.as_deref() == Some("failing")
+                    && !items.iter().take(shown).any(|shown| shown.key == link.key)
+            });
             session_links_overflow_pill(
                 hidden,
-                links.overflow_has_failing(shown),
+                failing,
                 scale,
                 11.0,
                 appearance.foreground,
@@ -271,17 +339,14 @@ impl GhostexGpuiApp {
             .id(format!("native-session-links-more-{session_id}"))
             .role(gpui::Role::Button)
             .aria_label(format!("{hidden} more links"))
-            .when_some(key, |pill, key| {
+            .when(key.is_some(), |pill| {
+                let session_id = session_id.clone();
                 pill.cursor_pointer()
                     .on_mouse_down(MouseButton::Left, |_, _, cx| cx.stop_propagation())
-                    .on_click(
-                        cx.listener(move |app, event: &gpui::ClickEvent, window, cx| {
-                            cx.stop_propagation();
-                            let anchor =
-                                gpui::Bounds::new(event.position(), gpui::size(px(1.0), px(1.0)));
-                            app.open_session_links_list(key.clone(), anchor, window, cx);
-                        }),
-                    )
+                    .on_click(cx.listener(move |app, _, _, cx| {
+                        cx.stop_propagation();
+                        app.open_session_links_card(session_id.clone(), cx);
+                    }))
             })
             .into_any_element()
         });
@@ -292,7 +357,7 @@ impl GhostexGpuiApp {
                 .w_full()
                 .min_w_0()
                 .overflow_hidden()
-                // Under the title, like the Work mode card's chips.
+                // Under the title.
                 .pl(px((indent + 15.0 + 6.0) * scale))
                 .pr(px(6.0 * scale))
                 .gap(px(10.0 * scale))

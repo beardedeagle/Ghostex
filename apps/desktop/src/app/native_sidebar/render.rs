@@ -389,6 +389,8 @@ impl GhostexGpuiApp {
                 cx,
             ))
             .children(self.render_native_sidebar_menu(window, cx))
+            // The floating links card, where a build draws it in the page (the desktop's is a window).
+            .children(self.render_session_links_page_card(cx))
             .into_any_element()
     }
 }

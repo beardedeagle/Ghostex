@@ -1,31 +1,53 @@
-//! A session's links list: the dropdown the header's and a hovered card's "+N" open. Every PR,
-//! GitHub issue and Linear ticket the session is linked to, on two lines each, with the chat's
-//! suggestions below.
+//! A session's links list: every PR, GitHub issue and Linear ticket the session is linked to, on
+//! two lines each, with the chat's suggestions below. The header's "+N" dropdown and the floating
+//! card a hovered sidebar row opens both draw it (the titlebar popup plumbing hosts the dropdown,
+//! window/session_links_card.rs the card; the web build draws the card in its own page).
 //!
 //! CDXC:SessionLinks 2026-10-24 DECISION:
 //! User: "i also want the user to be able to click on an x icon button (twice to confirm) to hide the link". The first click on an entry's × turns it into a red "Remove?" for three seconds; a second click removes the link, and it never joins the session again by itself (server/src/session_links/store.rs).
 //! CDXC:SessionLinks 2026-10-24 DECISION:
 //! User: a PR or issue URL the chat only mentioned is offered under Suggested ("suggest") with a Link button, rather than linked by itself.
+//! CDXC:SessionLinks 2026-10-24 WHY:
+//! The list opens from a click or a hover the app is still handling, and opening a window draws it at once, so a list that read the app while drawing crashed Ghostex ("cannot read GhostexGpuiApp while it is already being updated"). The opener hands the list in, and later changes arrive through the observer, which runs after the app's update.
 
-use super::resources_style::*;
-use crate::app::helpers::*;
-use crate::app::native_sidebar::link_chips::{
+use gpui::prelude::FluentBuilder as _;
+use gpui::{
+    AnyElement, Context, FontWeight, InteractiveElement as _, IntoElement, ParentElement as _,
+    Render, ScrollHandle, StatefulInteractiveElement as _, Styled as _, Window, div, px,
+};
+use gpui_component::tooltip::Tooltip;
+use gpui_component::{h_flex, v_flex};
+use serde_json::json;
+use std::time::Duration;
+
+use super::link_chips::{
     open_session_link_command, session_link_glyph_icon, session_link_tone_color,
 };
-use crate::*;
-use ghostex_gx_core::{SessionKey, SessionLink, SessionLinkKind, SessionLinks};
-use serde_json::json;
+use crate::GhostexGpuiApp;
+use crate::app::helpers::*;
+use ghostex_gx_core::{SessionKey, SessionLink, SessionLinkKind, SessionLinkTone, SessionLinks};
 
 /// How long a × waits for its confirming click.
 const REMOVE_ARMED_FOR: Duration = Duration::from_secs(3);
-pub(crate) const SESSION_LINKS_PANEL_WIDTH: f32 = 440.0;
+pub(crate) const SESSION_LINKS_LIST_WIDTH: f32 = 440.0;
+/// The floating card beside the sidebar is narrower than the header's dropdown.
+pub(crate) const SESSION_LINKS_CARD_WIDTH: f32 = 380.0;
 const HEADER_HEIGHT: f32 = 38.0;
 const SECTION_HEIGHT: f32 = 24.0;
 const ROW_HEIGHT: f32 = 46.0;
 const SUGGESTED_ROW_HEIGHT: f32 = 34.0;
 
-/// The dropdown's height for a list, before the window caps it.
-pub(crate) fn session_links_panel_height(links: Option<&SessionLinks>) -> f32 {
+/// Where a list is shown, which decides what closing it does.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(crate) enum SessionLinksListHost {
+    /// The header's "+N" dropdown.
+    Dropdown,
+    /// The card a hovered sidebar row opens.
+    Card,
+}
+
+/// The list's height for these links, before the window caps it.
+pub(crate) fn session_links_list_height(links: Option<&SessionLinks>) -> f32 {
     let Some(links) = links else {
         return HEADER_HEIGHT + 60.0;
     };
@@ -45,38 +67,34 @@ pub(crate) fn session_links_panel_height(links: Option<&SessionLinks>) -> f32 {
         + links.suggested.len() as f32 * SUGGESTED_ROW_HEIGHT
 }
 
-pub(crate) struct SessionLinksPanel {
+pub(crate) struct SessionLinksList {
     main_app: gpui::WeakEntity<GhostexGpuiApp>,
     key: SessionKey,
+    host: SessionLinksListHost,
     /// The entry whose × was clicked once, waiting for the second click.
     armed: Option<String>,
     scroll: ScrollHandle,
-    /// The list this panel draws, kept here rather than read from the app while drawing.
+    /// The list this draws, kept here rather than read from the app while drawing.
     links: Option<SessionLinks>,
     _observe: Option<gpui::Subscription>,
 }
 
-impl SessionLinksPanel {
-    /// `links` is the list as the app has it when the dropdown opens.
-    ///
-    /// CDXC:SessionLinks 2026-10-24 WHY:
-    /// The dropdown opens from a click the app is still handling (`open_session_links_list`), and
-    /// opening its window draws it at once, so a panel that read the app while drawing crashed
-    /// Ghostex ("cannot read GhostexGpuiApp while it is already being updated"). The opener hands
-    /// the list in, and later changes arrive through the observer, which runs after the app's update.
+impl SessionLinksList {
+    /// `links` is the list as the app has it when the list opens.
     pub(crate) fn new(
         main_app: gpui::WeakEntity<GhostexGpuiApp>,
         key: SessionKey,
+        host: SessionLinksListHost,
         links: Option<SessionLinks>,
-        cx: &mut gpui::Context<Self>,
+        cx: &mut Context<Self>,
     ) -> Self {
         // The list follows the session while it is open: a link the background pass finds, a
         // check that turns red, a removal.
         let observe = main_app.upgrade().map(|app| {
-            cx.observe(&app, |panel: &mut Self, app, cx| {
-                let links = app.read(cx).session_links_of(&panel.key);
-                if links != panel.links {
-                    panel.links = links;
+            cx.observe(&app, |list: &mut Self, app, cx| {
+                let links = app.read(cx).session_links_of(&list.key);
+                if links != list.links {
+                    list.links = links;
                     cx.notify();
                 }
             })
@@ -84,6 +102,7 @@ impl SessionLinksPanel {
         Self {
             main_app,
             key,
+            host,
             armed: None,
             scroll: ScrollHandle::new(),
             links,
@@ -91,20 +110,20 @@ impl SessionLinksPanel {
         }
     }
 
-    fn close(&self, window: &mut Window, cx: &mut gpui::Context<Self>) {
+    fn close(&self, window: &mut Window, cx: &mut Context<Self>) {
+        let host = self.host;
         let _ = self.main_app.update(cx, |app, cx| {
-            app.clear_gpui_titlebar_popup_from_window(GpuiTitlebarPopupKind::SessionLinks, cx)
+            app.close_session_links_host(host, window, cx);
         });
-        window.remove_window();
     }
 
-    fn send(&self, command: serde_json::Value, cx: &mut gpui::Context<Self>) {
+    fn send(&self, command: serde_json::Value, cx: &mut Context<Self>) {
         let _ = self.main_app.update(cx, |app, cx| {
             app.dispatch_native_sidebar_ui(command, cx);
         });
     }
 
-    fn click_remove(&mut self, key: String, cx: &mut gpui::Context<Self>) {
+    fn click_remove(&mut self, key: String, cx: &mut Context<Self>) {
         if self.armed.as_deref() == Some(&key) {
             self.armed = None;
             let sidebar_id = self.key.to_sidebar_session_id();
@@ -114,11 +133,11 @@ impl SessionLinksPanel {
             );
         } else {
             self.armed = Some(key.clone());
-            cx.spawn(async move |panel, cx| {
+            cx.spawn(async move |list, cx| {
                 cx.background_executor().timer(REMOVE_ARMED_FOR).await;
-                let _ = panel.update(cx, |panel, cx| {
-                    if panel.armed.as_deref() == Some(&key) {
-                        panel.armed = None;
+                let _ = list.update(cx, |list, cx| {
+                    if list.armed.as_deref() == Some(&key) {
+                        list.armed = None;
                         cx.notify();
                     }
                 });
@@ -128,9 +147,10 @@ impl SessionLinksPanel {
         cx.notify();
     }
 
-    fn render_row(&self, link: &SessionLink, cx: &mut gpui::Context<Self>) -> AnyElement {
+    fn render_row(&self, link: &SessionLink, cx: &mut Context<Self>) -> AnyElement {
         let (glyph, tone) = link.glyph();
         let tone_color = session_link_tone_color(tone);
+        let red = session_link_tone_color(SessionLinkTone::Closed);
         let armed = self.armed.as_deref() == Some(link.key.as_str());
         let open = open_session_link_command(link);
         let key = link.key.clone();
@@ -196,7 +216,7 @@ impl SessionLinksPanel {
                             .truncate()
                             .text_size(px(11.5))
                             .text_color(if failing {
-                                session_link_tone_color(ghostex_gx_core::SessionLinkTone::Closed)
+                                red
                             } else {
                                 chrome_ink().opacity(0.55).into()
                             })
@@ -218,13 +238,8 @@ impl SessionLinksPanel {
                     .text_size(px(11.5))
                     .when(armed, |button| {
                         button
-                            .bg(
-                                session_link_tone_color(ghostex_gx_core::SessionLinkTone::Closed)
-                                    .opacity(0.16),
-                            )
-                            .text_color(session_link_tone_color(
-                                ghostex_gx_core::SessionLinkTone::Closed,
-                            ))
+                            .bg(red.opacity(0.16))
+                            .text_color(red)
                             .child("Remove?")
                     })
                     .when(!armed, |button| {
@@ -245,16 +260,16 @@ impl SessionLinksPanel {
                         })
                         .build(window, cx)
                     })
-                    .on_click(cx.listener(move |panel, _, _, cx| {
+                    .on_click(cx.listener(move |list, _, _, cx| {
                         cx.stop_propagation();
-                        panel.click_remove(key.clone(), cx);
+                        list.click_remove(key.clone(), cx);
                     })),
             )
             .when_some(open, |row, open| {
                 row.cursor_pointer()
-                    .on_click(cx.listener(move |panel, _, window, cx| {
-                        panel.send(open.clone(), cx);
-                        panel.close(window, cx);
+                    .on_click(cx.listener(move |list, _, window, cx| {
+                        list.send(open.clone(), cx);
+                        list.close(window, cx);
                     }))
             })
             .into_any_element()
@@ -273,10 +288,87 @@ impl SessionLinksPanel {
             .child(count.to_string())
             .into_any_element()
     }
+
+    fn render_suggestion(
+        &self,
+        suggestion: &ghostex_gx_core::SuggestedSessionLink,
+        cx: &mut Context<Self>,
+    ) -> AnyElement {
+        let (glyph, tone) = suggestion.glyph();
+        let link = suggestion.url.clone().unwrap_or_default();
+        let sidebar_id = self.key.to_sidebar_session_id();
+        h_flex()
+            .h(px(SUGGESTED_ROW_HEIGHT - 4.0))
+            .mb(px(4.0))
+            .w_full()
+            .gap(px(8.0))
+            .px(px(8.0))
+            .items_center()
+            .rounded(px(6.0))
+            .border_1()
+            .border_dashed()
+            .border_color(chrome_ink().opacity(0.16))
+            .text_size(px(12.0))
+            .child(titlebar_svg_icon(
+                session_link_glyph_icon(glyph),
+                14.0,
+                session_link_tone_color(tone),
+            ))
+            .child(
+                div()
+                    .flex_shrink_0()
+                    .text_color(chrome_ink().opacity(0.9))
+                    .child(suggestion.label.clone()),
+            )
+            .child(
+                div()
+                    .flex_1()
+                    .min_w_0()
+                    .truncate()
+                    .text_color(chrome_ink().opacity(0.55))
+                    .child(
+                        suggestion
+                            .title
+                            .clone()
+                            .unwrap_or_else(|| "Mentioned in the chat".to_string()),
+                    ),
+            )
+            .child(
+                div()
+                    .id(gpui::SharedString::from(format!(
+                        "session-link-add-{}",
+                        suggestion.key
+                    )))
+                    .flex_shrink_0()
+                    .px(px(8.0))
+                    .h(px(20.0))
+                    .flex()
+                    .items_center()
+                    .rounded(px(5.0))
+                    .border_1()
+                    .border_color(chrome_ink().opacity(0.18))
+                    .text_size(px(11.5))
+                    .text_color(chrome_ink().opacity(0.92))
+                    .cursor_pointer()
+                    .hover(|button| button.bg(chrome_ink().opacity(0.12)))
+                    .child("Link")
+                    .on_click(cx.listener(move |list, _, _, cx| {
+                        list.send(
+                            json!({
+                                "type": "addSessionLink",
+                                "sessionId": sidebar_id,
+                                "link": link,
+                            }),
+                            cx,
+                        );
+                    })),
+            )
+            .into_any_element()
+    }
 }
 
-impl Render for SessionLinksPanel {
-    fn render(&mut self, _window: &mut Window, cx: &mut gpui::Context<Self>) -> impl IntoElement {
+impl Render for SessionLinksList {
+    fn render(&mut self, _window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
         let links = self.links.clone().unwrap_or_default();
         let open = links.items.iter().filter(|item| !item.finished).count();
         let failing = links
@@ -314,77 +406,7 @@ impl Render for SessionLinksPanel {
         if !links.suggested.is_empty() {
             body = body.child(Self::section("Suggested", links.suggested.len()));
             for suggestion in &links.suggested {
-                let (glyph, tone) = suggestion.glyph();
-                let link = suggestion.url.clone().unwrap_or_default();
-                let sidebar_id = self.key.to_sidebar_session_id();
-                body = body.child(
-                    h_flex()
-                        .h(px(SUGGESTED_ROW_HEIGHT - 4.0))
-                        .mb(px(4.0))
-                        .w_full()
-                        .gap(px(8.0))
-                        .px(px(8.0))
-                        .items_center()
-                        .rounded(px(6.0))
-                        .border_1()
-                        .border_dashed()
-                        .border_color(chrome_ink().opacity(0.16))
-                        .text_size(px(12.0))
-                        .child(titlebar_svg_icon(
-                            session_link_glyph_icon(glyph),
-                            14.0,
-                            session_link_tone_color(tone),
-                        ))
-                        .child(
-                            div()
-                                .flex_shrink_0()
-                                .text_color(chrome_ink().opacity(0.9))
-                                .child(suggestion.label.clone()),
-                        )
-                        .child(
-                            div()
-                                .flex_1()
-                                .min_w_0()
-                                .truncate()
-                                .text_color(chrome_ink().opacity(0.55))
-                                .child(
-                                    suggestion
-                                        .title
-                                        .clone()
-                                        .unwrap_or_else(|| "Mentioned in the chat".to_string()),
-                                ),
-                        )
-                        .child(
-                            div()
-                                .id(gpui::SharedString::from(format!(
-                                    "session-link-add-{}",
-                                    suggestion.key
-                                )))
-                                .flex_shrink_0()
-                                .px(px(8.0))
-                                .h(px(20.0))
-                                .flex()
-                                .items_center()
-                                .rounded(px(5.0))
-                                .border_1()
-                                .border_color(chrome_ink().opacity(0.18))
-                                .text_size(px(11.5))
-                                .text_color(chrome_ink().opacity(0.92))
-                                .cursor_pointer()
-                                .hover(|button| button.bg(chrome_ink().opacity(0.12)))
-                                .child("Link")
-                                .on_click(cx.listener(move |panel, _, _, cx| {
-                                    panel.send(
-                                        json!({
-                                            "type": "addSessionLink",
-                                            "sessionId": sidebar_id,
-                                            "link": link,
-                                        }),
-                                        cx,
-                                    );
-                                })),
-                        ),
-                );
+                body = body.child(self.render_suggestion(suggestion, cx));
             }
         }
         if links.items.is_empty() && links.suggested.is_empty() {
@@ -396,15 +418,46 @@ impl Render for SessionLinksPanel {
                     .child("This session has no links."),
             );
         }
-        resource_panel_frame().child(
-            v_flex()
-                .size_full()
-                .overflow_hidden()
-                .child(
-                    resource_header().h(px(HEADER_HEIGHT)).child(
-                        resource_heading()
+        let card = self.host == SessionLinksListHost::Card;
+        div()
+            .id("session-links-list")
+            .role(gpui::Role::Dialog)
+            .aria_label("Links")
+            .relative()
+            .size_full()
+            .overflow_hidden()
+            .rounded(px(8.0))
+            .border_1()
+            .border_color(titlebar_popup_menu_border_color())
+            .bg(popup_window_surface(titlebar_background()))
+            .text_color(chrome_ink())
+            // The card stays while the pointer is on it and closes once it leaves both the card
+            // and its row (window/session_links_card.rs).
+            .when(card, |list| {
+                list.on_hover(cx.listener(|list, hovered: &bool, _, cx| {
+                    let hovered = *hovered;
+                    let _ = list.main_app.update(cx, |app, cx| {
+                        app.set_session_links_card_hovered(hovered, cx);
+                    });
+                }))
+            })
+            .child(
+                v_flex()
+                    .size_full()
+                    .overflow_hidden()
+                    .child(
+                        h_flex()
+                            .h(px(HEADER_HEIGHT))
+                            .flex_shrink_0()
+                            .items_center()
+                            .gap(px(8.0))
+                            .pl(px(12.0))
+                            .border_b_1()
+                            .border_color(chrome_ink().opacity(0.12))
                             .text_size(px(13.0))
-                            .child(div().child("Links"))
+                            .font_weight(FontWeight::BOLD)
+                            .text_color(chrome_ink().opacity(0.96))
+                            .child("Links")
                             .child(
                                 div()
                                     .font_weight(FontWeight::NORMAL)
@@ -412,19 +465,18 @@ impl Render for SessionLinksPanel {
                                     .text_color(chrome_ink().opacity(0.55))
                                     .child(summary),
                             ),
+                    )
+                    .child(
+                        div().relative().w_full().min_h_0().flex_1().child(
+                            v_flex()
+                                .id("session-links-scroll")
+                                .size_full()
+                                .overflow_y_scroll()
+                                .track_scroll(&self.scroll)
+                                .p(px(6.0))
+                                .child(body),
+                        ),
                     ),
-                )
-                .child(
-                    div().relative().w_full().min_h_0().flex_1().child(
-                        v_flex()
-                            .id("session-links-scroll")
-                            .size_full()
-                            .overflow_y_scroll()
-                            .track_scroll(&self.scroll)
-                            .p(px(6.0))
-                            .child(body),
-                    ),
-                ),
-        )
+            )
     }
 }

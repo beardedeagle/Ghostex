@@ -125,16 +125,21 @@ pub(super) fn to_mobile_session_list(result: &Value) -> Value {
     insert_present(&mut map, "product", result.get("product"));
     // CDXC:SessionLinks 2026-10-24 DECISION: User: "user can pick to open in embedded or external browser in settings (default to embedded)". The phone has no copy of the computer's settings, so the summary carries this one: `embedded` opens a session link in the phone's own browser view, `external` in its default browser.
     // Sent only when it is not the default, which the phone assumes when the key is absent.
-    let opens_externally = crate::ghostex_cli::settings::read_settings_file()
-        .ok()
-        .is_some_and(|settings| {
-            settings
-                .get("sessionLinkOpenTarget")
-                .and_then(Value::as_str)
-                == Some("external")
-        });
-    if opens_externally {
+    let settings = crate::ghostex_cli::settings::read_settings_file().unwrap_or_default();
+    if settings
+        .get("sessionLinkOpenTarget")
+        .and_then(Value::as_str)
+        == Some("external")
+    {
         map.insert("sessionLinkOpenTarget".to_string(), json!("external"));
+    }
+    // CDXC:SessionLinks 2026-10-24 SEE-ALSO: `SessionLinksDisplay` in packages/gx-core/src/sidebar_view/links.rs; the phone's session list draws its rows by the computer's "Session links in the sidebar" (apps/mobile/app/src/chat/native/sessionLinks.ts). Sent only when it is not the default (`badge`).
+    if let Some(display) = settings
+        .get("sidebarSessionLinks")
+        .and_then(Value::as_str)
+        .filter(|display| *display != "badge")
+    {
+        map.insert("sidebarSessionLinks".to_string(), json!(display));
     }
     if let Some(projects) = &projects {
         map.insert(

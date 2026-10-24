@@ -104,7 +104,7 @@ impl GhostexGpuiApp {
             GpuiTitlebarPopupKind::OpenTargets => self.titlebar_open_targets_popup_content_height(),
             GpuiTitlebarPopupKind::Notifications => TITLEBAR_POPUP_NOTIFICATIONS_MAX_HEIGHT,
             GpuiTitlebarPopupKind::SessionLinks => {
-                crate::app::window::session_links_panel::session_links_panel_height(
+                crate::app::native_sidebar::links_list::session_links_list_height(
                     self.native_sidebar
                         .links_list_session
                         .as_ref()

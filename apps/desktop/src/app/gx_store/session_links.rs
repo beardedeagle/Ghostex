@@ -1,7 +1,7 @@
 //! A session's links: opening one where Settings says, removing one, and linking a suggested one.
 //!
 //! SEE-ALSO: apps/desktop/src/app/native_sidebar/link_chips.rs and
-//! apps/desktop/src/app/window/session_links_panel.rs (what sends these),
+//! apps/desktop/src/app/native_sidebar/links_list.rs (what sends these),
 //! server/src/server/route_http/session_links.rs (`/api/addSessionLink`, `/api/removeSessionLink`).
 
 use ghostex_gx_core::SessionKey;

@@ -460,6 +460,7 @@ fn sidebar_section(
 fn session_cards_section(
     page: &mut GeneralTab,
     g: &GeneralCx,
+    window: &mut Window,
     cx: &mut Context<GeneralTab>,
 ) -> Option<PageBlock> {
     if !g.search.subsection_visible("sessionCards", g.power_visible) {
@@ -486,6 +487,18 @@ fn session_cards_section(
             cx,
         ));
     }
+    rows.extend(page.select(
+        g,
+        s,
+        "sidebarSessionLinks",
+        "Session links in the sidebar",
+        "How a session card shows the pull requests, issues and Linear tickets it is linked to. Always: a line of them under every card that has any. Selected session: that line only under the session you have open. Badge: a small count on the card, coloured by the most pressing one. Open work only: a line of the ones still open, none once they are all merged or closed. Hovering a card with links shows them all in a card beside the sidebar, except with Off, which shows nothing.",
+        g.options("SIDEBAR_SESSION_LINKS_OPTIONS"),
+        None,
+        false,
+        window,
+        cx,
+    ));
     rows.extend(page.toggle(
         g,
         s,
@@ -534,7 +547,7 @@ pub(super) fn sections(
 ) -> Vec<PageBlock> {
     [
         sidebar_section(page, g, window, cx),
-        session_cards_section(page, g, cx),
+        session_cards_section(page, g, window, cx),
         sidebar_tags_section(page, g, window, cx),
     ]
     .into_iter()
