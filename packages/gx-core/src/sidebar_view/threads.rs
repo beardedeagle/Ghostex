@@ -394,6 +394,16 @@ mod tests {
                 question: true,
             }
         );
+        // A thread waiting on the user (gxserver's `waiting`, a permission prompt) is the pink
+        // needs-you dot, not the stack's blue.
+        let mut waiting = sessions();
+        Arc::make_mut(&mut waiting[2].row).thread_state = Some("waiting".to_string());
+        Arc::make_mut(&mut waiting[3].row).pending_question_count = 0;
+        Arc::make_mut(&mut waiting[3].row).activity = "idle".to_string();
+        let waiting = nest(waiting, &["lead"]);
+        assert!(!waiting[0].nesting.folded_status.attention);
+        assert!(waiting[0].nesting.folded_status.question);
+
         assert!(folded
             .iter()
             .filter(|session| session.nesting.depth > 0)

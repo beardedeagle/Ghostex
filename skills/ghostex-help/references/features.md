@@ -2407,7 +2407,8 @@ version of the Projects features in Cursor and Claude Code.
   and back, and a folded orchestrator keeps its number and colour. While its
   threads are folded, the orchestrator's row shows their status dots (with its
   own) overlapping in place of its time, like a computer tab's dots, so a thread
-  that is working, finished or asking something is never hidden. Opening an
+  that is working, finished or asking something is never hidden (a thread
+  waiting on you, for a question or a permission, is the pink dot). Opening an
   orchestrator marks its finished threads as seen, so their blue dots clear
   (a thread waiting on a question or approval keeps its dot); otherwise opening
   its chat leaves the fold and the older threads as you set them; opening one of its threads

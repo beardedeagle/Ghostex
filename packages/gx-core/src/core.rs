@@ -387,6 +387,13 @@ impl Core {
             Event::Tick => output.changes = self.presentation.expire_patches(now_ms),
         }
         self.settle_after_change(&mut output);
+        crate::attention::acknowledge_threads_of_focused_coordinator(
+            &self.attention,
+            &self.presentation,
+            self.focus.focused_session.as_ref(),
+            &output.changes,
+            &mut output.effects,
+        );
         self.attention.observe(
             &self.presentation,
             &output.changes,
