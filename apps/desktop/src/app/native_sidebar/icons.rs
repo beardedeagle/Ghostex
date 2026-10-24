@@ -123,8 +123,11 @@ fn render_session_icon(
         0.8
     } else if session.is_visible || hovered {
         0.26
-    } else {
+    } else if session.lifecycle_state.as_deref() == Some("sleeping") {
         0.48
+    } else {
+        // CDXC:Sidebar 2026-10-24 DECISION: User: "ok do 70% for non sleeping basically for now (for agent icons)". An awake row that is not focused, visible or hovered rests its agent icon at 70%; a sleeping row's icon stays at 48%. The phone's session row (`SessionRow.tsx`, `styles.icon` and `iconAwake`) uses the same two values.
+        0.70
     };
     if appearance.light {
         opacity = (opacity * 1.3).min(1.0);
