@@ -114,7 +114,13 @@ impl GhostexGpuiApp {
                 // so collapsing every project of a machine and collapsing one collection do not
                 // overwrite each other's memory.
                 machine_id: storage_id,
-                group_ids: self.sidebar_collection_group_ids(collection_id),
+                // Its projects only: a project's session groups, which follow it in the
+                // collection's ids, keep their own collapse.
+                group_ids: self
+                    .sidebar_collection_group_ids(collection_id)
+                    .into_iter()
+                    .filter(|group_id| ghostex_gx_core::owner_project_group_id(group_id).is_none())
+                    .collect(),
             })),
             _ => None,
         }
@@ -232,12 +238,7 @@ impl GhostexGpuiApp {
 
     fn sidebar_collection_session_ids(&self, collection_id: &str) -> Vec<String> {
         let group_ids = self.sidebar_collection_group_ids(collection_id);
-        self.gx_store
-            .sidebar_list
-            .view()
-            .groups
-            .iter()
-            .filter(|group| group_ids.iter().any(|id| *id == group.core.group_id))
+        ghostex_gx_core::collection_groups(&self.gx_store.sidebar_list.view().groups, &group_ids)
             .flat_map(|group| group.core.sessions.iter())
             .map(|session| session.row.sidebar_session_id.clone())
             .collect()

@@ -117,8 +117,9 @@ impl GhostexGpuiApp {
                 .on_mouse_down(MouseButton::Right, move |event, window, cx| { cx.stop_propagation(); Self::show_native_sidebar_context_menu(&menu, menu_owner.get(), event.position, scale, window, cx); })
                 .on_click(cx.listener(move |app, _, _, cx| { cx.stop_propagation(); app.dispatch_native_sidebar_ui(json!({ "type": "collectionAction", "collectionId": id, "action": "toggle" }), cx); })))
             .when(self.native_sidebar.disclosures.present(&format!("collection:{}", collection.collection_id), collection.collapsed), |column| {
+                let session_groups = super::session_group_tree::SessionGroupTree::new(snapshot);
                 let content = v_flex().w_full().pt(px(5.0 * scale)).pl(px(8.0 * scale))
-                    .children(collection.group_ids.iter().filter_map(|id| snapshot.groups.iter().find(|group| &group.group_id == id)).map(|group| div().mb(px(if group.collapsed { 5.0 } else { 7.0 } * scale)).child(self.render_native_sidebar_group(group, &snapshot.hud, appearance, cx))));
+                    .children(collection.group_ids.iter().filter_map(|id| snapshot.groups.iter().find(|group| &group.group_id == id)).filter(|group| !session_groups.nests(group)).map(|group| div().mb(px(if group.collapsed { 5.0 } else { 7.0 } * scale)).child(self.render_native_sidebar_group(group, session_groups.children(&group.group_id), &snapshot.hud, appearance, cx))));
                 column.child(self.render_native_disclosure(format!("collection:{}", collection.collection_id), content.into_any_element(), cx))
             })
             .into_any_element()

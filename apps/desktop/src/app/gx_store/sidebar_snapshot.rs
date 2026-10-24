@@ -299,7 +299,7 @@ pub(super) fn snapshot_from_view(
     cache.phases.key_us = started.elapsed().as_micros() as u64;
     let phase = web_time::Instant::now();
     let mut used: std::collections::HashSet<String> = std::collections::HashSet::new();
-    let groups: Vec<NativeSidebarGroup> = view
+    let mut groups: Vec<NativeSidebarGroup> = view
         .groups
         .iter()
         .map(|group| {
@@ -320,6 +320,14 @@ pub(super) fn snapshot_from_view(
             built
         })
         .collect();
+    if let Some(owner) = groups
+        .iter()
+        .find(|group| group.is_active)
+        .and_then(|group| group.owner_group_id.clone())
+        && let Some(project) = groups.iter_mut().find(|group| group.group_id == owner)
+    {
+        project.holds_active_session_group = true;
+    }
     cache
         .rows
         .retain(|session_id, _| used.contains(session_id.as_str()));
@@ -510,6 +518,8 @@ fn native_group(
         title: core.title.clone(),
         is_active: core.is_active,
         is_stale: core.is_stale,
+        owner_group_id: ghostex_gx_core::owner_project_group_id(&core.group_id),
+        holds_active_session_group: false,
         project_context: project_context(group),
         remote_machine_context: core.remote_machine.as_ref().map(|remote| {
             let mut context = json!({

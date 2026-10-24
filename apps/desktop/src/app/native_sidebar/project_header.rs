@@ -59,6 +59,13 @@ impl GhostexGpuiApp {
             .and_then(super::images::sidebar_image);
         // Set only on a bot's row, which draws a gateway dot instead of git stats and counts.
         let bot_gateway_running = group.bot_gateway_running();
+        // A user-made session group draws a folder instead of its title's first letter, which made
+        // "Group 6" and a project named "g…" look alike.
+        let folder_icon = group.owner_group_id.is_some();
+        // A collapsed project draws as active when the focused session is in it, its session
+        // groups included, which fold away with it.
+        let collapsed_active =
+            group.collapsed && (group.is_active || group.holds_active_session_group);
         let dragged = SidebarDrag {
             kind: "group",
             preview: super::drag::SidebarDragPreview::Row(super::row_drag::RowDragPreview {
@@ -171,6 +178,12 @@ impl GhostexGpuiApp {
                 hud["settings"]["showProjectIcons"].as_bool() != Some(false),
                 |row| {
                     row.child(match icon_image {
+                        _ if folder_icon => gpui::svg()
+                            .path("titlebar/folder.svg")
+                            .size(px(16.0 * scale))
+                            .flex_shrink_0()
+                            .text_color(appearance.muted)
+                            .into_any_element(),
                         _ if bot_gateway_running.is_some() => letter_tile(
                             &group.title,
                             super::bots::hermes_color(),
@@ -191,7 +204,7 @@ impl GhostexGpuiApp {
                     })
                 },
             )
-            .when(group.collapsed && group.is_active, |row| {
+            .when(collapsed_active, |row| {
                 row.bg(appearance.selected)
                     .child(super::decorations::selected_outline(appearance))
             })

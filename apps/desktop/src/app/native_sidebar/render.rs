@@ -38,6 +38,7 @@ impl GhostexGpuiApp {
             .exiting_snapshot()
             .cloned()
             .unwrap_or_else(|| snapshot.clone());
+        let session_groups = super::session_group_tree::SessionGroupTree::new(&content);
         let view = cx.entity().clone();
         let bounds_view = view.clone();
         let wheel_view = view.clone();
@@ -276,18 +277,23 @@ impl GhostexGpuiApp {
                                                 .groups
                                                 .iter()
                                                 .find(|group| group.group_id == item.id)
+                                                .filter(|group| !session_groups.nests(group))
                                                 .map(|group| {
                                                     // CDXC:Spaces 2026-10-06 WHY: padding, not a margin, so this block's measured bounds (where a press is a row's and not the empty list space that starts a Space drag) cover the project header's box, which reaches left over its chevron; as a margin, a click on the chevron armed the Space drag and showed the grabbing hand.
                                                     div()
                                                         .pl(px(18.0 * appearance.scale))
                                                         .mr(px(5.0 * appearance.scale))
                                                         .mb(px(10.0 * appearance.scale))
-                                                        .child(self.render_native_sidebar_group(
-                                                            group,
-                                                            &content.hud,
-                                                            &appearance,
-                                                            cx,
-                                                        ))
+                                                        .child(
+                                                            self.render_native_sidebar_group(
+                                                                group,
+                                                                session_groups
+                                                                    .children(&group.group_id),
+                                                                &content.hud,
+                                                                &appearance,
+                                                                cx,
+                                                            ),
+                                                        )
                                                         .into_any_element()
                                                 })
                                         }

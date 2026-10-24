@@ -347,12 +347,10 @@ impl<'a> SidebarMenus<'a> {
 
     /// A collection's context menu.
     pub fn collection_menu(&self, collection: &CollectionView) -> Vec<MenuItem> {
-        let sessions: Vec<&SessionView> = collection
-            .group_ids
-            .iter()
-            .filter_map(|group_id| self.view.group(group_id))
-            .flat_map(|group| group.core.sessions.iter())
-            .collect();
+        let sessions: Vec<&SessionView> =
+            crate::sidebar_view::collection_groups(&self.view.groups, &collection.group_ids)
+                .flat_map(|group| group.core.sessions.iter())
+                .collect();
         collection::collection_menu(&collection::CollectionMenuInput {
             collection_id: collection.collection_id.as_str(),
             color: collection.color.as_str(),
