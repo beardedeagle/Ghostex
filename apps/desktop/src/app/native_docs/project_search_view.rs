@@ -132,6 +132,8 @@ impl GhostexGpuiApp {
                     .track_focus(&results_focus)
                     .flex_1()
                     .min_h_0()
+                    // VS Code leaves a gap between the summary and the first result row.
+                    .pt(px(4.0))
                     .pb(px(6.0))
                     .child(results),
             )
@@ -513,54 +515,91 @@ impl GhostexGpuiApp {
             .into_any_element()
     }
 
-    /// "N results in M files", what is going on, or why there is nothing.
+    /// "N results in M files", what is going on, or why there is nothing: one short line, with
+    /// any longer note behind an (i) icon at its end.
+    ///
+    /// CDXC:Docs 2026-10-25 DECISION:
+    /// User, of the three-line "10,000 results in 311 files. Only the first 10,000 are shown…": "we need this to be in an i icon that when hovered shows this text, and we need padding below the top area". The summary stays one line; the cap (and the no-results explanation) shows in the sidebar's tooltip when the (i) icon is hovered, and the icon shows only when there is such a note.
     fn render_native_docs_search_summary(
         &mut self,
         p: &DocsPalette,
         cx: &mut Context<Self>,
     ) -> Option<AnyElement> {
         let search = self.native_docs.project_search.as_ref()?;
-        let line = |text: String, color: Hsla| {
+        let line = |text: String, color: Hsla, note: Option<&'static str>| {
             div()
+                .flex()
+                .flex_none()
+                .items_center()
+                .gap(px(5.0))
                 .px(px(14.0))
                 .pt(px(6.0))
-                .pb(px(4.0))
+                .pb(px(8.0))
                 .text_size(px(11.5))
                 .line_height(px(15.0))
                 .text_color(color)
-                .child(text)
+                .child(div().min_w_0().truncate().child(text))
+                .when_some(note, |this, note| {
+                    this.child(
+                        div()
+                            .id("native-docs-search-summary-note")
+                            .flex_none()
+                            .cursor_pointer()
+                            .child(titlebar_svg_icon(
+                                "titlebar/info-circle.svg",
+                                13.0,
+                                p.subtle,
+                            ))
+                            .tooltip(move |window, cx| {
+                                crate::app::helpers::list_row_tooltip(note, window, cx)
+                            }),
+                    )
+                })
                 .into_any_element()
         };
         if let Some(error) = &search.error {
-            return Some(line(error.clone(), p.danger));
+            return Some(
+                div()
+                    .px(px(14.0))
+                    .pt(px(6.0))
+                    .pb(px(8.0))
+                    .text_size(px(11.5))
+                    .line_height(px(15.0))
+                    .text_color(p.danger)
+                    .child(error.clone())
+                    .into_any_element(),
+            );
         }
         if search.query.read(cx).value().is_empty() {
             return None;
         }
-        let matches = search.match_count();
         if search.results.is_empty() {
-            return Some(line(
-                if search.running {
-                    "Searching…".to_string()
-                } else if search.use_ignore_files {
-                    "No results found. Files in .gitignore, dependency and build folders, and nested repositories inside dot-folders are skipped while Use Exclude Settings and Ignore Files is on.".to_string()
-                } else {
-                    "No results found.".to_string()
-                },
-                p.subtle,
-            ));
+            return Some(if search.running {
+                line("Searching…".to_string(), p.subtle, None)
+            } else if search.use_ignore_files {
+                line(
+                    "No results found".to_string(),
+                    p.subtle,
+                    Some(
+                        "Files in .gitignore, dependency and build folders, vendored code (.dependencies, vendor, third_party), and nested repositories inside dot-folders are skipped while Use Exclude Settings and Ignore Files is on. Name a folder in files to include to search it.",
+                    ),
+                )
+            } else {
+                line("No results found".to_string(), p.subtle, None)
+            });
         }
         let mut text = format!(
             "{} in {}",
-            plural(matches, "result", "results"),
+            plural(search.match_count(), "result", "results"),
             plural(search.results.len(), "file", "files")
         );
         if search.running {
-            text.push_str(" (searching…)");
-        } else if search.capped {
-            text.push_str(". Only the first 10,000 are shown; narrow the search to see the rest.");
+            text.push('…');
         }
-        Some(line(text, p.subtle))
+        let note = (search.capped && !search.running).then_some(
+            "Only the first 10,000 results are shown. Narrow the search to see the rest.",
+        );
+        Some(line(text, p.subtle, note))
     }
 
     /// The visible slice of the results, for the virtualized list.

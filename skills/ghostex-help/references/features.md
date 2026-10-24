@@ -395,10 +395,11 @@ view from the strip.
   a regular expression, and the … button adds "files to include" and "files to
   exclude" boxes (comma-separated patterns such as `*.ts, src`). Search skips
   what `.gitignore` ignores, dependency and build folders (node_modules, target,
-  build, dist and the like), nested repositories inside dot-folders (such as git
-  submodules under `.dependencies/`), binary files and files over 2 MB; turn off "Use Exclude Settings and Ignore Files"
-  beside the exclude box to search those too, or name a submodule's folder in
-  "files to include" to search just it. At most 10,000 results are shown. Click a
+  build, dist and the like), folders of copied-in outside code (`.dependencies`,
+  `vendor`, `third_party` and similar), nested repositories inside dot-folders,
+  binary files and files over 2 MB; turn off "Use Exclude Settings and Ignore
+  Files" beside the exclude box to search those too, or name one of those folders
+  in "files to include" to search just it. At most 10,000 results are shown. Click a
   result to open the file with the match highlighted (double-click to also move
   the cursor there), press Enter or F4 for the next result and Shift+F4 for the
   previous, hover a row and click × to drop it from the list, and press Escape to

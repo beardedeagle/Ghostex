@@ -104,12 +104,44 @@ fn skips_dependency_and_build_folders_without_a_gitignore() {
     }
     project
         .file("src/main.rs", "fn needle() {}")
-        .file(".github/workflows/ci.yml", "needle: true")
-        .file("vendor/keep.txt", "needle");
+        .file(".github/workflows/ci.yml", "needle: true");
     assert_eq!(
         paths(project.root(), &options("needle")),
-        vec![".github/workflows/ci.yml", "src/main.rs", "vendor/keep.txt"]
+        vec![".github/workflows/ci.yml", "src/main.rs"]
     );
+}
+
+#[test]
+fn vendored_folders_need_an_include_pattern() {
+    let project = Project::new("vendored");
+    project
+        .file(".dependencies/zed/lib.rs", "needle")
+        .file("vendor/github.com/pkg/a.go", "needle")
+        .file("lib/vendor/b.php", "needle")
+        .file("third_party/proto/c.cc", "needle")
+        .file("third-party/d.js", "needle")
+        .file("external/kept.rs", "needle")
+        .file("src/main.rs", "needle");
+    assert_eq!(
+        paths(project.root(), &options("needle")),
+        vec!["external/kept.rs", "src/main.rs"]
+    );
+
+    let mut named = options("needle");
+    named.include = "vendor".to_string();
+    assert_eq!(
+        paths(project.root(), &named),
+        vec!["lib/vendor/b.php", "vendor/github.com/pkg/a.go"]
+    );
+    named.include = "third_party/proto, .dependencies/zed".to_string();
+    assert_eq!(
+        paths(project.root(), &named),
+        vec![".dependencies/zed/lib.rs", "third_party/proto/c.cc"]
+    );
+
+    let mut everything = options("needle");
+    everything.use_ignore_files = false;
+    assert_eq!(paths(project.root(), &everything).len(), 7);
 }
 
 #[test]

@@ -189,6 +189,23 @@ fn literal_prefixes(field: &str) -> Vec<String> {
 }
 
 /// A folder the default filters always pass over: a dependency or build folder, or `vendor/bundle`.
+/// Folders of outside code copied into a project (vendored dependencies), skipped by default but
+/// searched when "files to include" names a path in them.
+///
+/// CDXC:Docs 2026-10-25 DECISION:
+/// User: "skip folders of copied-in outside code by default: .dependencies, vendor, third_party (and the common equivalents you know ... only if they're clearly vendored-code names). They stay searchable by naming them in 'files to include' or turning off 'Use Exclude Settings and Ignore Files'." `external` and `deps` are left out: many projects keep their own code under those names.
+pub const VENDORED_DIRECTORY_NAMES: &[&str] = &[
+    ".dependencies",
+    "vendor",
+    "vendors",
+    "third_party",
+    "third-party",
+    "thirdparty",
+    "3rdparty",
+    "3rd-party",
+    "3rd_party",
+];
+
 pub fn is_skipped_search_directory(name: &str, relative: &str) -> bool {
     is_skipped_directory(name)
         || EXTRA_SKIPPED_DIRECTORY_NAMES.contains(&name)
@@ -314,16 +331,23 @@ pub fn search_content(
             if is_skipped_search_directory(&name, &relative) {
                 return false;
             }
+            // An include pattern that names this folder, a path inside it, or one of its parents.
+            let included = || {
+                include_prefixes.iter().any(|prefix| {
+                    prefix == &relative
+                        || prefix.as_str() == name
+                        || prefix.starts_with(&format!("{relative}/"))
+                        || relative.starts_with(&format!("{prefix}/"))
+                })
+            };
+            // Vendored code, and nested repositories inside a dot-folder, only when included.
+            if VENDORED_DIRECTORY_NAMES.contains(&name.as_ref()) {
+                return included();
+            }
             if relative.split('/').any(|segment| segment.starts_with('.'))
                 && entry.path().join(".git").exists()
             {
-                // A nested repository inside a dot-folder: searched only when an include pattern
-                // points into it.
-                return include_prefixes.iter().any(|prefix| {
-                    prefix == &relative
-                        || prefix.starts_with(&format!("{relative}/"))
-                        || relative.starts_with(&format!("{prefix}/"))
-                });
+                return included();
             }
             true
         });
