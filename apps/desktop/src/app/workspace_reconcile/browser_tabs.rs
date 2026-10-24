@@ -914,6 +914,7 @@ impl GhostexGpuiApp {
                         loading: false,
                         persistent: false,
                         duration_ms: GPUI_APP_TOAST_DEFAULT_DURATION_MS,
+                        action: None,
                         epoch: 0,
                     },
                     cx,

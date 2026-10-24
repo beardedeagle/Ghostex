@@ -21,6 +21,17 @@ pub(crate) fn gpui_prepare_local_workspace_attach_terminal_plan_with_startup_tex
     startup_text: Option<&str>,
     intent: GpuiLocalWorkspaceAttachIntent,
 ) -> Result<GpuiLocalWorkspaceAttachTerminalPlan, String> {
+    gpui_prepare_local_workspace_attach_terminal_plan_with_code(reference, startup_text, intent)
+        .map_err(|error| error.message)
+}
+
+/// The attach plan, or the refusal with gxserver's error code (`accountUnavailable` is a
+/// refusal no retry can fix until the session's account changes).
+pub(crate) fn gpui_prepare_local_workspace_attach_terminal_plan_with_code(
+    reference: &GpuiLocalWorkspaceSessionKey,
+    startup_text: Option<&str>,
+    intent: GpuiLocalWorkspaceAttachIntent,
+) -> Result<GpuiLocalWorkspaceAttachTerminalPlan, GpuiGxserverRpcError> {
     /*
     CDXC:FocusRouting 2026-06-26-06:08:
     Local GPUI sidebar session clicks follow macOS zmx attach sequencing: Rust asks localhost gxserver for wake/attach metadata, starts every missing zmx provider through gxserver (with queued startup text when present), then opens an awake Agents Running tab whose exact mount slot consumes the daemon-built attach command. CEF cannot provide commands, cwd, titles, paths, daemon bodies, tokens, stdout/stderr, or terminal content.
@@ -33,7 +44,7 @@ pub(crate) fn gpui_prepare_local_workspace_attach_terminal_plan_with_startup_tex
     */
     let attach_params = gpui_local_workspace_attach_rpc_params(reference, startup_text);
     let mut result =
-        gpui_gxserver_rpc_result(intent.rpc_path(), &attach_params, Duration::from_secs(15))?;
+        gpui_gxserver_rpc_result_with_code(intent.rpc_path(), &attach_params, Duration::from_secs(15))?;
     let mut attach = gpui_local_workspace_attach_object(&result)?;
     gpui_validate_local_workspace_attach_not_restore_blocked(attach)?;
     let mut startup_text_for_plan =
@@ -44,12 +55,12 @@ pub(crate) fn gpui_prepare_local_workspace_attach_terminal_plan_with_startup_tex
     if should_start_local_zmx_provider_before_gpui_attach(attach) {
         let provider_params =
             gpui_local_workspace_attach_rpc_params(reference, startup_text_for_plan.as_deref());
-        gpui_gxserver_rpc_result(
+        gpui_gxserver_rpc_result_with_code(
             "/api/startSessionProvider",
             &provider_params,
             Duration::from_secs(30),
         )?;
-        result = gpui_gxserver_rpc_result(
+        result = gpui_gxserver_rpc_result_with_code(
             "/api/attachSessionMetadata",
             &attach_params,
             Duration::from_secs(15),
@@ -66,11 +77,11 @@ pub(crate) fn gpui_prepare_local_workspace_attach_terminal_plan_with_startup_tex
         }
     }
 
-    gpui_local_workspace_attach_terminal_plan_from_result(
+    Ok(gpui_local_workspace_attach_terminal_plan_from_result(
         &result,
         startup_text_for_plan,
         startup_text_disposition_for_plan,
-    )
+    )?)
 }
 
 pub(crate) fn gpui_local_workspace_attach_terminal_plan_from_result(

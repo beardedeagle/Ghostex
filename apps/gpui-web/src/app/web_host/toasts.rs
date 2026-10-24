@@ -7,9 +7,9 @@ use gpui::{
 use crate::GhostexGpuiApp;
 use crate::app::window::toast::{
     GPUI_APP_TOAST_BOTTOM_MARGIN, GPUI_APP_TOAST_DEFAULT_DURATION_MS, GPUI_APP_TOAST_MAX_VISIBLE,
-    GPUI_APP_TOAST_WINDOW_WIDTH, GpuiAppToast, GpuiAppToastLevel, GpuiAppToastWindow,
-    gpui_app_toast_from_bridge_message, gpui_app_toast_stack_height,
-    gpui_normalized_app_toast_description,
+    GPUI_APP_TOAST_WINDOW_WIDTH, GpuiAppToast, GpuiAppToastAction, GpuiAppToastLevel,
+    GpuiAppToastWindow, gpui_app_toast_from_bridge_message, gpui_app_toast_stack_height,
+    gpui_app_toast_without_repeats, gpui_normalized_app_toast_description,
 };
 
 #[derive(Default)]
@@ -52,6 +52,7 @@ impl GhostexGpuiApp {
                 loading: false,
                 persistent: false,
                 duration_ms: GPUI_APP_TOAST_DEFAULT_DURATION_MS,
+                action: None,
                 epoch: 0,
             },
             cx,
@@ -79,6 +80,11 @@ impl GhostexGpuiApp {
     ) {
         toast.description =
             gpui_normalized_app_toast_description(&toast.title, toast.description.as_deref());
+        // The desktop's repeat rule (CDXC:AppModal 2026-10-24 in `window/toast.rs`).
+        let Some(mut toast) = gpui_app_toast_without_repeats(&self.web_host.toasts.toasts, toast)
+        else {
+            return;
+        };
         let toasts = &mut self.web_host.toasts;
         toasts.epoch = toasts.epoch.wrapping_add(1);
         toast.epoch = toasts.epoch;
@@ -116,6 +122,22 @@ impl GhostexGpuiApp {
             .detach();
         }
         self.sync_web_toasts(cx);
+    }
+
+    /// A toast's action button. The page has no Settings, so it says where to go.
+    pub(crate) fn run_gpui_app_toast_action(
+        &mut self,
+        action: &GpuiAppToastAction,
+        cx: &mut Context<Self>,
+    ) {
+        match action {
+            GpuiAppToastAction::OpenAccounts { .. } => self.dispatch_gpui_workspace_action_toast(
+                "info",
+                "Not in the browser",
+                "Accounts are in the Ghostex app's Settings > Accounts.",
+                cx,
+            ),
+        }
     }
 
     pub(crate) fn remove_gpui_app_toast(&mut self, toast_id: &str, cx: &mut Context<Self>) {

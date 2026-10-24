@@ -88,14 +88,18 @@ fn refuse_turned_off(
     else {
         return Ok(());
     };
-    let provider = match account.provider {
+    let other = match account.provider {
         Provider::Claude => "Claude",
         Provider::Codex => "Codex",
     };
-    Err(DomainStateError::bad_request(format!(
-        "This session is on {provider} account {} ({}), which is turned off in Settings > Accounts, and no other {provider} account is ready to take it over. Turn an account on, or switch this session to another account.",
-        account.selector, account.name,
-    )))
+    Err(launch::account_refusal(
+        session,
+        Some(account.provider),
+        &format!(
+            "{}, which is turned off in Settings > Accounts, and no other {other} account is ready to take it over. Turn an account on, or switch this session to another account",
+            launch::account_label(&account.selector, &account.name),
+        ),
+    ))
 }
 
 /// CDXC:AgentProviders 2026-10-14 WHY:

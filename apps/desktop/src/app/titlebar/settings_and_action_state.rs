@@ -80,6 +80,16 @@ impl GhostexGpuiApp {
         window: Option<&mut Window>,
         cx: &mut gpui::Context<Self>,
     ) {
+        self.open_gpui_settings_accounts_page_for_provider(None, window, cx);
+    }
+
+    /// Settings > Accounts, showing `provider`'s (`claude`, `codex`) accounts when one is named.
+    pub(crate) fn open_gpui_settings_accounts_page_for_provider(
+        &mut self,
+        provider: Option<&str>,
+        window: Option<&mut Window>,
+        cx: &mut gpui::Context<Self>,
+    ) {
         let modal = GpuiAppModalKind::Settings;
         let sidebar_state_message = self.gpui_app_modal_sidebar_state_message_for_open(modal, cx);
         let mut open_message = serde_json::json!({
@@ -87,6 +97,9 @@ impl GhostexGpuiApp {
             "modal": modal.modal_id(),
             "type": "open",
         });
+        if let Some(provider) = provider {
+            open_message["initialAccountsProvider"] = serde_json::json!(provider);
+        }
         open_message["latestSidebarStateMessage"] = sidebar_state_message.clone();
         self.open_gpui_app_modal_window(modal, open_message, sidebar_state_message, window, cx);
     }

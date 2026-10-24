@@ -136,6 +136,7 @@ impl GhostexGpuiApp {
                 loading: false,
                 persistent: false,
                 duration_ms: GPUI_APP_TOAST_DEFAULT_DURATION_MS,
+                action: None,
                 epoch: 0,
             },
             cx,
@@ -167,6 +168,9 @@ impl GhostexGpuiApp {
     ) {
         toast.description =
             gpui_normalized_app_toast_description(&toast.title, toast.description.as_deref());
+        let Some(mut toast) = gpui_app_toast_without_repeats(&self.app_toasts, toast) else {
+            return;
+        };
         let main_window_bounds = self.main_window_bounds;
         self.app_toast_anchor = Some(point(
             main_window_bounds.origin.x + main_window_bounds.size.width / 2.0,
@@ -192,6 +196,19 @@ impl GhostexGpuiApp {
             self.schedule_gpui_app_toast_auto_dismiss(toast_id, epoch, duration_ms, cx);
         }
         self.sync_gpui_app_toast_window(cx);
+    }
+
+    /// A toast's action button (`GpuiAppToastAction`).
+    pub(crate) fn run_gpui_app_toast_action(
+        &mut self,
+        action: &GpuiAppToastAction,
+        cx: &mut gpui::Context<Self>,
+    ) {
+        match action {
+            GpuiAppToastAction::OpenAccounts { provider } => {
+                self.open_gpui_settings_accounts_page_for_provider(provider.as_deref(), None, cx);
+            }
+        }
     }
 
     pub(crate) fn show_gpui_gxserver_bootstrap_toast(
@@ -224,6 +241,7 @@ impl GhostexGpuiApp {
                 loading: level == "info" && persistent,
                 persistent,
                 duration_ms: GPUI_APP_TOAST_DEFAULT_DURATION_MS,
+                action: None,
                 epoch: 0,
             },
             cx,

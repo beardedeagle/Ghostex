@@ -179,6 +179,9 @@ pub(crate) struct SettingsOpenRequest {
     pub(crate) initial_remote_section: Option<String>,
     /// `agentHooks`.
     pub(crate) initial_agents_section: Option<String>,
+    /// The agent (`claude`, `codex`) whose accounts the Accounts page opens on: an account
+    /// toast's Open Accounts button (`GpuiAppToastAction::OpenAccounts`).
+    pub(crate) initial_accounts_provider: Option<String>,
     pub(crate) initial_custom_view_id: Option<String>,
     pub(crate) initial_view_scope_key: Option<String>,
     /// The project the Projects page opens on: `initialProjectId`, else the opening window's
@@ -237,6 +240,8 @@ impl SettingsOpenRequest {
                 .filter(|section| section == "easyConnect" || section == "tailscale"),
             initial_agents_section: optional_text(message, "initialAgentsSection")
                 .filter(|section| section == "agentHooks"),
+            initial_accounts_provider: optional_text(message, "initialAccountsProvider")
+                .filter(|provider| provider == "claude" || provider == "codex"),
             initial_custom_view_id: optional_text(message, "initialCustomViewId"),
             initial_view_scope_key: optional_text(message, "initialViewScopeKey"),
             initial_project_id: optional_text(message, "initialProjectId")

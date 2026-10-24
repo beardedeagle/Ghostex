@@ -412,6 +412,11 @@ pub struct GhostexGpuiApp {
     pub(crate) local_workspace_session_mappings:
         HashMap<GpuiLocalWorkspaceSessionKey, TerminalSessionId>,
     pub(crate) local_workspace_attach_pending: HashSet<GpuiLocalWorkspaceSessionKey>,
+    /// Sessions whose attach gxserver refused because of their account (`accountUnavailable`),
+    /// with the account id they were on then. See `local_workspace_attach_refused_still` in
+    /// workspace_events.rs.
+    pub(crate) local_workspace_attach_refused:
+        HashMap<GpuiLocalWorkspaceSessionKey, Option<String>>,
     /*
     CDXC:SessionChat 2026-07-31:
     Session Chat view mode is a runtime-only per-shell-session flag plus a

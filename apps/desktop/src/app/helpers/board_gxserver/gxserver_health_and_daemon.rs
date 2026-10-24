@@ -14,6 +14,42 @@ use std::{
 use crate::app::helpers::*;
 use crate::*;
 
+/// A refused gxserver call: the sentence to show, and gxserver's error code when it sent one
+/// (`accountUnavailable`, `notFound`, …), so a caller can tell a refusal that waiting cannot fix
+/// from one that can.
+#[derive(Clone, Debug)]
+pub(crate) struct GpuiGxserverRpcError {
+    pub(crate) code: Option<String>,
+    pub(crate) message: String,
+}
+
+impl From<String> for GpuiGxserverRpcError {
+    fn from(message: String) -> Self {
+        Self {
+            code: None,
+            message,
+        }
+    }
+}
+
+/// `gpui_gxserver_rpc_result`, keeping gxserver's error code.
+pub(crate) fn gpui_gxserver_rpc_result_with_code(
+    endpoint: &str,
+    params: &serde_json::Value,
+    timeout: Duration,
+) -> Result<serde_json::Value, GpuiGxserverRpcError> {
+    let (status_code, body) = gxserver_post_typed_operation(endpoint, params, timeout)?;
+    if !(200..300).contains(&status_code) {
+        return Err(GpuiGxserverRpcError {
+            code: serde_json::from_str::<serde_json::Value>(&body)
+                .ok()
+                .and_then(|value| value.get("error")?.as_str().map(str::to_string)),
+            message: gpui_gxserver_rpc_error_message(status_code, &body),
+        });
+    }
+    Ok(parse_gpui_gxserver_rpc_result(&body)?)
+}
+
 pub(crate) fn gpui_gxserver_rpc_result(
     endpoint: &str,
     params: &serde_json::Value,

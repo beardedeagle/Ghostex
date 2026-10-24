@@ -757,6 +757,55 @@ impl GhostexGpuiApp {
         }
     }
 
+    /// CDXC:AppModal 2026-10-24 WHY:
+    /// The restore pass (`attach_surfaced_local_workspace_terminals`) runs on every sidebar snapshot and re-asked gxserver to attach the shown tab of a session whose account was removed; its refusal came back as the sidebar focus it had turned into and raised "Session attach unavailable" again each time, a stream of the same toast. gxserver's `accountUnavailable` refusal cannot change until the session's account does, so the pass waits for that: the account the row names now differs from the one refused, or the user clicks, forks or wakes the session. Other refusals (a restart, a slow wake) still retry on their own.
+    pub(crate) fn local_workspace_attach_refused_still(
+        &mut self,
+        key: &GpuiLocalWorkspaceSessionKey,
+    ) -> bool {
+        let Some(refused_account) = self.local_workspace_attach_refused.get(key) else {
+            return false;
+        };
+        let account_now = self
+            .gx_store_local_server_session(&key.project_id, &key.session_id)
+            .map(|session| session.account_id);
+        if !account_refusal_still_applies(refused_account, account_now.as_ref()) {
+            self.local_workspace_attach_refused.remove(key);
+            return false;
+        }
+        true
+    }
+
+    /// gxserver's refusal names the session, the agent and the account; the toast adds Open
+    /// Accounts on that agent's page (CDXC:AgentProviders 2026-10-24 in server/src/accounts/launch.rs).
+    fn show_local_workspace_account_refusal_toast(
+        &mut self,
+        key: &GpuiLocalWorkspaceSessionKey,
+        message: &str,
+        cx: &mut gpui::Context<Self>,
+    ) {
+        let provider = self
+            .gx_store_local_server_session(&key.project_id, &key.session_id)
+            .and_then(|session| session.agent_icon.or(session.agent_id))
+            .filter(|agent| agent == "claude" || agent == "codex");
+        self.app_toast_id_counter = self.app_toast_id_counter.wrapping_add(1);
+        self.upsert_gpui_app_toast(
+            GpuiAppToast {
+                id: format!("gpui-app-toast-{}", self.app_toast_id_counter),
+                level: GpuiAppToastLevel::Warning,
+                title: "Account unavailable".to_string(),
+                description: Some(message.to_string()),
+                copy_text: None,
+                action: Some(GpuiAppToastAction::OpenAccounts { provider }),
+                loading: false,
+                persistent: false,
+                duration_ms: GPUI_APP_TOAST_DEFAULT_DURATION_MS,
+                epoch: 0,
+            },
+            cx,
+        );
+    }
+
     pub(crate) fn spawn_local_workspace_attach_plan(
         &mut self,
         key: GpuiLocalWorkspaceSessionKey,
@@ -766,6 +815,15 @@ impl GhostexGpuiApp {
         origin: GpuiLocalWorkspaceAttachOrigin,
         cx: &mut gpui::Context<Self>,
     ) {
+        // A restore pass runs on every sidebar snapshot; it does not ask again for a session whose
+        // account gxserver refused, while that account is unchanged. A click, fork or wake asks.
+        if origin == GpuiLocalWorkspaceAttachOrigin::SurfacedRestore {
+            if self.local_workspace_attach_refused_still(&key) {
+                return;
+            }
+        } else {
+            self.local_workspace_attach_refused.remove(&key);
+        }
         if !self.local_workspace_attach_pending.insert(key.clone()) {
             return;
         }
@@ -808,11 +866,28 @@ impl GhostexGpuiApp {
             let prepare_key = key.clone();
             let result = background
                 .spawn(async move {
-                    gpui_prepare_local_workspace_attach_terminal_plan(&prepare_key, attach_intent)
+                    gpui_prepare_local_workspace_attach_terminal_plan_with_code(
+                        &prepare_key,
+                        None,
+                        attach_intent,
+                    )
                 })
                 .await;
             let _ = this.update(cx, |this, cx| {
                 this.local_workspace_attach_pending.remove(&key);
+                match &result {
+                    Err(error) if error.code.as_deref() == Some("accountUnavailable") => {
+                        let account_id = this
+                            .gx_store_local_server_session(&key.project_id, &key.session_id)
+                            .and_then(|session| session.account_id);
+                        this.local_workspace_attach_refused
+                            .insert(key.clone(), account_id);
+                    }
+                    Ok(_) => {
+                        this.local_workspace_attach_refused.remove(&key);
+                    }
+                    Err(_) => {}
+                }
                 // The store's newest selection, not the workspace's focus state copy, which lags
                 // it while a project switch is coalesced (gx_store_selection_names_local_session).
                 let selected = this.gx_store_selection_names_local_session(&key);
@@ -930,7 +1005,7 @@ impl GhostexGpuiApp {
                             );
                         }
                     },
-                    Err(message) => {
+                    Err(error) => {
                         if matches!(
                             completion_origin,
                             GpuiLocalWorkspaceAttachOrigin::SurfacedRestore
@@ -939,10 +1014,14 @@ impl GhostexGpuiApp {
                             return;
                         }
                         this.cancel_sidebar_focus_border_handoff();
+                        if error.code.as_deref() == Some("accountUnavailable") {
+                            this.show_local_workspace_account_refusal_toast(&key, &error.message, cx);
+                            return;
+                        }
                         this.dispatch_gpui_app_modal_toast(
                             "warning",
                             "Session attach unavailable",
-                            message.as_str(),
+                            error.message.as_str(),
                             cx,
                         );
                     }
@@ -950,5 +1029,36 @@ impl GhostexGpuiApp {
             });
         })
         .detach();
+    }
+}
+
+/// Whether an attach refused on `refused_account` would be refused again: the session's row
+/// (`account_now`, `None` when the row is gone) still names that account.
+pub(crate) fn account_refusal_still_applies(
+    refused_account: &Option<String>,
+    account_now: Option<&Option<String>>,
+) -> bool {
+    account_now == Some(refused_account)
+}
+
+#[cfg(test)]
+mod account_refusal_tests {
+    use super::account_refusal_still_applies;
+
+    #[test]
+    fn a_refused_attach_waits_until_the_account_changes() {
+        let refused = Some("acct-removed".to_string());
+        // Every restore pass while the row still names the removed account stays quiet.
+        for _ in 0..5 {
+            assert!(account_refusal_still_applies(&refused, Some(&refused)));
+        }
+        // The user picked another account: the next pass attaches again.
+        assert!(!account_refusal_still_applies(
+            &refused,
+            Some(&Some("acct-new".to_string()))
+        ));
+        // The row lost its account or is gone: try again.
+        assert!(!account_refusal_still_applies(&refused, Some(&None)));
+        assert!(!account_refusal_still_applies(&refused, None));
     }
 }
