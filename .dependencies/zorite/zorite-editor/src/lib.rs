@@ -824,7 +824,7 @@ pub struct EditorState {
     /// Last paint's wrapped lines (one per logical line) and each line's top
     /// offset relative to the editor's top — both used for hit-testing and
     /// cursor/IME positioning.
-    wrapped: Vec<WrappedLine>,
+    wrapped: Vec<std::rc::Rc<WrappedLine>>,
     line_tops: Vec<Pixels>,
     /// Per-logical-line wrap-row count (from the last paint). Geometry reads
     /// this, not `wrapped[i].wrap_boundaries()` — a windowed-out line's entry
@@ -1012,6 +1012,16 @@ pub struct EditorState {
     /// measure pass and prepaint always shape with the SAME band and the
     /// measure→prepaint memo keeps hitting.
     shape_band: std::cell::Cell<Option<(f32, f32)>>,
+    /// Local change (Ghostex Docs): the layout pass `request_layout` last started (one a frame),
+    /// the heights the measure pass returned during it, keyed by wrap width, and the height at
+    /// the last real (wrapping) width. Taffy measures the editor several times a frame (twice at
+    /// its real width, and at no width and 0px for its intrinsic sizes), and each measure shaped
+    /// the whole document; see `EditorElement::request_layout`.
+    layout_pass: std::cell::Cell<u64>,
+    measured: std::cell::RefCell<Vec<(u64, Option<Pixels>, Pixels)>>,
+    wrapped_height: std::cell::Cell<Option<Pixels>>,
+    /// Local change (Ghostex Docs): [`Self::heading_folds`]' sections per `content_gen`.
+    heading_sections_cache: std::cell::RefCell<Option<(u64, std::rc::Rc<Vec<(usize, Range<usize>)>>)>>,
     /// Latch: the scroll compensator fired since the last paint. Measure can
     /// run several times before a paint commits fresh `line_tops`; without
     /// this, one async height change compensates once per measure call.
@@ -1210,6 +1220,10 @@ impl EditorState {
             last_paint_gen: 0,
             shape_caches: ShapeCaches::default(),
             shape_band: std::cell::Cell::new(None),
+            layout_pass: std::cell::Cell::new(0),
+            heading_sections_cache: std::cell::RefCell::new(None),
+            measured: std::cell::RefCell::new(Vec::new()),
+            wrapped_height: std::cell::Cell::new(None),
             compensated: std::cell::Cell::new(false),
             line_drag: None,
             grip_hover_row: None,
@@ -1424,15 +1438,19 @@ impl EditorState {
             .focus_handle
             .is_focused(window)
             .then(|| self.row_col(self.cursor_offset()).0);
-        let lines: Vec<&str> = self.content.split('\n').collect();
+        // Local change (Ghostex Docs): each block's first line from the cached line starts, not a
+        // split of the whole document on every render.
+        let starts = self.line_starts();
         let mut out = Vec::new();
         for (range, source) in self.scan_data().mermaid.iter() {
             if caret_row.is_some_and(|row| range.contains(&row)) || source.trim().is_empty() {
                 continue;
             }
-            let fenced = lines
-                .get(range.start)
-                .is_some_and(|line| line.trim_start().starts_with("```"));
+            let fenced = starts.get(range.start).is_some_and(|&start| {
+                self.content[start..self.line_end(range.start)]
+                    .trim_start()
+                    .starts_with("```")
+            });
             let row = if fenced { range.start + 1 } else { range.start };
             let (Some(top), Some(height)) = (self.line_tops.get(row), self.line_heights.get(row))
             else {
@@ -1954,7 +1972,7 @@ impl EditorState {
             sorted.hash(&mut h);
             h.finish()
         };
-        let data = std::rc::Rc::new(ScanData {
+        let mut data = ScanData {
             footnotes: std::rc::Rc::new(footnotes),
             footnote_epoch,
             frontmatter: markdown_syntax::frontmatter_end(&lines),
@@ -1968,7 +1986,10 @@ impl EditorState {
             props: markdown_syntax::property_regions(&self.content),
             alert_folds: markdown_syntax::alert_fold_regions(&self.content),
             fence_odd,
-        });
+            plain_rows: Vec::new(),
+        };
+        data.plain_rows = plain_rows(&lines, &data);
+        let data = std::rc::Rc::new(data);
         *self.scan_cache.borrow_mut() = Some((self.content_gen, data.clone()));
         data
     }
@@ -4514,6 +4535,31 @@ impl EditorState {
     /// Local change (Ghostex Docs): every heading whose section has content, as `(heading row,
     /// rows its fold hides, folded)`, for a host-drawn fold lane like the Docs page's.
     pub fn heading_folds(&self) -> Vec<(usize, Range<usize>, bool)> {
+        // The sections are kept per content generation: the Docs body asks every frame, and
+        // finding them parsed every line of the document.
+        let sections = match self.heading_sections_cache.borrow().as_ref() {
+            Some((generation, sections)) if *generation == self.content_gen => Some(sections.clone()),
+            _ => None,
+        };
+        let sections = sections.unwrap_or_else(|| {
+            let sections = std::rc::Rc::new(self.heading_sections());
+            *self.heading_sections_cache.borrow_mut() = Some((self.content_gen, sections.clone()));
+            sections
+        });
+        let starts = self.line_starts();
+        sections
+            .iter()
+            .map(|(start, hidden)| {
+                let line = starts
+                    .get(*start)
+                    .map_or("", |&from| &self.content[from..self.line_end(*start)]);
+                (*start, hidden.clone(), self.folded_headings.contains(line.trim()))
+            })
+            .collect()
+    }
+
+    /// Every heading whose section has content, as `(heading row, rows its fold hides)`.
+    fn heading_sections(&self) -> Vec<(usize, Range<usize>)> {
         // A heading's section runs to the next heading of its level or higher, outside fenced
         // code (the same section `heading_fold_regions` folds).
         let lines: Vec<&str> = self.content.split('\n').collect();
@@ -4546,10 +4592,7 @@ impl EditorState {
                     .iter()
                     .any(|line| !line.trim().is_empty())
             })
-            .map(|(start, end)| {
-                let folded = self.folded_headings.contains(lines[start].trim());
-                (start, start + 1..end, folded)
-            })
+            .map(|(start, end)| (start, start + 1..end))
             .collect()
     }
 
@@ -6947,7 +6990,7 @@ struct ShapedDoc {
     /// Local change (Ghostex Docs): extra room above each line (a merge-conflict block's action
     /// row), added to its top like the code and table pads.
     extra_top: Vec<Pixels>,
-    wrapped: Vec<WrappedLine>,
+    wrapped: Vec<std::rc::Rc<WrappedLine>>,
     heights: Vec<Pixels>,
     widgets: Vec<Option<Block>>,
     backgrounds: Vec<Option<CodeBg>>,
@@ -6969,9 +7012,30 @@ struct ShapedDoc {
     /// which keep gpui's own wrapping. Drives that line's paint, caret,
     /// selection and hit-testing.
     rtl_rows: Vec<Option<(bool, Vec<gpui_bidi::paragraph::Row>)>>,
+    /// Local change (Ghostex Docs): the empty line every off-screen row shares.
+    offscreen: Option<std::rc::Rc<WrappedLine>>,
 }
 
 impl ShapedDoc {
+    /// Local change (Ghostex Docs): room for `lines` rows up front, so a long document's rows
+    /// don't regrow every per-row vector as they are pushed.
+    fn with_capacity(lines: usize) -> Self {
+        Self {
+            extra_top: Vec::with_capacity(lines),
+            wrapped: Vec::with_capacity(lines),
+            heights: Vec::with_capacity(lines),
+            widgets: Vec::with_capacity(lines),
+            backgrounds: Vec::with_capacity(lines),
+            tables: Vec::with_capacity(lines),
+            maps: Vec::with_capacity(lines),
+            marks: Vec::with_capacity(lines),
+            inline_maths: Vec::with_capacity(lines),
+            wrap_rows: Vec::with_capacity(lines),
+            rtl_rows: Vec::with_capacity(lines),
+            offscreen: None,
+        }
+    }
+
     /// Push one line that renders as something other than shaped text — a
     /// widget/collapsed/windowed-out line: an empty placeholder `WrappedLine`,
     /// the given height/widget/mark, and `rows` wrap rows.
@@ -6996,6 +7060,25 @@ impl ShapedDoc {
         .into_iter()
         .next()
         .expect("a line always shapes to one wrapped line");
+        self.push_row(std::rc::Rc::new(wl), h, widget, mark, rows);
+    }
+
+    /// Local change (Ghostex Docs): push a plain row that is off screen: like a placeholder, but
+    /// with an unshaped empty line. Paint skips the row, and shaping an empty string for each one
+    /// cost a text-system lookup per off-screen line of a long document on every frame.
+    fn push_offscreen(&mut self, h: Pixels, mark: Option<LineMark>, rows: usize) {
+        let line = self.offscreen.get_or_insert_with(Default::default).clone();
+        self.push_row(line, h, None, mark, rows);
+    }
+
+    fn push_row(
+        &mut self,
+        wl: std::rc::Rc<WrappedLine>,
+        h: Pixels,
+        widget: Option<Block>,
+        mark: Option<LineMark>,
+        rows: usize,
+    ) {
         self.wrapped.push(wl);
         self.heights.push(h);
         self.widgets.push(widget);
@@ -7028,7 +7111,7 @@ impl ShapedDoc {
             .next()
             .expect("a line always shapes to one wrapped line");
         let rows = wl.wrap_boundaries().len() + 1;
-        self.wrapped.push(wl);
+        self.wrapped.push(std::rc::Rc::new(wl));
         self.heights.push(h);
         self.widgets.push(None);
         self.backgrounds.push(None);
@@ -7354,6 +7437,21 @@ struct ShapeCaches {
     code_highlights: std::cell::RefCell<Option<((u64, u64), std::rc::Rc<CodeLineHighlights>)>>,
     /// Bumped by `set_code_highlighter`, retiring `code_highlights`.
     highlighter_gen: std::cell::Cell<u64>,
+    /// Local change (Ghostex Docs): each plain row's last full shaping off the caret and the
+    /// selection (see [`ScanData::plain_rows`]), valid for one key of the scan generation, font,
+    /// palette, wrap width and indent.
+    plain_rows: std::cell::RefCell<(u64, Vec<Option<PlainRow>>)>,
+}
+
+/// Local change (Ghostex Docs): what a plain row needs to stand in for itself off screen.
+#[derive(Clone, Copy)]
+struct PlainRow {
+    /// Its wrap row's height and wrap row count.
+    height: Pixels,
+    rows: usize,
+    mark: Option<LineMark>,
+    /// The line's own strong direction (RTL or not), which later blank lines inherit.
+    strong_rtl: Option<bool>,
 }
 
 /// Token colors per code line (line index → in-line ranges).
@@ -7419,6 +7517,55 @@ pub(crate) struct ScanData {
     frontmatter: Option<usize>,
     conflicts: Vec<Range<usize>>,
     details: Vec<markdown_syntax::DetailsRegion>,
+    /// Local change (Ghostex Docs): whether each line is a plain row, one whose layout depends
+    /// only on its own text (no fence, table, math, Mermaid, property, callout, frontmatter,
+    /// conflict or `<details>` block around it, and no quote, image or `$` in it). Off the
+    /// caret and the selection, a plain row's height and mark are kept per row
+    /// ([`ShapeCaches::plain_rows`]) so a scroll steps over the off-screen ones without
+    /// parsing them.
+    plain_rows: Vec<bool>,
+}
+
+/// Local change (Ghostex Docs): [`ScanData::plain_rows`] for a scan's lines and regions.
+fn plain_rows(lines: &[&str], scan: &ScanData) -> Vec<bool> {
+    let mut plain: Vec<bool> = lines
+        .iter()
+        .zip(&scan.fence_odd)
+        .map(|(line, &in_fence)| {
+            !in_fence
+                && !line.trim_start().starts_with("```")
+                && !line.contains('$')
+                && !line.contains("![")
+                && markdown_syntax::blockquote_prefix(line).is_none()
+        })
+        .collect();
+    let mut clear = |rows: Range<usize>| {
+        let end = rows.end.min(plain.len());
+        if rows.start < end {
+            plain[rows.start..end].fill(false);
+        }
+    };
+    if let Some(close) = scan.frontmatter {
+        clear(0..close + 1);
+    }
+    scan.conflicts.iter().for_each(|r| clear(r.clone()));
+    scan.details.iter().for_each(|r| clear(r.lines.clone()));
+    for table in &scan.tables {
+        clear(table.lines.clone());
+        if let Some(marker) = table.marker_line {
+            clear(marker..marker + 1);
+        }
+    }
+    scan.mermaid.iter().for_each(|(r, _)| clear(r.clone()));
+    for math in &scan.math {
+        clear(math.range.clone());
+        if let Some(marker) = math.marker_line {
+            clear(marker..marker + 1);
+        }
+    }
+    scan.props.iter().for_each(|r| clear(r.clone()));
+    scan.alert_folds.iter().for_each(|(r, _)| clear(r.clone()));
+    plain
 }
 
 /// One frame's shaping, memoized between the measure pass and prepaint —

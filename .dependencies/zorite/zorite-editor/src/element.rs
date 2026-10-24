@@ -11,7 +11,7 @@ pub(crate) struct EditorElement {
 }
 
 pub(crate) struct PrepaintState {
-    wrapped: Vec<WrappedLine>,
+    wrapped: Vec<std::rc::Rc<WrappedLine>>,
     /// Per-line wrap-row count (see [`EditorState::wrap_rows`]).
     wrap_rows: Vec<usize>,
     /// The hovered line's gutter drag grip (line, rect) + its cursor hitbox.
@@ -118,11 +118,19 @@ impl Element for EditorElement {
         _: Option<&GlobalElementId>,
         _: Option<&InspectorElementId>,
         window: &mut Window,
-        _: &mut App,
+        cx: &mut App,
     ) -> (LayoutId, ()) {
         // Height depends on the resolved width (soft-wrap), so measure it: shape
         // the content at the available width and count wrapped rows.
         let editor = self.editor.clone();
+        // Local change (Ghostex Docs): this frame's layout pass, so the measures below can tell
+        // a repeat within it (see `EditorState::layout_pass`).
+        let pass = {
+            let state = editor.read(cx);
+            let pass = state.layout_pass.get().wrapping_add(1);
+            state.layout_pass.set(pass);
+            pass
+        };
         // Capture the ambient text style NOW, while the host wrapper's style is
         // on the window's style stack (gpui's Text element does the same). The
         // measure closure runs later, in the layout pass, where the stack is
@@ -140,6 +148,28 @@ impl Element for EditorElement {
                 AvailableSpace::Definite(w) => Some(w),
                 _ => known.width,
             };
+            let width = wrap_width.or(known.width).unwrap_or(px(0.));
+            // Local change (Ghostex Docs): a measure is answered once per layout pass and width,
+            // and the intrinsic ones (no width, or none to wrap in) take the height at the last
+            // real width. Each one shaped the whole document: five passes over every line per
+            // frame of a scroll. Their heights never sized anything (an unwrapped or a 0px-wrapped
+            // document is nothing like the laid-out one, see the scroll anchoring note below).
+            if let Some(&(_, _, height)) = editor
+                .measured
+                .borrow()
+                .iter()
+                .find(|(p, w, _)| *p == pass && *w == wrap_width)
+            {
+                return size(width, height);
+            }
+            let intrinsic = wrap_width.is_none_or(|w| w < px(1.));
+            if intrinsic && !editor.content.is_empty() {
+                // Before the first real measure, one base row per line stands in.
+                let height = editor.wrapped_height.get().unwrap_or_else(|| {
+                    font_size * LINE_HEIGHT_RATIO * editor.line_starts().len() as f32
+                });
+                return size(width, height);
+            }
             // Scroll anchoring: set when an async height change lands above
             // the viewport (see below); called after the borrow of `editor`
             // ends, before returning.
@@ -300,16 +330,23 @@ impl Element for EditorElement {
                     }
                 }
                 // Hand the shaping to this frame's prepaint (see ShapeMemo).
-                *editor.shape_memo.borrow_mut() = Some(ShapeMemo {
-                    wrap_width,
-                    caret_row,
-                    selection,
-                    font_size,
-                    shaped,
-                });
+                if !intrinsic {
+                    editor.wrapped_height.set(Some(total));
+                    *editor.shape_memo.borrow_mut() = Some(ShapeMemo {
+                        wrap_width,
+                        caret_row,
+                        selection,
+                        font_size,
+                        shaped,
+                    });
+                }
                 total
             };
-            let width = wrap_width.or(known.width).unwrap_or(px(0.));
+            {
+                let mut measured = editor.measured.borrow_mut();
+                measured.retain(|(p, ..)| *p == pass);
+                measured.push((pass, wrap_width, height));
+            }
             if let Some((f, delta)) = compensate {
                 f(delta, window, cx);
             }
@@ -372,6 +409,7 @@ impl Element for EditorElement {
             inline_maths,
             wrap_rows,
             rtl_rows: rtl_layout,
+            offscreen: _,
         } = if let Some(m) = memo {
             m.shaped
         } else if editor.content.is_empty() {
@@ -387,7 +425,7 @@ impl Element for EditorElement {
             let rows: Vec<usize> = w.iter().map(|l| l.wrap_boundaries().len() + 1).collect();
             ShapedDoc {
                 extra_top: vec![px(0.); n],
-                wrapped: w,
+                wrapped: w.into_iter().map(std::rc::Rc::new).collect(),
                 heights: vec![base_lh; n],
                 widgets: vec![None; n],
                 backgrounds: vec![None; n],
@@ -398,6 +436,7 @@ impl Element for EditorElement {
                 wrap_rows: rows,
                 // The placeholder is the host's own string; no RTL layout.
                 rtl_rows: (0..n).map(|_| None).collect(),
+                offscreen: None,
             }
         } else {
             shape_document(
@@ -523,6 +562,16 @@ impl Element for EditorElement {
                 .unwrap_or(px(0.))
         };
         let bidi = |row: usize| rtl.get(row).and_then(Option::as_ref);
+        // Local change (Ghostex Docs): the rows paint draws (it skips a line wholly outside the
+        // window's viewport, with 64px of slack). The per-line hitboxes and link boxes below are
+        // built for these only: building them for every line of a long document cost each frame
+        // of a scroll a pass of link parsing and text positions over the whole file.
+        let viewport_h = window.viewport_size().height;
+        let on_screen = |row: usize| {
+            let top = bounds.origin.y + line_tops[row];
+            let advance = line_heights[row] * wrap_rows[row] as f32;
+            top + advance + px(64.) >= px(0.) && top - px(64.) <= viewport_h
+        };
 
         // Corner-grip hitboxes for each inline image, in `widgets` order (matching
         // the order paint walks them) — hitboxes must be inserted during prepaint,
@@ -534,6 +583,7 @@ impl Element for EditorElement {
         for (i, w) in widgets.iter().enumerate() {
             if let Some(Block::Image(img)) = w
                 && img.resizable
+                && on_screen(i)
             {
                 let inset = row_inset(
                     backgrounds.get(i).copied().flatten(),
@@ -559,6 +609,9 @@ impl Element for EditorElement {
         let mut chip_grips = Vec::new();
         let mut alert_fold_grips = Vec::new();
         for (i, lh) in line_heights.iter().enumerate() {
+            if !on_screen(i) {
+                continue;
+            }
             if let Some(LineMark::Check { bullet_x, .. }) = marks.get(i).copied().flatten() {
                 let sz = font_size * CHECKBOX_SCALE;
                 let pad = px(4.);
@@ -650,6 +703,10 @@ impl Element for EditorElement {
                     + line_tops[last]
                     + line_heights[last] * wrap_rows[last] as f32
                     + last_bot_pad;
+                // Local change (Ghostex Docs): a card off screen needs no hover rect or chips.
+                if card_bottom + px(64.) < px(0.) || card_top - px(64.) > viewport_h {
+                    continue;
+                }
                 let card = Bounds::new(
                     point(bounds.origin.x, card_top),
                     size(cb.width, card_bottom - card_top),
@@ -720,7 +777,7 @@ impl Element for EditorElement {
             for (i, line_shaped) in wrapped.iter().enumerate() {
                 // A fence's `# comment` line isn't a heading; folded rows
                 // (height 0, inside an outer fold) can't anchor a chevron.
-                if backgrounds.get(i).and_then(Option::as_ref).is_some() {
+                if backgrounds.get(i).and_then(Option::as_ref).is_some() || !on_screen(i) {
                     continue;
                 }
                 let (Some(&start), Some(&lh)) = (starts.get(i), line_heights.get(i)) else {
@@ -772,6 +829,7 @@ impl Element for EditorElement {
                 if widgets.get(i).and_then(Option::as_ref).is_some()
                     || backgrounds.get(i).and_then(Option::as_ref).is_some()
                     || tables.get(i).and_then(Option::as_ref).is_some()
+                    || !on_screen(i)
                 {
                     continue;
                 }
@@ -865,7 +923,9 @@ impl Element for EditorElement {
         // uses) and insert a hitbox — the cursor is set during paint.
         let mut prop_pill_grips = Vec::new();
         for (i, w) in widgets.iter().enumerate() {
-            if let Some(Block::Properties(p)) = w.as_ref() {
+            if let Some(Block::Properties(p)) = w.as_ref()
+                && on_screen(i)
+            {
                 let origin = point(bounds.origin.x, bounds.origin.y + line_tops[i]);
                 for b in prop_pill_bounds(p, origin, &font, font_size, window) {
                     prop_pill_grips.push(window.insert_hitbox(b, HitboxBehavior::Normal));
@@ -3118,8 +3178,8 @@ fn shape_document(
     // Local change (Ghostex Docs): `<details>` blocks toggled from their initial state.
     details_toggled: &std::collections::HashSet<String>,
 ) -> ShapedDoc {
-    let mut out = ShapedDoc::default();
     let lines: Vec<&str> = content.split('\n').collect();
+    let mut out = ShapedDoc::with_capacity(lines.len());
     // Local change (Ghostex Docs): the scanner numbers footnotes from this document's references.
     markdown_syntax::set_footnote_numbers(scan.footnotes.clone());
     // Ordered items paint their computed CommonMark position, not their
@@ -3291,11 +3351,9 @@ fn shape_document(
     }
     // `<!-- math:ALIGN -->` marker lines to hide (revealed only when the caret lands on them),
     // like table style markers.
+    // Local change (Ghostex Docs): from the cached scan, not a fresh scan of the document per call.
     let math_marker_lines: Vec<usize> = if md.is_some() {
-        markdown_syntax::math_regions(content)
-            .iter()
-            .filter_map(|r| r.marker_line)
-            .collect()
+        scan.math.iter().filter_map(|r| r.marker_line).collect()
     } else {
         Vec::new()
     };
@@ -3440,6 +3498,35 @@ fn shape_document(
     if highlighting {
         *caches.code_highlights.borrow_mut() = Some((highlight_key, line_highlights.clone()));
     }
+    // Local change (Ghostex Docs): the plain-row cache's key, and the rows a fold hides this
+    // call (a hidden row never takes the plain path).
+    let plain_epoch = {
+        use std::hash::{Hash, Hasher};
+        let mut h = std::collections::hash_map::DefaultHasher::new();
+        scan.generation.hash(&mut h);
+        run_epoch.hash(&mut h);
+        f32::from(base_font_size).to_bits().hash(&mut h);
+        wrap_width.map(f32::from).unwrap_or(-1.).to_bits().hash(&mut h);
+        tab_indent.hash(&mut h);
+        md.is_some().hash(&mut h);
+        h.finish()
+    };
+    {
+        let mut rows = caches.plain_rows.borrow_mut();
+        if rows.0 != plain_epoch || rows.1.len() != lines.len() {
+            *rows = (plain_epoch, vec![None; lines.len()]);
+        }
+    }
+    let folded_rows: Option<Vec<bool>> = (!alert_folds.is_empty()).then(|| {
+        let mut rows = vec![false; lines.len()];
+        for r in &alert_folds {
+            let end = r.end.min(rows.len());
+            if r.start < end {
+                rows[r.start..end].fill(true);
+            }
+        }
+        rows
+    });
     let mut line_start = 0;
     let mut in_fence = false;
     // Active GitHub alert run (`> [!NOTE]` …): set by a marker line, carried
@@ -3458,6 +3545,28 @@ fn shape_document(
                 out.extra_top[idx - 1],
             );
             y_acc += tp + bp + out.heights[idx - 1] * out.wrap_rows[idx - 1] as f32;
+        }
+
+        // Local change (Ghostex Docs): a plain row off screen, away from the caret, the selection
+        // and any fold, stands in with its kept height and mark before any of the parsing below,
+        // so a scroll costs the rows near the viewport rather than the whole document.
+        if let Some((lo, hi)) = band
+            && !in_fence
+            && caret_row != Some(idx)
+            && scan.plain_rows.get(idx).copied().unwrap_or(false)
+            && !sel_rows.as_ref().is_some_and(|rows| rows.contains(&idx))
+            && !folded_rows.as_ref().is_some_and(|rows| rows[idx])
+            && let Some(row) = caches.plain_rows.borrow().1.get(idx).copied().flatten()
+            && (y_acc > hi || y_acc + row.height * (row.rows as f32) < lo)
+        {
+            close_code_block(&mut out, &mut code_block, &mut code_w, wrap_width);
+            alert_run = None;
+            if let Some(rtl) = row.strong_rtl {
+                last_strong_rtl = rtl;
+            }
+            out.push_offscreen(row.height, row.mark, row.rows);
+            line_start = line_end + 1;
+            continue;
         }
 
         // A ready mermaid block renders as its diagram (on the first line) with the
@@ -3649,18 +3758,8 @@ fn shape_document(
         // each side, like a table) and mark its last line so the box rounds + pads
         // its bottom edge. The vertical padding is grown into the painted quad, so
         // line geometry — and the caret — stay untouched.
-        if !is_code && !code_block.is_empty() {
-            // Local change (Ghostex Docs): the card spans the text column, like the Docs page.
-        let bw = (code_w + px(2. * CODE_INSET)).max(wrap_width.unwrap_or(px(0.)));
-            let last = *code_block.last().unwrap();
-            for &bi in &code_block {
-                if let Some(cb) = &mut out.backgrounds[bi] {
-                    cb.width = bw;
-                    cb.bottom = bi == last;
-                }
-            }
-            code_block.clear();
-            code_w = px(0.);
+        if !is_code {
+            close_code_block(&mut out, &mut code_block, &mut code_w, wrap_width);
         }
 
         let fs = if is_code {
@@ -4413,10 +4512,11 @@ fn shape_document(
             // ponytail: it inherits from ABOVE, so an alert whose title follows
             // English text but whose body is Persian still splits. Looking ahead
             // to the body would fix it; no one has hit that yet.
-            let line_rtl = match zorite_markdown::syntax::content_direction_opt(line) {
+            let strong_rtl = zorite_markdown::syntax::content_direction_opt(line).map(|d| d.is_rtl());
+            let line_rtl = match strong_rtl {
                 Some(d) => {
-                    last_strong_rtl = d.is_rtl();
-                    d.is_rtl()
+                    last_strong_rtl = d;
+                    d
                 }
                 // Nothing but markers (`> [!NOTE]`, a bare `- `): its content is
                 // the line BELOW, so take that one's direction — a callout's
@@ -4452,10 +4552,29 @@ fn shape_document(
             if let Some(hk) = plain_hkey {
                 caches.line_heights.borrow_mut().insert(hk, (h, span));
             }
+            // Local change (Ghostex Docs): keep a plain row's layout for the off-screen path above
+            // (the caret's row and a selected row draw differently, so they keep nothing).
+            if scan.plain_rows.get(idx).copied().unwrap_or(false)
+                && caret_row != Some(idx)
+                && !sel_hits(&(idx..idx + 1))
+                && widget.is_none()
+                && table.is_none()
+                && bg.is_none()
+                && line_inline_math.is_empty()
+                && !collapse_marker
+                && let Some(slot) = caches.plain_rows.borrow_mut().1.get_mut(idx)
+            {
+                *slot = Some(PlainRow {
+                    height: h,
+                    rows: span,
+                    mark,
+                    strong_rtl,
+                });
+            }
             out.wrap_rows.push(span);
             out.extra_top.push(px(0.));
             out.rtl_rows.push(rtl_rows.map(|rows| (line_rtl, rows)));
-            out.wrapped.push(wl);
+            out.wrapped.push(std::rc::Rc::new(wl));
             out.heights.push(h);
             out.widgets.push(widget);
             out.backgrounds.push(bg);
@@ -4474,17 +4593,7 @@ fn shape_document(
     }
     // A code block running to the end of the document: size its box + mark its
     // last line (round the box bottom + pad).
-    if !code_block.is_empty() {
-        // Local change (Ghostex Docs): the card spans the text column, like the Docs page.
-        let bw = (code_w + px(2. * CODE_INSET)).max(wrap_width.unwrap_or(px(0.)));
-        let last = *code_block.last().unwrap();
-        for &bi in &code_block {
-            if let Some(cb) = &mut out.backgrounds[bi] {
-                cb.width = bw;
-                cb.bottom = bi == last;
-            }
-        }
-    }
+    close_code_block(&mut out, &mut code_block, &mut code_w, wrap_width);
     // Cap the run cache: edits retire entries (each changed line re-keys), so
     // without a bound it grows one dead entry per keystroke. Clearing wholesale
     // is fine — the next frame rebuilds only what's visible… which is
@@ -4504,6 +4613,29 @@ fn shape_document(
         }
     }
     out
+}
+
+/// Ends the code block being collected, if any: sizes its card to its widest line (plus the inset
+/// on each side, like a table) and marks its last line, so the card rounds and pads its bottom.
+fn close_code_block(
+    out: &mut ShapedDoc,
+    code_block: &mut Vec<usize>,
+    code_w: &mut Pixels,
+    wrap_width: Option<Pixels>,
+) {
+    let Some(&last) = code_block.last() else {
+        return;
+    };
+    // Local change (Ghostex Docs): the card spans the text column, like the Docs page.
+    let bw = (*code_w + px(2. * CODE_INSET)).max(wrap_width.unwrap_or(px(0.)));
+    for &bi in code_block.iter() {
+        if let Some(cb) = &mut out.backgrounds[bi] {
+            cb.width = bw;
+            cb.bottom = bi == last;
+        }
+    }
+    code_block.clear();
+    *code_w = px(0.);
 }
 
 /// Measure a property region's rows into a [`PropPanel`] with content-fit
