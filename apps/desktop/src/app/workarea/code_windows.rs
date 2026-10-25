@@ -2,8 +2,8 @@
 //! new window, becomes another window tab inside the Code view, with its own page on the same
 //! code-server as the project's own Code window.
 //!
-//! CDXC:CodeEditor 2026-10-24 DECISION:
-//! User: they keep several projects and workspaces open in VS Code at once, each in its own window, shown as macOS window tabs (`window.nativeTabs`), and Code's File > New Window was blocked here. They asked for those windows as tabs "inside the VS Code area, like in real VS Code", in a row above the Code page, rather than Browser tabs with an address bar or extra tabs in the side panel's strip, as an optional advanced setting (`codeServerNewWindowsAsTabs`). The side panel keeps one Code tab. Each window keeps its own page while another is on screen, belongs to the project it was opened in, and closes with the Code tab. Only windows on the Code view's own code-server origin become window tabs (what happens to every other request: `code_window_popup_open_handler`, 2026-10-25).
+//! CDXC:CodeEditor 2026-10-24 WHY:
+//! Several projects and workspaces stay open in VS Code at once, each in its own window, shown as macOS window tabs (`window.nativeTabs`), and VS Code's File > New Window was blocked here. Those windows become tabs inside the VS Code view, in a row above the page, rather than Browser tabs with an address bar or extra tabs in the side panel's strip, behind an advanced setting (`codeServerNewWindowsAsTabs`). The side panel keeps one VS Code tab. Each window keeps its own page while another is on screen, belongs to the project it was opened in, and closes with the VS Code tab. Only windows on the VS Code view's own code-server origin become window tabs (what happens to every other request: `code_window_popup_open_handler`).
 //!
 //! CDXC:CodeEditor 2026-10-24 WHY:
 //! A Code window's page gets no page-metadata handler: with one, the browser layer takes Cmd+R (reload) and Cmd+Y (history) before VS Code sees them (`on_pre_key_event` in cef/shell/lifecycle.rs). Its address and title come from its own script over the page bridge instead.
@@ -19,7 +19,7 @@ use crate::*;
 /// and VS Code's workspace provider (`return !!window.open(url)`) would show "The browser blocked
 /// opening a new tab or window" over the editor.
 pub(crate) const CODE_WINDOW_OPEN_SHIM: &str = r#"(() => {
-  if (window.__ghostexCodeWindowsAsTabs) return;
+  if (window.top !== window || window.__ghostexCodeWindowsAsTabs) return;
   window.__ghostexCodeWindowsAsTabs = true;
   const nativeOpen = window.open;
   window.open = function (url, target, features) {
@@ -35,9 +35,9 @@ pub(crate) const CODE_WINDOW_OPEN_SHIM: &str = r#"(() => {
 /// `window.close()` (File > Close Window) to the app, which closes its tab.
 ///
 /// CDXC:CodeEditor 2026-10-25 WHY:
-/// The script runs in every document of the page, the `about:blank` one a new page starts with included, which reported its window's address as "blank" (measured). The page's own address was then rebuilt from that, became a URL that no longer parses, and every later report left it wrong, so the page counted as stale and was replaced by a new one, again and again while the window was on screen. Only the window's own http(s) documents report.
+/// The script runs in every document of the page, the `about:blank` one a new page starts with included, which reported its window's address as "blank" (measured). The page's own address was then rebuilt from that, became a URL that no longer parses, and every later report left it wrong, so the page counted as stale and was replaced by a new one, again and again while the window was on screen. Only the window's own http(s) documents report. It also runs in every frame (`Page.addScriptToEvaluateOnNewDocument`), so a webview (a Markdown preview, an extension's panel) would report its iframe's address as the window's and its `window.close()` would close the tab: only the top document reports.
 const CODE_WINDOW_PAGE_SCRIPT: &str = r#"(() => {
-  if (window.__ghostexCodeWindowPage || !/^https?:$/.test(location.protocol)) return;
+  if (window.top !== window || window.__ghostexCodeWindowPage || !/^https?:$/.test(location.protocol)) return;
   window.__ghostexCodeWindowPage = true;
   const post = (message) => { try { window.__ghostexPageBridge(JSON.stringify(message)); } catch (_) {} };
   let last = '';
@@ -137,8 +137,8 @@ impl GhostexGpuiApp {
     /// its own process (`blob:`, `data:`), and app links are handed to the OS before this
     /// (`dispatch_external_app_popup`).
     ///
-    /// CDXC:CodeEditor 2026-10-25 DECISION:
-    /// User: a link a Code page opens in a new tab or window (middle-click, Cmd/Ctrl-click, "Open link in new tab") never replaces the editor, with the setting on or off. A web link opens in a new Browser tab, and so do VS Code's own external links when they arrive the same way; a VS Code window on Code's own origin becomes a Code window while the setting is on and leaves the page as it is while it is off; native sign-in popups stay off for Code. Supersedes the 2026-10-24 rule that every other popup from a Code page stays blocked.
+    /// CDXC:CodeEditor 2026-10-25 WHY:
+    /// A link a VS Code page opens in a new tab or window (middle-click, Cmd/Ctrl-click, "Open link in new tab") never replaces the editor, with the setting on or off. A VS Code window on the view's own origin becomes a window tab while the setting is on and leaves the page as it is while it is off; native sign-in popups stay off for VS Code.
     pub(crate) fn code_window_popup_open_handler(
         &self,
         code_view_url: &str,
@@ -201,6 +201,12 @@ impl GhostexGpuiApp {
         if !self.code_windows_as_tabs_active() {
             return;
         }
+        if let Some(existing) = self.code_window_with_target(&location, None) {
+            if select {
+                self.select_code_window(existing, window, cx);
+            }
+            return;
+        }
         let id = CodeWindowId(self.next_code_window_id);
         self.next_code_window_id += 1;
         self.code_windows
@@ -213,10 +219,41 @@ impl GhostexGpuiApp {
         }
     }
 
+    /// The window that already has `location`'s folder or workspace open, other than `except`:
+    /// `Some(None)` is the project's own window.
+    ///
+    /// CDXC:CodeEditor 2026-10-25 WHY:
+    /// A file sent to Code (`ghostex edit`, a chat link, Open file changes in VS Code) goes to the workbench rooted at the project's folder that registered last (`getCandidatesForWorkspaceFolder` in .dependencies/code-server/src/node/vscodeSocket.ts), so a second window on that folder took the file out of sight while the project's own window was shown. VS Code itself never opens a folder twice: it brings the window that has it to the front, and so does this.
+    fn code_window_with_target(
+        &self,
+        location: &str,
+        except: Option<CodeWindowId>,
+    ) -> Option<Option<CodeWindowId>> {
+        let target = code_window_target(location)?;
+        let own = self
+            .project_workarea_runtime_url_for_slot(ProjectWorkareaCefSurfaceSlotKey::Source)
+            .and_then(|url| url::Url::parse(&url.value).ok())
+            .and_then(|url| {
+                url.query()
+                    .and_then(|query| code_window_target(&format!("/?{query}")))
+            });
+        if own.as_ref() == Some(&target) {
+            return Some(None);
+        }
+        self.code_windows
+            .windows
+            .iter()
+            .find(|window| {
+                Some(window.id) != except
+                    && code_window_target(window.location()).as_ref() == Some(&target)
+            })
+            .map(|window| Some(window.id))
+    }
+
     /// The `+` after the window tabs: a new empty window, as VS Code's File > New Window opens.
     ///
-    /// CDXC:CodeEditor 2026-10-24 DECISION:
-    /// User: no Code Window row in the side panel's `+` menu; "we can already do it with the + inside", whose tooltip says what it does.
+    /// CDXC:CodeEditor 2026-10-24 WHY:
+    /// No VS Code Window row in the side panel's `+` menu: the `+` inside the row does it, and its tooltip says what it does.
     pub(crate) fn open_new_code_window(
         &mut self,
         window: &mut Window,
@@ -263,8 +300,8 @@ impl GhostexGpuiApp {
         self.watch_code_window_handoff(cx);
     }
 
-    /// CDXC:CodeEditor 2026-10-24 DECISION:
-    /// User chose (asked which way to close the gap): when switching windows, the outgoing page stays in front until the incoming one has drawn, "do it like this so I can see it first", then asked for the best way with no extra CPU or GPU. Measured before: the outgoing page was hidden at once and the incoming one only reached the screen tens of milliseconds later, so every switch showed the panel's empty background for 25–30 ms. Now the two pages overlap on purpose for a few frames, the way a browser keeps the old tab's frame until the new one has drawn: the outgoing page is ordered to the front, the incoming one is shown behind it and raised as soon as its view holds a new surface, then the outgoing one is hidden. Only the visible page and the one it replaces are ever live; the others stay hidden as before.
+    /// CDXC:CodeEditor 2026-10-24 WHY:
+    /// When switching windows, the outgoing page stays in front until the incoming one has drawn, at no extra CPU or GPU cost. Measured before: the outgoing page was hidden at once and the incoming one only reached the screen tens of milliseconds later, so every switch showed the panel's empty background for 25–30 ms. Now the two pages overlap on purpose for a few frames, the way a browser keeps the old tab's frame until the new one has drawn: the outgoing page is ordered to the front, the incoming one is shown behind it and raised as soon as its view holds a new surface, then the outgoing one is hidden. Only the visible page and the one it replaces are ever live; the others stay hidden as before.
     fn begin_code_window_handoff(
         &mut self,
         outgoing: ProjectWorkareaCefSurfaceSlotKey,
@@ -543,6 +580,34 @@ impl GhostexGpuiApp {
         .detach();
     }
 
+    /// Closes window `id` of the project on screen from its own page (File > Close Window, or it
+    /// opened a folder another window has). When `id` was the one on screen, `next` is shown
+    /// instead (`Some(None)` the project's own), or with `None` the window before it.
+    ///
+    /// CDXC:CodeEditor 2026-10-25 WHY:
+    /// The page that had the keys is gone and showing the next one does not focus it, so without this the keys went nowhere until a click, unlike the tab's close control. The message arrives with no GPUI window, so the handoff runs on the next render; a window that did not have the keys leaves them where they are.
+    fn hand_code_window_to(
+        &mut self,
+        id: CodeWindowId,
+        next: Option<Option<CodeWindowId>>,
+        cx: &mut gpui::Context<Self>,
+    ) {
+        let showing = self.code_windows.active == Some(id);
+        let had_keys = showing
+            && self.active_mode == TitlebarMode::Source
+            && self.shell_focus == ShellFocusTarget::ProjectEditorSurface(TitlebarMode::Source);
+        if showing && let Some(next) = next {
+            self.code_windows.active = next;
+        }
+        if self.remove_code_window(id, cx) && had_keys {
+            self.focus_shell_target(
+                ShellFocusTarget::ProjectEditorSurface(TitlebarMode::Source),
+                cx,
+            );
+            cx.notify();
+        }
+    }
+
     /// The windows `id` belongs to: the project on screen, or a project that was left (its saved
     /// view state), whose parked page can still report.
     fn code_windows_owning_mut(&mut self, id: CodeWindowId) -> Option<&mut CodeWindows> {
@@ -585,6 +650,13 @@ impl GhostexGpuiApp {
                     window.title = title.map(|title| SharedString::from(title.to_owned()));
                 }
                 if let Some(location) = location.filter(|_| moved) {
+                    // A window that opened a folder another window has: that window takes over.
+                    if current_project
+                        && let Some(existing) = self.code_window_with_target(location, Some(id))
+                    {
+                        self.hand_code_window_to(id, Some(existing), cx);
+                        return;
+                    }
                     self.follow_code_window_page(id, location);
                 }
                 // Another project's window changes nothing on screen.
@@ -594,19 +666,7 @@ impl GhostexGpuiApp {
             }
             // File > Close Window.
             Some("codeWindowClose") if current_project => {
-                // CDXC:CodeEditor 2026-10-25 WHY:
-                // The page that had the keys is gone and showing the next one does not focus it, so without this the keys went nowhere until a click, unlike the tab's close control. The message arrives with no GPUI window, so the handoff runs on the next render; a window that did not have the keys leaves them where they are.
-                let had_keys = self.active_mode == TitlebarMode::Source
-                    && self.code_windows.active == Some(id)
-                    && self.shell_focus
-                        == ShellFocusTarget::ProjectEditorSurface(TitlebarMode::Source);
-                if self.remove_code_window(id, cx) && had_keys {
-                    self.focus_shell_target(
-                        ShellFocusTarget::ProjectEditorSurface(TitlebarMode::Source),
-                        cx,
-                    );
-                    cx.notify();
-                }
+                self.hand_code_window_to(id, None, cx);
             }
             Some("codeWindowClose") => {
                 if let Some(windows) = self.code_windows_owning_mut(id) {

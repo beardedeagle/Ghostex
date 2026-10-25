@@ -86,7 +86,31 @@ impl GhostexGpuiApp {
             settings.auto_sleep_duration(shared_settings::SharedSettingsAutoSleepTarget::Browser);
         let view_limit = settings
             .auto_sleep_duration(shared_settings::SharedSettingsAutoSleepTarget::ProjectEditor);
+        let code_limit = settings
+            .auto_sleep_duration(shared_settings::SharedSettingsAutoSleepTarget::CodeEditor);
         let mut slept = false;
+
+        /*
+        CDXC:CodeEditor 2026-10-25 WHY:
+        Each extra VS Code window is a whole workbench page plus its own extension host on the code-server, and VS Code's own Auto Sleep only ever stops the whole view, so windows waiting behind the one on screen kept all of that alive for as long as VS Code stayed open. A window off screen for VS Code's Auto Sleep time gives its page back and keeps its tab, and its page is built again at its last folder when it is picked.
+        */
+        if let Some(limit) = code_limit {
+            let shown = self.active_code_editor_slot();
+            let due = self
+                .project_workarea_runtime_cef_surfaces
+                .iter()
+                .filter(|(slot, owned)| {
+                    matches!(slot, ProjectWorkareaCefSurfaceSlotKey::CodeWindow(_))
+                        && **slot != shown
+                        && web_page_is_due(&owned.surface, limit, cx)
+                })
+                .map(|(slot, _)| *slot)
+                .collect::<Vec<_>>();
+            for slot in due {
+                self.remove_project_workarea_runtime_cef_surface(slot, cx);
+                slept = true;
+            }
+        }
 
         if let Some(limit) = browser_limit {
             let live_due = self

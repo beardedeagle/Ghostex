@@ -268,7 +268,14 @@ view from the strip.
   `closeFocusedSession`.
 - **VS Code**: the built-in VS Code based editor (code-server). Opens files from
   chat links, `ghostex edit <file>`, and Open In. Optional Use VS Code settings
-  reuses the local VS Code configuration. The editor and the web runtime (see
+  reuses the local VS Code configuration. VS Code shows one window per project;
+  turn on Open VS Code windows as tabs (Settings > General > Tools > Editor,
+  advanced) and a window VS Code opens (File > New Window, a folder or workspace
+  opened in a new window, or the + after the window tabs) becomes another window
+  tab in a row above the VS Code page, so several projects or workspaces stay
+  open at once. A folder that already has a window brings that window's tab to
+  the front. The windows belong to the project, close with its VS Code tab, and
+  are not kept after quitting Ghostex. The editor and the web runtime (see
   Browser) are both optional installs; the VS Code view offers each one the first
   time it opens.
   Settings: `codeServerLinkVscodeUserConfig`, `codeServerNewWindowsAsTabs`.

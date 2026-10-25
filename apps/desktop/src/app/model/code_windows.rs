@@ -108,6 +108,18 @@ pub(crate) fn code_window_location(url: &url::Url, origin: &url::Origin) -> Opti
     })
 }
 
+/// What a window at `location` has open (`folder` or `workspace`, and its path), `None` for an
+/// empty window: two windows with the same one are the same VS Code window.
+pub(crate) fn code_window_target(location: &str) -> Option<(String, String)> {
+    let url = url::Url::parse(&format!("http://code-window{location}")).ok()?;
+    url.query_pairs().find_map(|(key, value)| {
+        matches!(key.as_ref(), "folder" | "workspace").then(|| {
+            let path = value.trim_end_matches(['/', '\\']);
+            (key.into_owned(), path.to_owned())
+        })
+    })
+}
+
 fn code_window_label(location: &str) -> String {
     let Ok(url) = url::Url::parse(&format!("http://code-window{location}")) else {
         return "New Window".to_string();

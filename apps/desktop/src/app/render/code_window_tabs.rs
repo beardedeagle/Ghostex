@@ -24,18 +24,14 @@ use crate::app::model::*;
 use crate::app::render::view_tab_strip::view_tab_strip_tooltip_text;
 use crate::*;
 
-const CODE_WINDOW_TAB_ROW_HEIGHT: f32 = 30.0;
-const CODE_WINDOW_TAB_HEIGHT: f32 = 22.0;
-/// Room for "New Window" and the close control; below it the row scrolls instead.
-const CODE_WINDOW_TAB_MIN_WIDTH: f32 = 132.0;
 const CODE_WINDOW_TAB_GROUP: &str = "ghostex-gpui-code-window-tab";
 
 impl GhostexGpuiApp {
-    /// The row, whenever Code windows as tabs is on: with only the project's own window it is that
+    /// The row, whenever VS Code windows as tabs is on: with only the project's own window it is that
     /// tab and the `+`.
     ///
-    /// CDXC:CodeEditor 2026-10-24 DECISION:
-    /// User: with the row hidden until a second window existed, and no Code Window row in the side panel's `+` menu, there was no visible way to open one ("what is the way to open a new window now?"). The row stays while the setting is on, so its `+` is always there; this replaces the same day's macOS-style rule that showed it only with two windows or more.
+    /// CDXC:CodeEditor 2026-10-24 WHY:
+    /// With the row hidden until a second window existed, and no VS Code Window row in the side panel's `+` menu, there was no visible way to open one. The row stays while the setting is on, so its `+` is always there; this replaces the same day's macOS-style rule that showed it only with two windows or more.
     pub(crate) fn render_code_window_tab_row(
         &self,
         cx: &mut gpui::Context<Self>,
@@ -62,9 +58,9 @@ impl GhostexGpuiApp {
                 .id("ghostex-gpui-code-window-tabs")
                 .flex_shrink_0()
                 .w_full()
-                .h(px(CODE_WINDOW_TAB_ROW_HEIGHT))
+                .h(px(WORKAREA_VIEW_TAB_STRIP_HEIGHT))
                 .items_center()
-                .gap(px(4.0))
+                .gap(px(WORKAREA_VIEW_TAB_GAP))
                 .px(px(6.0))
                 .bg(glass_clear(project_editor_shell_background_color()))
                 .border_b_1()
@@ -78,7 +74,7 @@ impl GhostexGpuiApp {
                         .min_w_0()
                         .h_full()
                         .items_center()
-                        .gap(px(4.0))
+                        .gap(px(WORKAREA_VIEW_TAB_GAP))
                         .overflow_x_scroll()
                         .track_scroll(&self.code_window_tab_scroll_handle)
                         .children(tabs),
@@ -88,12 +84,12 @@ impl GhostexGpuiApp {
         )
     }
 
-    /// One window's tab: equal widths down to `CODE_WINDOW_TAB_MIN_WIDTH`, its folder or workspace
-    /// in the middle, VS Code's window title as its tooltip, and a close control on the extra
-    /// windows only (the project's own window closes with the Code tab).
+    /// One window's tab, drawn as the view tab strip draws its tabs: its folder or workspace,
+    /// VS Code's window title as its tooltip, and a close control after the label on the extra
+    /// windows only (the project's own window closes with the VS Code tab).
     ///
     /// CDXC:CodeEditor 2026-10-25 WHY:
-    /// With every tab free to shrink, 16 windows turned each label into an unreadable "…" (measured in Ghostex-3). The tabs now stop at a minimum width and the row scrolls sideways, as the view tab strip does, keeping the shown window's tab in view (`reveal_shown_code_window_tab`).
+    /// The tabs keep the strip's one width (CDXC:Workarea 2026-09-21 DECISION on `WORKAREA_VIEW_TAB_WIDTH`) instead of shrinking, which turned 16 windows' labels into an unreadable "…", and the row scrolls sideways, keeping the shown window's tab in view (`reveal_shown_code_window_tab`).
     fn render_code_window_tab(
         &self,
         id: Option<CodeWindowId>,
@@ -106,18 +102,18 @@ impl GhostexGpuiApp {
         div()
             .id(format!("ghostex-gpui-code-window-tab-{element_id}"))
             .group(CODE_WINDOW_TAB_GROUP)
-            .relative()
             .flex()
-            .flex_1()
-            .min_w(px(CODE_WINDOW_TAB_MIN_WIDTH))
-            .h(px(CODE_WINDOW_TAB_HEIGHT))
+            .flex_shrink_0()
+            .w(px(WORKAREA_VIEW_TAB_WIDTH))
+            .h(px(WORKAREA_VIEW_TAB_HEIGHT))
             .items_center()
-            .justify_center()
-            .px(px(22.0))
-            .rounded(px(5.0))
+            .gap(px(6.0))
+            .px(px(WORKAREA_VIEW_TAB_HORIZONTAL_PADDING))
+            .rounded(px(WORKAREA_VIEW_TAB_RADIUS))
             .border_1()
             .border_color(titlebar_split_button_border_color())
-            .text_size(px(12.0))
+            .text_size(px(WORKAREA_HEADER_TITLE_TEXT_SIZE))
+            .line_height(px(WORKAREA_VIEW_TAB_HEIGHT))
             .cursor_default()
             .when(is_showing, |this| {
                 this.bg(titlebar_active_segment_color())
@@ -145,6 +141,15 @@ impl GhostexGpuiApp {
                     this.select_code_window(id, window, cx);
                 }),
             )
+            .child(
+                div()
+                    .flex_1()
+                    .min_w_0()
+                    .overflow_hidden()
+                    .whitespace_nowrap()
+                    .text_ellipsis()
+                    .child(label),
+            )
             .when_some(id, |this, id| {
                 this.on_mouse_up(
                     MouseButton::Middle,
@@ -156,18 +161,10 @@ impl GhostexGpuiApp {
                 )
                 .child(self.render_code_window_tab_close_button(id, is_showing, cx))
             })
-            .child(
-                div()
-                    .min_w_0()
-                    .overflow_hidden()
-                    .whitespace_nowrap()
-                    .text_ellipsis()
-                    .child(label),
-            )
             .into_any_element()
     }
 
-    /// At the tab's left edge, as macOS draws it: on the showing tab and the hovered one.
+    /// After the label, as the view tab strip draws it: on the showing tab and the hovered one.
     fn render_code_window_tab_close_button(
         &self,
         id: CodeWindowId,
@@ -176,9 +173,8 @@ impl GhostexGpuiApp {
     ) -> impl IntoElement {
         div()
             .id(format!("ghostex-gpui-code-window-tab-close-{}", id.0))
-            .absolute()
-            .left(px(4.0))
             .flex()
+            .flex_shrink_0()
             .size(px(WORKAREA_VIEW_TAB_CLOSE_SIZE))
             .items_center()
             .justify_center()
@@ -199,7 +195,7 @@ impl GhostexGpuiApp {
             )
             .child(titlebar_svg_icon(
                 TITLEBAR_ICON_X,
-                10.0,
+                11.0,
                 titlebar_icon_color(),
             ))
     }
@@ -209,10 +205,10 @@ impl GhostexGpuiApp {
             .id("ghostex-gpui-code-window-tab-add")
             .flex()
             .flex_shrink_0()
-            .size(px(CODE_WINDOW_TAB_HEIGHT))
+            .size(px(WORKAREA_VIEW_TAB_HEIGHT))
             .items_center()
             .justify_center()
-            .rounded(px(5.0))
+            .rounded(px(WORKAREA_VIEW_TAB_RADIUS))
             .cursor_default()
             .hover(|this| this.bg(titlebar_button_hover_color()))
             .on_mouse_down(
@@ -224,11 +220,11 @@ impl GhostexGpuiApp {
                 }),
             )
             .managed_tooltip_with_placement(ManagedTooltipPlacement::Left, |window, cx| {
-                titlebar_tooltip("New Code Window", window, cx)
+                titlebar_tooltip("New VS Code Window", window, cx)
             })
             .child(titlebar_svg_icon(
                 TITLEBAR_ICON_PLUS,
-                13.0,
+                14.0,
                 titlebar_icon_color(),
             ))
     }

@@ -1097,11 +1097,14 @@ static uintptr_t GhostexGpuiCEFLayerContentIdentity(CALayer *layer) {
   // Chromium shows the GPU process's frames through a CALayerHost (its contextId) or, when it
   // draws in this process, as an IOSurface set as a layer's contents.
   static Class hostClass;
+  static SEL contextIdSelector;
   static dispatch_once_t once;
   dispatch_once(&once, ^{
     hostClass = NSClassFromString(@"CALayerHost");
+    contextIdSelector = NSSelectorFromString(@"contextId");
   });
-  if (hostClass && [layer isKindOfClass:hostClass]) {
+  // A private class: `valueForKey:` throws if a later macOS drops the key, so ask first.
+  if (hostClass && [layer isKindOfClass:hostClass] && [layer respondsToSelector:contextIdSelector]) {
     NSNumber *contextId = [layer valueForKey:@"contextId"];
     if (contextId.unsignedIntValue != 0) {
       return ((uintptr_t)1 << 63) | contextId.unsignedIntValue;

@@ -102,7 +102,7 @@ How to use this file:
 
 - **Use VS Code settings** `codeServerLinkVscodeUserConfig` (boolean, default false) [advanced]: Use the VS Code settings from the local VS Code install.
 - **Use VS Code Insiders settings** `codeServerUseVscodeInsidersUserConfig` (boolean, default false) [advanced]: Use the VS Code Insiders user settings directory.
-- **Open Code windows as tabs** `codeServerNewWindowsAsTabs` (boolean, default false) [advanced]: When Code opens a new window (File > New Window, or a folder or workspace opened in a new window), show it as another window tab above the Code page instead of blocking it. Each tab is its own VS Code window, so you can keep several projects or workspaces open at once.
+- **Open VS Code windows as tabs** `codeServerNewWindowsAsTabs` (boolean, default false) [advanced]: When VS Code opens a new window (File > New Window, or a folder or workspace opened in a new window), show it as another window tab above the VS Code page instead of blocking it. Each tab is its own VS Code window, so you can keep several projects or workspaces open at once.
 - **Show untracked lines without tracked changes** `showUntrackedProjectDiffWhenNoTrackedChanges` (boolean, default false) [advanced]: When tracked git diff is +0 -0, show untracked line counts in project headers (Starship-style prompts ignore untracked lines).
 #### File opening
 

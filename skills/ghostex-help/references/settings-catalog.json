@@ -1521,8 +1521,8 @@
     },
     {
       "key": "codeServerNewWindowsAsTabs",
-      "title": "Open Code windows as tabs",
-      "subtitle": "When Code opens a new window (File > New Window, or a folder or workspace opened in a new window), show it as another window tab above the Code page instead of blocking it. Each tab is its own VS Code window, so you can keep several projects or workspaces open at once.",
+      "title": "Open VS Code windows as tabs",
+      "subtitle": "When VS Code opens a new window (File > New Window, or a folder or workspace opened in a new window), show it as another window tab above the VS Code page instead of blocking it. Each tab is its own VS Code window, so you can keep several projects or workspaces open at once.",
       "tab": "settings",
       "tabTitle": "General",
       "group": "tools",

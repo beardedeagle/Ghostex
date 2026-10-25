@@ -385,8 +385,8 @@ fn editor_section(
         g,
         s,
         "codeServerNewWindowsAsTabs",
-        "Open Code windows as tabs",
-        "Show a window Code opens (File > New Window, a folder or workspace opened in a new window) as another window tab above the Code page instead of blocking it.",
+        "Open VS Code windows as tabs",
+        "Show a window VS Code opens (File > New Window, a folder or workspace opened in a new window) as another window tab above the VS Code page instead of blocking it.",
         false,
         cx,
     ));
