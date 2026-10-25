@@ -5,6 +5,9 @@ use crate::app::model::*;
 use crate::app::render::view_tab_strip_browser_tabs::ViewStripBrowserTab;
 use crate::*;
 
+/// The most tabs `in_view_strip_order` places by scanning the stored order; see its WHY.
+const RANKED_VIEW_STRIP_TABS: usize = 32;
+
 /// One drawn tab of the strip.
 #[derive(Clone, Copy, PartialEq, Eq)]
 pub(crate) enum ViewStripEntry {
@@ -23,30 +26,80 @@ impl ViewStripEntry {
 
 impl GhostexGpuiApp {
     /// The strip in drawn order: pinned tabs first, then the rest, each group in the order the
-    /// user dragged it into. A tab the stored order has not seen yet is drawn at the end.
+    /// user dragged it into. A tab the stored order has not seen yet is drawn at the end. While the
+    /// Browser's pages have a row of their own (`render/browser_page_tabs.rs`) the strip holds the
+    /// Browser tab instead of them, standing where its first page stood until it is dragged.
     pub(crate) fn view_strip_entries(&self) -> Vec<ViewStripEntry> {
-        let mut available = self
+        let pages_in_row = self.browser_pages_in_view_row;
+        let views = self
             .open_view_tabs()
             .into_iter()
-            .filter(|mode| *mode != TitlebarMode::Browser)
-            .map(ViewStripEntry::View)
-            .chain(
-                self.view_strip_browser_tabs()
-                    .into_iter()
-                    .map(ViewStripEntry::Browser),
-            )
-            .collect::<Vec<_>>();
-        let mut ordered = Vec::with_capacity(available.len());
-        for key in &self.view_strip_layout.order {
-            if let Some(position) = available.iter().position(|entry| entry.key() == *key) {
-                ordered.push(available.remove(position));
+            .filter(|mode| pages_in_row || *mode != TitlebarMode::Browser)
+            .map(ViewStripEntry::View);
+        let pages = if pages_in_row {
+            Vec::new()
+        } else {
+            self.view_strip_browser_tabs()
+        };
+        self.in_view_strip_order(
+            views
+                .chain(pages.into_iter().map(ViewStripEntry::Browser))
+                .collect(),
+            ViewStripEntry::key,
+        )
+    }
+
+    /// `available` in drawn order: pinned tabs first, then by place in the one stored order the
+    /// strip and the Browser's page row share, a tab it does not name last; ties keep `available`'s
+    /// own order.
+    ///
+    /// CDXC:Workarea 2026-10-25 WHY:
+    /// Up to `RANKED_VIEW_STRIP_TABS` tabs each tab's place is a scan of the stored order, then one stable sort; past that the stored order takes its tabs out of the list one by one (the 2026-09-21 loop). Measured, best of 7 in a release build, ns per call for ordered/shuffled tabs with 2 pins: 4 tabs 49/49 against the loop's 95/91, 32 tabs 454/517 against 462/578, 40 tabs 594/809 against 610/748, 64 tabs 1,290/1,636 against 921/1,303, 128 tabs 4,771/5,264 against 2,427/3,470. A `HashMap` of places (std's SipHash, the only map this crate uses) was slower than the loop at every size up to 128, and finding places on a shrinking `swap_remove` list was slower than the scan up to 16 tabs and than the loop from 64.
+    pub(crate) fn in_view_strip_order<T: Copy>(
+        &self,
+        available: Vec<T>,
+        key: impl Fn(T) -> ViewStripTabKey,
+    ) -> Vec<T> {
+        let order = &self.view_strip_layout.order;
+        let browser_tab = ViewStripTabKey::View(TitlebarMode::Browser);
+        let browser_tab_unplaced = self.browser_pages_in_view_row && !order.contains(&browser_tab);
+        let names = |stored: &ViewStripTabKey, key: ViewStripTabKey| {
+            *stored == key
+                || browser_tab_unplaced
+                    && key == browser_tab
+                    && matches!(stored, ViewStripTabKey::Browser(_))
+        };
+        if available.len() > RANKED_VIEW_STRIP_TABS {
+            let mut remaining = available;
+            let mut ordered = Vec::with_capacity(remaining.len());
+            for stored in order {
+                if let Some(index) = remaining
+                    .iter()
+                    .position(|entry| names(stored, key(*entry)))
+                {
+                    ordered.push(remaining.remove(index));
+                }
             }
+            ordered.append(&mut remaining);
+            let (pinned, unpinned): (Vec<_>, Vec<_>) = ordered
+                .into_iter()
+                .partition(|entry| self.view_strip_tab_pinned(key(*entry)));
+            return pinned.into_iter().chain(unpinned).collect();
         }
-        ordered.append(&mut available);
-        let (pinned, unpinned): (Vec<_>, Vec<_>) = ordered
+        let mut placed = available
             .into_iter()
-            .partition(|entry| self.view_strip_tab_pinned(entry.key()));
-        pinned.into_iter().chain(unpinned).collect()
+            .map(|entry| {
+                let key = key(entry);
+                let place = order.iter().position(|stored| names(stored, key));
+                (
+                    !self.view_strip_tab_pinned(key),
+                    place.unwrap_or(usize::MAX),
+                    entry,
+                )
+            })
+            .collect::<Vec<_>>();
+        placed.sort_by_key(|(unpinned, place, _)| (*unpinned, *place));
+        placed.into_iter().map(|(_, _, entry)| entry).collect()
     }
 
     pub(crate) fn view_strip_tab_pinned(&self, key: ViewStripTabKey) -> bool {
@@ -59,64 +112,111 @@ impl GhostexGpuiApp {
             .position(|entry| entry.key() == key)
     }
 
+    /// Pinning sends the tab to the end of the pinned tabs; unpinning leaves it where it is drawn,
+    /// which is the head of the unpinned ones. A page in the Browser's own row moves within the row.
+    /// With the setting off the pin works on the whole order, the drawn tabs followed by the ones
+    /// not drawn right now, as the strip always has, so a pinned view hidden in this project still
+    /// counts among the pinned tabs a new pin goes after.
     pub(crate) fn toggle_view_strip_tab_pinned(
         &mut self,
         key: ViewStripTabKey,
         cx: &mut gpui::Context<Self>,
     ) {
-        // Freeze the drawn order first, so the tab keeps its place among its new neighbours rather
-        // than jumping to wherever an older stored order had it.
-        let drawn = self.view_strip_keys_with_undrawn();
+        let whole_order = !self.browser_pages_in_view_row;
+        let mut keys = self.drawn_view_strip_keys(key);
+        if whole_order {
+            self.write_view_strip_projection(&keys);
+            keys = std::mem::take(&mut self.view_strip_layout.order);
+        }
         if self.view_strip_tab_pinned(key) {
             self.view_strip_layout
                 .pinned
                 .retain(|pinned| *pinned != key);
-            // Unpinning puts the tab at the head of the unpinned tabs, right where it was.
-            self.view_strip_layout.order = drawn;
         } else {
-            // Pinning sends it to the end of the pinned group.
-            let mut order = drawn;
-            order.retain(|existing| *existing != key);
-            let pinned_count = order
-                .iter()
-                .filter(|existing| self.view_strip_tab_pinned(**existing))
-                .count();
-            order.insert(pinned_count, key);
-            self.view_strip_layout.order = order;
+            keys.retain(|existing| *existing != key);
+            let pinned_count = self.pinned_view_strip_tab_count(&keys);
+            keys.insert(pinned_count, key);
             self.view_strip_layout.pinned.push(key);
+        }
+        if whole_order {
+            self.view_strip_layout.order = keys;
+        } else {
+            self.write_view_strip_projection(&keys);
         }
         self.persist_shell_layout_state();
         cx.notify();
     }
 
     /// A tab that just opened goes last. The drawn order is stored first, so every tab already on
-    /// screen, including browser tabs the stored order had not seen yet, keeps its place ahead of it.
+    /// screen, including one the stored order had not seen yet, keeps its place ahead of it.
     pub(crate) fn append_view_strip_tab(&mut self, key: ViewStripTabKey) {
-        let mut order = self.view_strip_keys_with_undrawn();
+        let drawn = self.drawn_view_strip_keys(key);
+        self.write_view_strip_projection(&drawn);
+        let order = &mut self.view_strip_layout.order;
         order.retain(|existing| *existing != key);
         order.push(key);
-        self.view_strip_layout.order = order;
     }
 
-    /// The drawn keys, followed by the stored keys that are not drawn right now (a view this
-    /// project cannot show at the moment, a page that has not loaded) so they keep a place to come
-    /// back to. Keys whose tab is gone for good are dropped here.
-    fn view_strip_keys_with_undrawn(&self) -> Vec<ViewStripTabKey> {
-        let mut keys = self
-            .view_strip_entries()
+    /// The keys of the row `key` is drawn in, in drawn order: the Browser's page row for a page
+    /// while the pages have a row of their own, the strip otherwise. Before reading the strip, the
+    /// Browser tab gets a stored place of its own where it is drawn.
+    fn drawn_view_strip_keys(&mut self, key: ViewStripTabKey) -> Vec<ViewStripTabKey> {
+        if self.browser_pages_in_view_row && matches!(key, ViewStripTabKey::Browser(_)) {
+            return self
+                .browser_page_row()
+                .into_iter()
+                .map(|page| ViewStripTabKey::Browser(page.tab_id))
+                .collect();
+        }
+        let browser_tab = ViewStripTabKey::View(TitlebarMode::Browser);
+        let order = &mut self.view_strip_layout.order;
+        if self.browser_pages_in_view_row && !order.contains(&browser_tab) {
+            let first_page = order
+                .iter()
+                .position(|stored| matches!(stored, ViewStripTabKey::Browser(_)))
+                .unwrap_or(order.len());
+            order.insert(first_page, browser_tab);
+        }
+        self.view_strip_entries()
             .into_iter()
             .map(ViewStripEntry::key)
-            .collect::<Vec<_>>();
-        for key in &self.view_strip_layout.order {
-            let exists = match key {
-                ViewStripTabKey::View(mode) => self.open_views.contains(mode),
-                ViewStripTabKey::Browser(tab_id) => self.browser_tabs.tab(*tab_id).is_some(),
-            };
-            if exists && !keys.contains(key) {
-                keys.push(*key);
+            .collect()
+    }
+
+    fn pinned_view_strip_tab_count(&self, keys: &[ViewStripTabKey]) -> usize {
+        keys.iter()
+            .filter(|key| self.view_strip_tab_pinned(**key))
+            .count()
+    }
+
+    /// Writes a reordered row (the strip, or the Browser's page row) back into the one stored
+    /// order, after dropping keys whose tab is gone for good. With the setting off the order
+    /// becomes `drawn` followed by the stored keys it does not draw, as the strip has always
+    /// written it, so the strip stays exactly as it was. With it on, the strip and the page row
+    /// each draw only part of the order, so each stored slot that holds one of `drawn`'s keys takes
+    /// the next of them and every other tab keeps its slot; keys the order had not placed yet go
+    /// last.
+    fn write_view_strip_projection(&mut self, drawn: &[ViewStripTabKey]) {
+        let mut order = std::mem::take(&mut self.view_strip_layout.order);
+        order.retain(|key| match key {
+            ViewStripTabKey::View(mode) => self.open_views.contains(mode),
+            ViewStripTabKey::Browser(tab_id) => self.browser_tabs.tab(*tab_id).is_some(),
+        });
+        if self.browser_pages_in_view_row {
+            let mut next = drawn.iter().copied();
+            for slot in &mut order {
+                if drawn.contains(slot)
+                    && let Some(key) = next.next()
+                {
+                    *slot = key;
+                }
             }
+            order.extend(next);
+        } else {
+            order.retain(|key| !drawn.contains(key));
+            order.splice(0..0, drawn.iter().copied());
         }
-        keys
+        self.view_strip_layout.order = order;
     }
 
     pub(crate) fn set_view_strip_drop_index(
@@ -181,35 +281,38 @@ impl GhostexGpuiApp {
             .view_strip_drop_index
             .take()
             .unwrap_or(default_insertion_index);
+        self.move_view_strip_tab(key, insertion_index, cx);
+    }
+
+    /// Moves `key` to `insertion_index` of the row it is drawn in (`drawn_view_strip_keys`).
+    /// Pinned tabs stay together at the left: a drag moves a tab within its own group only.
+    pub(crate) fn move_view_strip_tab(
+        &mut self,
+        key: ViewStripTabKey,
+        insertion_index: usize,
+        cx: &mut gpui::Context<Self>,
+    ) {
         // A browser tab's drag hides the pages so the panes can show their drop zones; a drop on
-        // the strip ends that the same way a release anywhere else does.
+        // a row ends that the same way a release anywhere else does.
         self.finish_browser_tab_drag(cx);
-        let mut keys = self.view_strip_keys_with_undrawn();
-        let drawn_count = self.view_strip_entries().len();
-        let Some(from) = keys.iter().position(|existing| *existing == key) else {
-            cx.notify();
-            return;
-        };
-        let mut target = insertion_index.min(drawn_count);
-        if target > from {
-            target -= 1;
+        let mut keys = self.drawn_view_strip_keys(key);
+        if let Some(from) = keys.iter().position(|existing| *existing == key) {
+            let mut target = insertion_index.min(keys.len());
+            if target > from {
+                target -= 1;
+            }
+            keys.remove(from);
+            let pinned_count = self.pinned_view_strip_tab_count(&keys);
+            let target = if self.view_strip_tab_pinned(key) {
+                target.min(pinned_count)
+            } else {
+                target.max(pinned_count)
+            };
+            keys.insert(target, key);
+            self.write_view_strip_projection(&keys);
+            self.sync_open_views_to_view_strip_order();
+            self.persist_shell_layout_state();
         }
-        keys.remove(from);
-        // Pinned tabs stay together at the left: a drag moves a tab within its own group only.
-        let pinned_count = keys
-            .iter()
-            .take(drawn_count.saturating_sub(1))
-            .filter(|existing| self.view_strip_tab_pinned(**existing))
-            .count();
-        let target = if self.view_strip_tab_pinned(key) {
-            target.min(pinned_count)
-        } else {
-            target.max(pinned_count)
-        };
-        keys.insert(target.min(keys.len()), key);
-        self.view_strip_layout.order = keys;
-        self.sync_open_views_to_view_strip_order();
-        self.persist_shell_layout_state();
         cx.notify();
     }
 
@@ -232,5 +335,6 @@ impl GhostexGpuiApp {
     /// that drew it. The window root calls this on every left mouse up, beside the other tab drags.
     pub(crate) fn cancel_view_tab_drag(&mut self, cx: &mut gpui::Context<Self>) {
         self.set_view_strip_drop_index(None, cx);
+        self.set_browser_page_row_drop_index(None, cx);
     }
 }

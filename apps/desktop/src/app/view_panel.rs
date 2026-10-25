@@ -151,6 +151,8 @@ impl GhostexGpuiApp {
     /// same thing. Browser stays in the open-views list (the toggle target, the successor on close,
     /// and whether its page tabs are listed all read that list); only the drawn view tabs, their
     /// drag indices and the Option/Alt number hotkeys walk this narrower list.
+    /// With `browserPagesInViewRow` on (off by default) the Browser is a view tab here too and its
+    /// pages are in their own row (`render/browser_page_tabs.rs`).
     pub(crate) fn strip_view_tabs(&self) -> Vec<TitlebarMode> {
         self.view_strip_entries()
             .into_iter()
@@ -191,8 +193,9 @@ impl GhostexGpuiApp {
             return;
         }
         self.open_views.push(mode);
-        // Browser has no tab of its own in the strip; its pages are placed as they open.
-        if mode != TitlebarMode::Browser {
+        // Browser has a tab of its own in the strip only while its pages have their own row;
+        // otherwise its pages are placed as they open.
+        if mode != TitlebarMode::Browser || self.browser_pages_in_view_row {
             self.append_view_strip_tab(ViewStripTabKey::View(mode));
         }
     }

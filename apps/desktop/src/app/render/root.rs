@@ -229,6 +229,7 @@ impl Render for GhostexGpuiApp {
         self.sync_terminal_close_confirm_dialog(window, cx);
         self.sync_terminal_search_inputs(window, cx);
         self.sync_composited_terminal_keyboard_owner(window, cx);
+        self.sync_browser_page_row_focus(window, cx);
         self.drain_pending_keyboard_handoff(window, cx);
         self.sync_session_chat_pane_focus(window, cx);
         self.refresh_zmx_persistence_focused_terminal_if_changed(cx);

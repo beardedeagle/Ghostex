@@ -8,6 +8,7 @@
 // (that `pub(crate) mod render;` line is unchanged).
 pub(crate) mod agents_workspace_layout;
 pub(crate) mod browser_body_and_tabs;
+pub(crate) mod browser_page_tabs;
 pub(crate) mod browser_workspace_layout;
 pub(crate) mod code_window_tabs;
 pub(crate) mod command_pane_structure;

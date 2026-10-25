@@ -577,6 +577,31 @@ impl GhostexGpuiApp {
         }
     }
 
+    /// CDXC:FocusRouting 2026-10-25 WHY:
+    /// The Browser's page row keeps its focus handle while the row is gone (its last page closed, the Browser view closed, or `browserPagesInViewRow` turned off), and GPUI then sends the keys to the window's outermost element, past the view picker's keys and the app's actions. Release it here, on the render that no longer shows the row, as hidden terminals are released below; with the Browser still on screen the keys go back to its page.
+    pub(crate) fn sync_browser_page_row_focus(
+        &mut self,
+        window: &mut Window,
+        cx: &mut gpui::Context<Self>,
+    ) {
+        if !self.browser_page_row_focus_handle.is_focused(window) {
+            return;
+        }
+        let browser_shown = self.active_mode == TitlebarMode::Browser
+            && self
+                .project_editor_shell
+                .is_mode_awake(TitlebarMode::Browser);
+        if browser_shown && self.browser_pages_in_view_row {
+            return;
+        }
+        window.focus(&self.root_action_focus_handle, cx);
+        // A view or panel change asks for its own handoff; turning the row off leaves the Browser
+        // on screen with nothing asked for.
+        if browser_shown {
+            self.request_keyboard_handoff_for_shell_focus(cx);
+        }
+    }
+
     /// CDXC:FocusRouting 2026-09-11 WHY:
     /// A composited terminal reports its blur from its own prepaint, so a terminal that simply stops rendering (command pane hidden, tab switched away, pane replaced by Chat) never reports one.
     /// The keyboard router then keeps treating it as the owner, and Tab plus owner-gated hotkeys keep going to a terminal nobody can see. Release it here, on the render that no longer shows it.

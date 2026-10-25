@@ -1451,6 +1451,20 @@
       "agentWritable": true
     },
     {
+      "key": "browserPagesInViewRow",
+      "title": "Show pages in their own row",
+      "subtitle": "Show the Browser as one tab in the side panel's tab bar, with its pages as a row of tabs under it, instead of each page as a tab beside the views. Pages open, close, sleep and drag as before.",
+      "tab": "settings",
+      "tabTitle": "General",
+      "group": "tools",
+      "groupTitle": "Tools",
+      "section": "browser",
+      "sectionTitle": "Browser",
+      "type": "boolean",
+      "default": false,
+      "agentWritable": true
+    },
+    {
       "key": "terminalDevServerDetectionEnabled",
       "title": "Detect running servers in terminals",
       "subtitle": "Detect localhost dev server URLs from terminal output.",

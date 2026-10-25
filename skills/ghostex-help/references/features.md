@@ -35,7 +35,8 @@ clicking one opens it, or switches to its tab if it is already open. Then comes
 back in a click, then **Customize**. Close a tab with its **x**, with a middle
 click, or from its menu. Browser has no view tab of its own: the same row
 carries its page tabs, one per open page, so a page you have open reads as a tab
-beside the views. The row is one order: drag any tab, a view or a page, anywhere
+beside the views (with Show pages in their own row on, see Browser below, it has
+one tab instead). The row is one order: drag any tab, a view or a page, anywhere
 in it, and it scrolls sideways once the tabs run out of room. Right-click a tab
 and choose **Pin tab** to shrink it to its icon and keep it at the left of the
 row; a pinned tab has no **x** and ignores a middle click, so it closes only from
@@ -295,6 +296,15 @@ view from the strip.
   with its last tab on) when Browser was the last one. **Browser Tab** at the top of the strip's **+** menu opens
   another tab. A tab with no address yet is blank: type or paste an address, or
   pick a running server from the ⋯ menu's Dev servers panel.
+  Turn on Show pages in their own row (Settings > General > Tools > Browser) to
+  show one Browser tab in the strip instead, with the pages as a row of tabs
+  under it, like VS Code's window tabs and Files' tabs: click a tab to show its
+  page, close it with its × or a middle click, right-click it for the same menu,
+  drag it along the row (or onto a page to split it), and use the + after the
+  tabs for a new tab. After clicking a tab, the arrow keys step between the
+  pages, Delete closes the shown one and Enter goes back to the page. Closing the
+  Browser tab hides the Browser and puts its pages to sleep; they come back the
+  next time it opens.
   Right-click a link or image in a page to open it in a new tab, save it
   (Save link as / Save image as ask where to save), copy its address, or copy
   the image itself; any page download also asks where to save.

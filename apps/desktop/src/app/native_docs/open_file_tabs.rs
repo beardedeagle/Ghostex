@@ -41,6 +41,10 @@ impl GhostexGpuiApp {
                 showing,
                 closable: true,
                 unsaved: document.dirty,
+                icon: None,
+                asleep: false,
+                pinned: false,
+                drag: None,
             }
         });
         let row = self.render_view_instance_tab_row(

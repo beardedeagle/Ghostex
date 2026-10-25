@@ -26,10 +26,12 @@ impl ViewStripTabKey {
         }
     }
 
+    /// The Browser's own key is kept: it places the strip's Browser tab while its pages are in a
+    /// row of their own (`browserPagesInViewRow`), and is skipped while they are not.
     fn from_shell_state_string(value: &str) -> Option<Self> {
         if let Some(slug) = value.strip_prefix("view:") {
             return TitlebarMode::from_slug(slug)
-                .filter(|mode| !matches!(mode, TitlebarMode::Agents | TitlebarMode::Browser))
+                .filter(|mode| *mode != TitlebarMode::Agents)
                 .map(Self::View);
         }
         value
@@ -44,7 +46,9 @@ impl ViewStripTabKey {
 /// pages mixed", and (ruling 4B) tabs can be pinned: icon-only, kept at the left, not closable by
 /// accident. `open_views` and the Browser's panes still say which tabs exist; this only says where
 /// each is drawn and which are pinned. A tab it has not seen yet lands at the end. It is
-/// project-owned like the open views are, because browser tab ids are per project.
+/// project-owned like the open views are, because browser tab ids are per project. With
+/// `browserPagesInViewRow` on (off by default) the pages are drawn and dragged in their own row
+/// (`render/browser_page_tabs.rs`) but keep their places in this one order.
 #[derive(Clone, Debug, Default, PartialEq)]
 pub(crate) struct GpuiViewStripLayout {
     pub(crate) order: Vec<ViewStripTabKey>,
