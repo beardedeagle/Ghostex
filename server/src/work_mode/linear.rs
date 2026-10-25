@@ -2,12 +2,12 @@
 //! presentation projection only reads.
 
 use std::collections::hash_map::DefaultHasher;
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet, VecDeque};
 use std::hash::{Hash, Hasher};
 use std::sync::{Mutex, OnceLock};
 use std::time::{Duration, Instant};
 
-use serde_json::{json, Map, Value};
+use serde_json::{json, Value};
 
 const LINEAR_GRAPHQL_URL: &str = "https://api.linear.app/graphql";
 const LINEAR_TIMEOUT: Duration = Duration::from_secs(10);
@@ -18,9 +18,13 @@ const LINEAR_ISSUE_TTL: Duration = Duration::from_secs(120);
 /// GitHub integration attaches a new PR within seconds, and the card should show it as soon.
 const LINEAR_ISSUE_AWAITING_PR_TTL: Duration = Duration::from_secs(45);
 const LINEAR_TEAM_KEYS_TTL: Duration = Duration::from_secs(60 * 60);
+/// A ticket Linear says does not exist is asked about again only after this long, so a few
+/// deleted tickets cannot use up the requests the others need.
+const LINEAR_MISSING_ISSUE_TTL: Duration = Duration::from_secs(10 * 60);
 /// After a failed call (bad key, no network) a key is left alone for this long.
 const LINEAR_FAILURE_BACKOFF: Duration = Duration::from_secs(5 * 60);
 const MAX_LINEAR_ISSUES_PER_REQUEST: usize = 25;
+const LINEAR_ISSUE_FIELDS: &str = "identifier title url state { name type } project { name url } attachments(first: 20) { nodes { url } }";
 /// Requests one background pass may send to Linear.
 pub(crate) const MAX_LINEAR_REQUESTS_PER_PASS: usize = 4;
 
@@ -48,6 +52,8 @@ struct LinearCache {
     failed_at: HashMap<u64, Instant>,
     /// `None` = Linear said there is no such issue.
     issues: HashMap<(u64, String), Cached<Option<LinearIssueInfo>>>,
+    /// Issues a batch left out, each waiting for a read of its own (`refresh_linear_issues`).
+    left_out: HashSet<(u64, String)>,
     /// Which key each project's calls use, refreshed by the background pass so the projection
     /// never reads the credentials file.
     project_keys: HashMap<String, u64>,
@@ -92,12 +98,35 @@ pub(crate) fn cached_linear_team_keys(fingerprint: u64) -> Option<Vec<String>> {
         .map(|cached| cached.value.clone())
 }
 
-pub(crate) fn cached_linear_issue(fingerprint: u64, identifier: &str) -> Option<LinearIssueInfo> {
-    let cache = cache().lock().ok()?;
-    cache
+/// What the cache knows about an issue.
+pub(crate) enum LinearIssueRead {
+    Unread,
+    /// Linear said there is no such issue: deleted, or never visible to this key.
+    NotFound,
+    Found(LinearIssueInfo),
+}
+
+/// What is known about an issue, in one look at the cache (the projection asks per link).
+pub(crate) fn cached_linear_issue_read(fingerprint: u64, identifier: &str) -> LinearIssueRead {
+    let Ok(cache) = cache().lock() else {
+        return LinearIssueRead::Unread;
+    };
+    match cache
         .issues
         .get(&(fingerprint, identifier.to_string()))
-        .and_then(|cached| cached.value.clone())
+        .map(|cached| &cached.value)
+    {
+        None => LinearIssueRead::Unread,
+        Some(None) => LinearIssueRead::NotFound,
+        Some(Some(info)) => LinearIssueRead::Found(info.clone()),
+    }
+}
+
+pub(crate) fn cached_linear_issue(fingerprint: u64, identifier: &str) -> Option<LinearIssueInfo> {
+    match cached_linear_issue_read(fingerprint, identifier) {
+        LinearIssueRead::Found(info) => Some(info),
+        LinearIssueRead::Unread | LinearIssueRead::NotFound => None,
+    }
 }
 
 /// Adds PR URLs a fresher read of the issue found (the Work details) to the cached issue, so a
@@ -135,6 +164,12 @@ fn in_backoff(cache: &LinearCache, fingerprint: u64) -> bool {
         .is_some_and(|failed_at| failed_at.elapsed() < LINEAR_FAILURE_BACKOFF)
 }
 
+/// One agent for every Linear call: keeps the TLS connection to Linear alive between calls.
+fn agent() -> &'static ureq::Agent {
+    static AGENT: OnceLock<ureq::Agent> = OnceLock::new();
+    AGENT.get_or_init(|| ureq::AgentBuilder::new().timeout(LINEAR_TIMEOUT).build())
+}
+
 /// One GraphQL call. `Err` carries a sentence fit to show a person.
 pub(super) fn linear_graphql(
     api_key: &str,
@@ -148,8 +183,7 @@ pub(super) fn linear_graphql(
     } else {
         api_key.to_string()
     };
-    let agent = ureq::AgentBuilder::new().timeout(LINEAR_TIMEOUT).build();
-    let response = agent
+    let response = agent()
         .post(LINEAR_GRAPHQL_URL)
         .set("Authorization", &authorization)
         .set("Content-Type", "application/json")
@@ -246,7 +280,11 @@ pub(crate) fn refresh_linear_team_keys(api_key: &str) -> bool {
 }
 
 /// Fetches the stale ones among `identifiers`, at most `request_budget` requests. Returns how
-/// many requests were sent. The ones in `awaiting_pull_request` go stale sooner.
+/// many requests were sent. The ones in `awaiting_pull_request` go stale sooner, and the ones
+/// Linear said do not exist later.
+///
+/// CDXC:SessionLinks 2026-10-25 WHY:
+/// Tickets used to be read 25 at a time as aliased `issue(id:)` fields, but that field cannot be null, so one deleted ticket made Linear answer `data: null` with "Entity not found: Issue" for its whole batch (naming only the first missing alias): the key backed off for 5 minutes, that batch and every one after it were never cached, and the same batch failed again after the backoff (2026-10-25: 104 of 165 links "Loading…" behind one deleted ticket). The batch is now `issues(filter: { id: { in } })`, which matches identifiers, lowercase ones, UUIDs, archived and trashed tickets as `issue(id:)` does and leaves a missing one out instead. It does not match the old identifier of a ticket moved to another team, which `issue(id:)` still resolves, so a ticket the batch leaves out waits (`left_out`, across passes, never batched again meanwhile) to be asked about alone before it counts as not found. A pass spends its budget on never-read tickets, then the waiting ones, then refreshes of tickets read before; when batches alone used up the budget, a waiting ticket was never asked.
 pub(crate) fn refresh_linear_issues(
     api_key: &str,
     identifiers: &[String],
@@ -254,79 +292,154 @@ pub(crate) fn refresh_linear_issues(
     request_budget: usize,
 ) -> usize {
     let fingerprint = linear_key_fingerprint(api_key);
-    let stale: Vec<String> = {
+    let (unread, mut waiting, due) = {
         let Ok(cache) = cache().lock() else {
             return 0;
         };
         if in_backoff(&cache, fingerprint) {
             return 0;
         }
-        let mut stale: Vec<String> = identifiers
-            .iter()
-            .filter(|identifier| {
-                let ttl = if awaiting_pull_request.contains(identifier) {
-                    LINEAR_ISSUE_AWAITING_PR_TTL
-                } else {
-                    LINEAR_ISSUE_TTL
-                };
-                cache
-                    .issues
-                    .get(&(fingerprint, (*identifier).clone()))
-                    .is_none_or(|cached| cached.fetched_at.elapsed() >= ttl)
-            })
-            .cloned()
-            .collect();
-        stale.sort();
-        stale.dedup();
-        stale
+        let mut wanted = identifiers.to_vec();
+        wanted.sort();
+        wanted.dedup();
+        let (mut unread, mut waiting, mut due) = (Vec::new(), VecDeque::new(), Vec::new());
+        for identifier in wanted {
+            let key = (fingerprint, identifier);
+            if cache.left_out.contains(&key) {
+                waiting.push_back(key.1);
+                continue;
+            }
+            match cache.issues.get(&key) {
+                None => unread.push(key.1),
+                Some(cached) => {
+                    let ttl = if cached.value.is_none() {
+                        LINEAR_MISSING_ISSUE_TTL
+                    } else if awaiting_pull_request.contains(&key.1) {
+                        LINEAR_ISSUE_AWAITING_PR_TTL
+                    } else {
+                        LINEAR_ISSUE_TTL
+                    };
+                    if cached.fetched_at.elapsed() >= ttl {
+                        due.push(key.1);
+                    }
+                }
+            }
+        }
+        (unread, waiting, due)
     };
     let mut sent = 0;
-    for chunk in stale.chunks(MAX_LINEAR_ISSUES_PER_REQUEST) {
-        if sent >= request_budget {
-            break;
-        }
-        sent += 1;
-        let mut declarations = Vec::new();
-        let mut selections = Vec::new();
-        let mut variables = Map::new();
-        for (index, identifier) in chunk.iter().enumerate() {
-            declarations.push(format!("$i{index}: String!"));
-            selections.push(format!("i{index}: issue(id: $i{index}) {{ ...WorkIssue }}"));
-            variables.insert(format!("i{index}"), json!(identifier));
-        }
-        let query = format!(
-            "query({}) {{ {} }} fragment WorkIssue on Issue {{ identifier title url state {{ name type }} project {{ name url }} attachments(first: 20) {{ nodes {{ url }} }} }}",
-            declarations.join(", "),
-            selections.join(" ")
-        );
-        let result = linear_graphql(api_key, &query, Value::Object(variables));
-        let Ok(mut cache) = cache().lock() else {
-            return sent;
-        };
-        match result {
-            Ok(body) => {
-                for (index, identifier) in chunk.iter().enumerate() {
-                    let info = body
-                        .pointer(&format!("/data/i{index}"))
-                        .filter(|issue| issue.is_object())
-                        .map(|issue| parse_issue(identifier, issue));
-                    cache.issues.insert(
-                        (fingerprint, identifier.clone()),
-                        Cached {
-                            value: info,
-                            fetched_at: Instant::now(),
-                        },
-                    );
-                }
-                cache.failed_at.remove(&fingerprint);
+    for batch in [unread, due] {
+        for chunk in batch.chunks(MAX_LINEAR_ISSUES_PER_REQUEST) {
+            if sent >= request_budget {
+                return sent;
             }
-            Err(_) => {
-                cache.failed_at.insert(fingerprint, Instant::now());
+            sent += 1;
+            let Some(left_out) = read_linear_issue_batch(api_key, fingerprint, chunk) else {
+                return sent;
+            };
+            waiting.extend(left_out);
+        }
+        while sent < request_budget {
+            let Some(identifier) = waiting.pop_front() else {
                 break;
+            };
+            sent += 1;
+            if !read_linear_issue_alone(api_key, fingerprint, &identifier) {
+                return sent;
             }
         }
     }
     sent
+}
+
+/// One request for up to 25 issues; caches the ones Linear found and returns the ones it left out,
+/// which wait in `left_out` to be read alone. `None` when the request failed and the key backs off.
+fn read_linear_issue_batch(
+    api_key: &str,
+    fingerprint: u64,
+    identifiers: &[String],
+) -> Option<Vec<String>> {
+    let query = format!(
+        "query($ids: [ID!]) {{ issues(first: {MAX_LINEAR_ISSUES_PER_REQUEST}, includeArchived: true, filter: {{ id: {{ in: $ids }} }}) {{ nodes {{ {LINEAR_ISSUE_FIELDS} }} }} }}"
+    );
+    let body = linear_graphql(api_key, &query, json!({ "ids": identifiers })).ok();
+    // Matched and parsed before the cache is locked, so the lock only covers the inserts.
+    let read = body
+        .as_ref()
+        .and_then(|body| body.pointer("/data/issues/nodes")?.as_array())
+        .map(|nodes| {
+            let (mut found, mut left_out) = (Vec::new(), Vec::new());
+            for identifier in identifiers {
+                let node = nodes.iter().find(|node| {
+                    node.get("identifier")
+                        .and_then(Value::as_str)
+                        .is_some_and(|found| found.eq_ignore_ascii_case(identifier))
+                });
+                match node {
+                    Some(issue) => found.push((identifier.clone(), parse_issue(identifier, issue))),
+                    None => left_out.push(identifier.clone()),
+                }
+            }
+            (found, left_out)
+        });
+    let mut cache = cache().lock().ok()?;
+    let Some((found, left_out)) = read else {
+        cache.failed_at.insert(fingerprint, Instant::now());
+        return None;
+    };
+    cache.failed_at.remove(&fingerprint);
+    let fetched_at = Instant::now();
+    for (identifier, info) in found {
+        cache.issues.insert(
+            (fingerprint, identifier),
+            Cached {
+                value: Some(info),
+                fetched_at,
+            },
+        );
+    }
+    cache.left_out.extend(
+        left_out
+            .iter()
+            .map(|identifier| (fingerprint, identifier.clone())),
+    );
+    Some(left_out)
+}
+
+/// Linear's whole answer to `issue(id:)` for an issue that does not exist (measured 2026-10-25).
+const LINEAR_ISSUE_NOT_FOUND: &str = "Entity not found: Issue";
+
+/// One request for an issue a batch left out: the moved issue its old identifier names, or Linear's
+/// "Entity not found: Issue", cached as `None`. `false` when the request failed or the answer was
+/// anything else; the key then backs off and the issue keeps waiting.
+fn read_linear_issue_alone(api_key: &str, fingerprint: u64, identifier: &str) -> bool {
+    let query = format!("query($id: String!) {{ issue(id: $id) {{ {LINEAR_ISSUE_FIELDS} }} }}");
+    let value = match linear_graphql(api_key, &query, json!({ "id": identifier })) {
+        Ok(body) => body
+            .pointer("/data/issue")
+            .filter(|issue| issue.get("identifier").is_some_and(Value::is_string))
+            .map(|issue| Some(parse_issue(identifier, issue)))
+            .ok_or(()),
+        Err(message) if message == LINEAR_ISSUE_NOT_FOUND => Ok(None),
+        Err(_) => Err(()),
+    };
+    let Ok(mut cache) = cache().lock() else {
+        return false;
+    };
+    let Ok(value) = value else {
+        cache.failed_at.insert(fingerprint, Instant::now());
+        return false;
+    };
+    let key = (fingerprint, identifier.to_string());
+    cache.left_out.remove(&key);
+    cache.issues.insert(
+        key,
+        Cached {
+            value,
+            fetched_at: Instant::now(),
+        },
+    );
+    true
 }
 
 fn parse_issue(identifier: &str, issue: &Value) -> LinearIssueInfo {
