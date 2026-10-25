@@ -355,29 +355,35 @@ impl GhostexGpuiApp {
     }
 
     /// Runs the project-wide search for the search box's text a moment after typing stops.
+    /// With types picked in the type filter (`type_filter.rs`) it runs with no text too, listing
+    /// every file of those types.
     pub(crate) fn native_docs_schedule_search(&mut self, cx: &mut Context<Self>) {
         let query = self.native_docs.search_query.trim().to_string();
-        if query.is_empty() {
+        if query.is_empty() && !self.native_docs_type_filter_active() {
             self.native_docs.search_task = None;
             self.native_docs.search_results = None;
             self.native_docs.search_results_query.clear();
             return;
         }
+        let key = self.native_docs_search_key();
+        let extensions = self.native_docs_type_filter_extensions();
         let generation = self.native_docs.generation;
         self.native_docs.search_task = Some(cx.spawn(async move |this, cx| {
             cx.background_executor()
                 .timer(std::time::Duration::from_millis(150))
                 .await;
             let _ = this.update(cx, |this, cx| {
-                if this.native_docs.generation != generation
-                    || this.native_docs.search_query.trim() != query
+                if this.native_docs.generation != generation || this.native_docs_search_key() != key
                 {
                     return;
                 }
-                let request = this.native_docs_request("search", json!({ "query": query }));
+                let request = this.native_docs_request(
+                    "search",
+                    json!({ "query": query, "extensions": extensions }),
+                );
                 this.run_docs_files_request(request.to_string(), cx, move |this, response, cx| {
                     if this.native_docs.generation != generation
-                        || this.native_docs.search_query.trim() != query
+                        || this.native_docs_search_key() != key
                     {
                         return;
                     }
@@ -391,7 +397,7 @@ impl GhostexGpuiApp {
                         response["truncated"].as_bool().unwrap_or(false);
                     this.native_docs.search_incomplete =
                         response["incomplete"].as_bool().unwrap_or(false);
-                    this.native_docs.search_results_query = query;
+                    this.native_docs.search_results_query = key;
                     this.native_docs_notify(cx);
                 });
             });
@@ -402,6 +408,12 @@ impl GhostexGpuiApp {
     /// searching, the project-wide search's matches, each with its folder.
     pub(crate) fn native_docs_tree_rows(&self) -> Vec<DocsTreeRow> {
         let state = &self.native_docs;
+        if state.search_query.trim().is_empty() && self.native_docs_type_filter_active() {
+            return super::type_filter::filtered_tree_rows(
+                state.search_results.as_deref().unwrap_or_default(),
+                &state.type_filter_collapsed,
+            );
+        }
         if !state.search_query.trim().is_empty() {
             return state
                 .search_results
@@ -503,6 +515,17 @@ impl GhostexGpuiApp {
 
     /// Opens or closes a folder; opening one lists it (again), so it shows what is there now.
     pub(crate) fn native_docs_toggle_folder(&mut self, path: &str, cx: &mut Context<Self>) {
+        // The type filter's tree folds its own folders, leaving the real tree as it was.
+        if self.native_docs.search_query.trim().is_empty() && self.native_docs_type_filter_active()
+        {
+            if !self.native_docs.type_filter_collapsed.remove(path) {
+                self.native_docs
+                    .type_filter_collapsed
+                    .insert(path.to_string());
+            }
+            self.native_docs_notify(cx);
+            return;
+        }
         if !self.native_docs.expanded.remove(path) {
             self.native_docs.expanded.insert(path.to_string());
             self.native_docs_list_folder(path, cx);

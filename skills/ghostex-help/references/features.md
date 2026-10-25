@@ -388,7 +388,11 @@ view from the strip.
   search: inside a Markdown, code or text file it shows Find and Replace with the
   caret ready (starting from the selected text), marking every match and moving
   through them with Enter and Shift+Enter, and anywhere else it reveals the files
-  list and focuses its search. Escape closes the document search. To search the text of every file in the
+  list and focuses its search. Escape closes the document search. The filter
+  button at the start of the files list's search box shows only HTML, Markdown,
+  Excalidraw, image or video files: pick one or several types (All files shows
+  everything again) and the list keeps just those files under the folders that
+  hold them, while typing still narrows them by name. To search the text of every file in the
   project, press Cmd+Shift+F (Ctrl+Shift+F on Windows and Linux) while Files has
   focus, or click the search button at the top of the files list: the sidebar
   turns into a Search view like VS Code's. Results appear as you type, grouped by

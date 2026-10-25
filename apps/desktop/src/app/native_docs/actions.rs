@@ -195,6 +195,8 @@ impl GhostexGpuiApp {
                 self.native_docs_open_with_app(&path, text("app").into(), cx);
             }
             "refresh" => self.native_docs_refresh(cx),
+            "typeFilter" => self.native_docs_set_type_filter(Some(&text("filter")), cx),
+            "typeFilterClear" => self.native_docs_set_type_filter(None, cx),
             "configureFolders" => self.native_docs_open_folders_settings(window, cx),
             "barItem" => {
                 if let Some(item) = super::format_bar::DocsBarItem::from_command(&text("item")) {

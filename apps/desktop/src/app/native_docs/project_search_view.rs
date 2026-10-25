@@ -216,16 +216,8 @@ impl GhostexGpuiApp {
             .pr(px(WORKAREA_HEADER_EDGE_PADDING))
             .border_b_1()
             .border_color(p.border)
-            .child(
-                div()
-                    .flex_1()
-                    .min_w_0()
-                    .truncate()
-                    .text_size(px(11.0))
-                    .font_weight(FontWeight::MEDIUM)
-                    .text_color(p.subtle)
-                    .child("Search"),
-            )
+            // CDXC:Docs 2026-10-25 DECISION: User: "remove 'search' from here" (the header's title). The spacer keeps the buttons at the right.
+            .child(div().flex_1().min_w_0())
             .child(
                 header_tile(
                     "native-docs-search-refresh",

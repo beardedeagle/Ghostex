@@ -160,12 +160,28 @@ fn walk(root: &Path, max_scanned: usize) -> Index {
 /// insensitive). Matches on the name sort before matches only on the folder path, then nearer and
 /// shorter paths first.
 pub fn search(root: &Path, query: &str, max_matches: usize, max_scanned: usize) -> SearchOutcome {
+    search_with_extensions(root, query, &[], max_matches, max_scanned)
+}
+
+/// [`search`] narrowed to files with one of `extensions` (lowercase, without the dot); an empty
+/// list keeps every file and folder. With extensions and no query it lists every such file,
+/// sorted by path, which the Files list's type filter draws as a tree.
+///
+/// CDXC:Docs 2026-10-25 DECISION:
+/// User: "make this filter instead of search icon and make that icon a button so i can pick html/markdown/excalidraw/image/video so i can find those files faster". With types picked, the files list shows only those files (folders only where they hold one), and typing still narrows by name within them.
+pub fn search_with_extensions(
+    root: &Path,
+    query: &str,
+    extensions: &[String],
+    max_matches: usize,
+    max_scanned: usize,
+) -> SearchOutcome {
     let words: Vec<String> = query
         .split_whitespace()
         .map(str::to_lowercase)
         .filter(|word| !word.is_empty())
         .collect();
-    if words.is_empty() {
+    if words.is_empty() && extensions.is_empty() {
         return SearchOutcome {
             matches: Vec::new(),
             truncated: false,
@@ -174,10 +190,22 @@ pub fn search(root: &Path, query: &str, max_matches: usize, max_scanned: usize) 
     }
     let index = index(root, max_scanned);
     let last_word = words.last().cloned().unwrap_or_default();
+    let has_extension = |path: &str| {
+        let name = path.rsplit('/').next().unwrap_or(path);
+        name.rsplit_once('.').is_some_and(|(stem, extension)| {
+            !stem.is_empty()
+                && extensions
+                    .iter()
+                    .any(|wanted| wanted.eq_ignore_ascii_case(extension))
+        })
+    };
     let mut found: Vec<(bool, usize, usize, &(String, bool))> = index
         .entries
         .iter()
         .filter_map(|entry| {
+            if !extensions.is_empty() && (entry.1 || !has_extension(&entry.0)) {
+                return None;
+            }
             let haystack = entry.0.to_lowercase();
             if !words.iter().all(|word| haystack.contains(word.as_str())) {
                 return None;
@@ -191,7 +219,11 @@ pub fn search(root: &Path, query: &str, max_matches: usize, max_scanned: usize) 
             ))
         })
         .collect();
-    found.sort_by_key(|(misses_name, depth, length, _)| (*misses_name, *depth, *length));
+    if words.is_empty() {
+        found.sort_by(|a, b| a.3 .0.cmp(&b.3 .0));
+    } else {
+        found.sort_by_key(|(misses_name, depth, length, _)| (*misses_name, *depth, *length));
+    }
     let truncated = found.len() > max_matches;
     SearchOutcome {
         matches: found

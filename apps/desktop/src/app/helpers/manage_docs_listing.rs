@@ -241,8 +241,23 @@ pub(crate) fn manage_search_project(
     request: &Value,
 ) -> Result<Value, String> {
     const MAX_MATCHES: usize = 500;
+    const MAX_FILTERED_FILES: usize = 3_000;
     const MAX_SCANNED: usize = 200_000;
     let query = manage_request_string(request, "query").unwrap_or_default();
+    // The files list's type filter (`native_docs/type_filter.rs`): only these extensions, and with
+    // no query every such file, so the list can draw them as a tree.
+    let extensions: Vec<String> = request["extensions"]
+        .as_array()
+        .into_iter()
+        .flatten()
+        .filter_map(serde_json::Value::as_str)
+        .map(str::to_ascii_lowercase)
+        .collect();
+    let max_matches = if query.trim().is_empty() && !extensions.is_empty() {
+        MAX_FILTERED_FILES
+    } else {
+        MAX_MATCHES
+    };
     let mut roots = vec![(context.roots.project.clone(), String::new(), String::new())];
     if let Some(mount) = &context.roots.extra
         && let Ok(location) = &mount.location
@@ -257,7 +272,13 @@ pub(crate) fn manage_search_project(
     let mut truncated = false;
     let mut incomplete = false;
     for (root, outer_prefix, display_prefix) in roots {
-        let outcome = ghostex_docs::project::search(&root, &query, MAX_MATCHES, MAX_SCANNED);
+        let outcome = ghostex_docs::project::search_with_extensions(
+            &root,
+            &query,
+            &extensions,
+            max_matches,
+            MAX_SCANNED,
+        );
         truncated |= outcome.truncated;
         incomplete |= outcome.incomplete;
         for found in outcome.matches {

@@ -48,4 +48,5 @@ pub(crate) mod state;
 pub(crate) mod storage;
 pub(crate) mod table_tools;
 pub(crate) mod tree_drag;
+pub(crate) mod type_filter;
 pub(crate) mod watch;

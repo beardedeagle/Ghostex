@@ -80,14 +80,14 @@ const SYSTEM_APP_EXTENSIONS: &[&str] = &[
     "vob", "asf", "ogm", "m4a", "aac", "aif", "aiff", "wma", "heic", "heif", "apng", "jp2", "jxl",
 ];
 /// Pictures the embed page shows because GPUI cannot decode them.
-const BROWSER_IMAGE_EXTENSIONS: &[&str] = &["avif"];
+pub(super) const BROWSER_IMAGE_EXTENSIONS: &[&str] = &["avif"];
 const FONT_EXTENSIONS: &[&str] = &["ttf", "otf", "woff", "woff2"];
-const IMAGE_EXTENSIONS: &[&str] = &[
+pub(super) const IMAGE_EXTENSIONS: &[&str] = &[
     "png", "jpg", "jpeg", "jfif", "jpe", "gif", "webp", "svg", "bmp", "ico", "tif", "tiff",
 ];
 /// Images Files hands to the system app.
-const SYSTEM_APP_IMAGE_EXTENSIONS: &[&str] = &["heic", "heif", "apng", "jp2", "jxl"];
-const VIDEO_EXTENSIONS: &[&str] = &[
+pub(super) const SYSTEM_APP_IMAGE_EXTENSIONS: &[&str] = &["heic", "heif", "apng", "jp2", "jxl"];
+pub(super) const VIDEO_EXTENSIONS: &[&str] = &[
     "webm", "ogv", "mp4", "m4v", "mov", "avi", "mkv", "wmv", "flv", "3gp", "3g2", "mpeg", "mpg",
     "m2ts", "mts", "vob", "asf", "ogm",
 ];
@@ -525,6 +525,10 @@ pub(crate) struct NativeDocsState {
     pub(crate) search_panel: bool,
     /// The Search view's fields, options and results, once opened (`project_search.rs`).
     pub(crate) project_search: Option<super::project_search::DocsProjectSearch>,
+    /// The files list's type filter (`type_filter.rs`): the file types it shows; empty shows all.
+    pub(crate) type_filter: std::collections::BTreeSet<super::type_filter::DocsTypeFilter>,
+    /// Folders folded while the type filter draws its tree.
+    pub(crate) type_filter_collapsed: BTreeSet<String>,
     /// The formatting bar is folded to one pill (remembered).
     pub(crate) format_bar_collapsed: bool,
     /// The selection toolbar shows Meo-style formatting buttons instead of the note buttons.
@@ -638,6 +642,7 @@ impl NativeDocsState {
         self.find = from.find.take();
         self.search_panel = from.search_panel;
         self.project_search = from.project_search.take();
+        self.type_filter = std::mem::take(&mut from.type_filter);
         self.tree_scroll = from.tree_scroll.clone();
         self.pending_open = from.pending_open.take();
         self.pending_page = from.pending_page.take();

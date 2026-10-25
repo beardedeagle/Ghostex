@@ -12,6 +12,7 @@ use std::{
 };
 
 const SEARCH_MAX_MATCHES: usize = 500;
+const SEARCH_MAX_FILTERED_FILES: usize = 3_000;
 const SEARCH_MAX_SCANNED: usize = 200_000;
 
 /// One folder's children, every file type, without the skipped folders. `path` "" lists the
@@ -137,6 +138,21 @@ pub(super) fn search_project(
     params: &Map<String, Value>,
 ) -> Result<Value, String> {
     let query = string_param(params, "query").unwrap_or_default();
+    // The desktop files list's type filter: only these extensions, and with no query every such
+    // file (SEE-ALSO: `manage_search_project` in apps/desktop/src/app/helpers/manage_docs_listing.rs).
+    let extensions: Vec<String> = params
+        .get("extensions")
+        .and_then(Value::as_array)
+        .into_iter()
+        .flatten()
+        .filter_map(Value::as_str)
+        .map(str::to_ascii_lowercase)
+        .collect();
+    let max_matches = if query.trim().is_empty() && !extensions.is_empty() {
+        SEARCH_MAX_FILTERED_FILES
+    } else {
+        SEARCH_MAX_MATCHES
+    };
     let mut roots = vec![(context.roots.project.clone(), String::new(), String::new())];
     if let Some(mount) = &context.roots.extra {
         if let Ok(location) = &mount.location {
@@ -151,8 +167,13 @@ pub(super) fn search_project(
     let mut truncated = false;
     let mut incomplete = false;
     for (root, outer_prefix, display_prefix) in roots {
-        let outcome =
-            ghostex_docs::project::search(&root, &query, SEARCH_MAX_MATCHES, SEARCH_MAX_SCANNED);
+        let outcome = ghostex_docs::project::search_with_extensions(
+            &root,
+            &query,
+            &extensions,
+            max_matches,
+            SEARCH_MAX_SCANNED,
+        );
         truncated |= outcome.truncated;
         incomplete |= outcome.incomplete;
         for found in outcome.matches {

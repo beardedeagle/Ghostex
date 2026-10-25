@@ -86,7 +86,7 @@ impl GhostexGpuiApp {
             self.native_docs_show_project_path(&relative, is_directory, cx);
             return;
         }
-        let first = (self.native_docs.search_results_query == text)
+        let first = (self.native_docs.search_results_query == self.native_docs_search_key())
             .then(|| self.native_docs.search_results.as_ref()?.first().cloned())
             .flatten();
         let Some(entry) = first else {

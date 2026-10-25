@@ -391,6 +391,52 @@ impl GhostexGpuiApp {
         })
     }
 
+    /// The search box's leading button: the type filter (`type_filter.rs`), accent-coloured with a
+    /// dot while types are picked.
+    fn render_native_docs_type_filter_button(
+        &mut self,
+        p: &DocsPalette,
+        cx: &mut Context<Self>,
+    ) -> AnyElement {
+        let active = self.native_docs_type_filter_active();
+        let tooltip = self.native_docs_type_filter_tooltip();
+        let hover = p.control_hover;
+        div()
+            .id("native-docs-type-filter")
+            .relative()
+            .flex()
+            .flex_none()
+            .items_center()
+            .justify_center()
+            .size(px(22.0))
+            .rounded(px(5.0))
+            .cursor_pointer()
+            .hover(move |style| style.bg(hover))
+            .child(super::type_filter::filter_anchor())
+            .child(titlebar_svg_icon(
+                "titlebar/filter.svg",
+                15.0,
+                if active { p.accent } else { p.muted },
+            ))
+            .when(active, |this| {
+                this.child(
+                    div()
+                        .absolute()
+                        .top(px(2.0))
+                        .right(px(2.0))
+                        .size(px(6.0))
+                        .rounded_full()
+                        .bg(p.accent),
+                )
+            })
+            .tooltip(move |window, cx| sidebar_style_tooltip(tooltip.clone(), window, cx))
+            .on_mouse_down(MouseButton::Left, |_, _, cx| cx.stop_propagation())
+            .on_click(cx.listener(|this, _, window, cx| {
+                this.show_native_docs_type_filter_menu(window, cx);
+            }))
+            .into_any_element()
+    }
+
     /// CDXC:Docs 2026-09-06 DECISION:
     /// User: make the Docs file search bar 3px taller.
     fn render_native_docs_search_row(
@@ -421,11 +467,7 @@ impl GhostexGpuiApp {
             .on_mouse_down(MouseButton::Left, move |_, window, cx| {
                 focus_target.update(cx, |input, cx| input.focus(window, cx));
             })
-            .child(titlebar_svg_icon(
-                "files-view/t-search-18.svg",
-                15.0,
-                p.muted,
-            ))
+            .child(self.render_native_docs_type_filter_button(p, cx))
             .child(
                 div()
                     .flex_1()
@@ -685,16 +727,23 @@ impl GhostexGpuiApp {
         window: &mut Window,
         cx: &mut Context<Self>,
     ) -> AnyElement {
+        let search_key = self.native_docs_search_key();
+        let filter_tree = self.native_docs.search_query.trim().is_empty()
+            && self.native_docs_type_filter_active();
         let state = &self.native_docs;
         let query = state.search_query.trim();
-        let status = if !query.is_empty() {
+        let status = if !query.is_empty() || filter_tree {
             match &state.search_results {
-                _ if state.search_results_query != query => Some("Searching…".to_string()),
+                _ if state.search_results_query != search_key => Some("Searching…".to_string()),
                 Some(results) if results.is_empty() && state.search_incomplete => Some(
                     "No matching files. This project is large, so search covers its first 200,000 files and folders."
                         .to_string(),
                 ),
                 Some(results) if results.is_empty() => Some("No matching files".to_string()),
+                _ if state.search_truncated && filter_tree => Some(
+                    "Showing the first 3,000 files of these types. Type a name to narrow them."
+                        .to_string(),
+                ),
                 _ if state.search_truncated => {
                     Some("Showing the best matches. Type more to narrow them.".to_string())
                 }
@@ -732,8 +781,10 @@ impl GhostexGpuiApp {
                     let ancestor = is_directory && active.starts_with(&format!("{}/", row.path));
                     // A folder not listed yet may have children; a listed one shows the chevron only
                     // when it does. Search results open their folder in the tree instead.
+                    // The type filter's folders always hold a matching file.
                     let has_children = row.folder.is_none()
-                        && (expandable.contains(row.path.as_str())
+                        && (filter_tree
+                            || expandable.contains(row.path.as_str())
                             || !self.native_docs.loaded_folders.contains(&row.path));
                     let in_search = row.folder.is_some() || !query_is_empty;
                     let text = if ancestor {
