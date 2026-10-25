@@ -625,7 +625,7 @@ impl GhostexGpuiApp {
         let profile = if let Some(machine_id) = remote_machine_id.as_deref() {
             use sha2::{Digest, Sha256};
             let tunnel = self.ensure_remote_browser_tunnel(machine_id, false, cx)?;
-            let identity = format!("{:x}", Sha256::digest(machine_id.as_bytes()));
+            let identity = hex::encode(Sha256::digest(machine_id.as_bytes()));
             let profile = format!(
                 "remote-{}-{}-{}",
                 tunnel.port,

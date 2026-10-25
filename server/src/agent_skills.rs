@@ -1102,7 +1102,7 @@ fn file_matches_shipped_retired_skill_content(path: &Path) -> bool {
     let Ok(bytes) = fs::read(path) else {
         return false;
     };
-    let digest = format!("{:x}", Sha256::digest(&bytes));
+    let digest = hex::encode(Sha256::digest(&bytes));
     RETIRED_GHOSTEX_AGENT_SKILL_SHIPPED_SHA256.contains(&digest.as_str())
 }
 

@@ -186,16 +186,23 @@ fn post_batch(
 ) -> Outcome {
     let boundary = format!("ghostex-{}", uuid::Uuid::new_v4().simple());
     let body = multipart_body(&boundary, file_name, audio, language);
-    let response = ureq::post(XAI_BATCH_STT_URL)
-        .set("authorization", &format!("Bearer {key}"))
-        .set(
+    let response = crate::http_agent::answering_agent()
+        .post(XAI_BATCH_STT_URL)
+        .header("authorization", format!("Bearer {key}"))
+        .header(
             "content-type",
-            &format!("multipart/form-data; boundary={boundary}"),
+            format!("multipart/form-data; boundary={boundary}"),
         )
-        .timeout(timeout)
-        .send_bytes(&body);
+        .config()
+        .timeout_global(Some(timeout))
+        .build()
+        .send(&body[..]);
     match response {
-        Ok(response) => match response.into_json::<Value>() {
+        Ok(mut response) if response.status().as_u16() >= 400 => {
+            let detail = response.body_mut().read_to_string().unwrap_or_default();
+            status_problem(response.status().as_u16(), &detail)
+        }
+        Ok(response) => match crate::http_agent::read_json::<Value>(response) {
             Ok(answer) => Outcome::Text(
                 answer
                     .get("text")
@@ -209,15 +216,10 @@ fn post_batch(
                 format!("xAI's answer could not be read ({error}). Press Transcribe again."),
             )),
         },
-        Err(ureq::Error::Status(status, response)) => {
-            let detail = response.into_string().unwrap_or_default();
-            status_problem(status, &detail)
-        }
         Err(error) => Outcome::Transient(problem(
             "providerUnavailable",
             format!(
-                "Couldn't reach xAI ({}). Check this computer's internet connection, then press Transcribe again.",
-                error.kind()
+                "Couldn't reach xAI ({error}). Check this computer's internet connection, then press Transcribe again."
             ),
         )),
     }

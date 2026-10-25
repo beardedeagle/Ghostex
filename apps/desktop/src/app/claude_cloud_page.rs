@@ -58,7 +58,7 @@ thread_local! {
 /// The Browser profile of a saved Claude account's claude.ai pages.
 pub(crate) fn claude_account_browser_profile(account_id: &str) -> String {
     use sha2::{Digest, Sha256};
-    let digest = format!("{:x}", Sha256::digest(account_id.trim().as_bytes()));
+    let digest = hex::encode(Sha256::digest(account_id.trim().as_bytes()));
     format!("workspace-claude-{}", &digest[..24])
 }
 

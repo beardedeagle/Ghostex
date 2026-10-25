@@ -184,7 +184,12 @@ fn in_backoff(cache: &LinearCache, fingerprint: u64) -> bool {
 /// One agent for every Linear call: keeps the TLS connection to Linear alive between calls.
 fn agent() -> &'static ureq::Agent {
     static AGENT: OnceLock<ureq::Agent> = OnceLock::new();
-    AGENT.get_or_init(|| ureq::AgentBuilder::new().timeout(LINEAR_TIMEOUT).build())
+    AGENT.get_or_init(|| {
+        crate::http_agent::config()
+            .timeout_global(Some(LINEAR_TIMEOUT))
+            .build()
+            .into()
+    })
 }
 
 /// One GraphQL call. `Err` carries a sentence fit to show a person.
@@ -216,22 +221,20 @@ fn linear_graphql_answer(api_key: &str, query: &str, variables: Value) -> Result
     };
     let response = agent()
         .post(LINEAR_GRAPHQL_URL)
-        .set("Authorization", &authorization)
-        .set("Content-Type", "application/json")
+        .header("Authorization", &authorization)
+        .header("Content-Type", "application/json")
+        .config()
+        .http_status_as_error(false)
+        .build()
         .send_json(json!({ "query": query, "variables": variables }));
     let body: Value = match response {
-        Ok(response) => response
-            .into_json()
-            .map_err(|error| format!("Linear sent an unreadable answer: {error}"))?,
-        Err(ureq::Error::Status(400, response)) => response
-            .into_json()
-            .map_err(|error| format!("Linear sent an unreadable answer: {error}"))?,
-        Err(ureq::Error::Status(401, _)) | Err(ureq::Error::Status(403, _)) => {
-            return Err("Linear did not accept this API key.".to_string());
-        }
-        Err(ureq::Error::Status(code, _)) => {
-            return Err(format!("Linear answered with HTTP {code}."));
-        }
+        // A 400 carries the GraphQL errors.
+        Ok(response) => match response.status().as_u16() {
+            401 | 403 => return Err("Linear did not accept this API key.".to_string()),
+            code if code > 400 => return Err(format!("Linear answered with HTTP {code}.")),
+            _ => crate::http_agent::read_json(response)
+                .map_err(|error| format!("Linear sent an unreadable answer: {error}"))?,
+        },
         Err(error) => return Err(format!("Could not reach Linear: {error}")),
     };
     Ok(body)

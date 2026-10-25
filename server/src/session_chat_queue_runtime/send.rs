@@ -231,7 +231,10 @@ pub(crate) async fn send_session_chat_message_with_draft(
             use sha2::{Digest, Sha256};
             let identity =
                 json!([project_id, session_id, version.draft_id, version.revision]).to_string();
-            format!("msg_gx_{:x}", Sha256::digest(identity.as_bytes()))
+            format!(
+                "msg_gx_{}",
+                hex::encode(Sha256::digest(identity.as_bytes()))
+            )
         });
         let archive = tokio::task::spawn_blocking(move || {
             let mut archive =
