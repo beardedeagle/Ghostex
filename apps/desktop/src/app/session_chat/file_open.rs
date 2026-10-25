@@ -9,7 +9,7 @@ use crate::app::consts::*;
 use crate::app::helpers::*;
 use crate::app::model::*;
 use crate::app::session_chat_context_menu::{
-    GpuiResolvedSessionChatFile, GpuiSessionChatFileResolutionError,
+    GpuiResolvedSessionChatFile, GpuiSessionChatFileResolutionError, resolve_session_chat_file,
 };
 use crate::app::window::*;
 use crate::*;
@@ -130,7 +130,51 @@ impl GhostexGpuiApp {
             );
             return;
         }
-        let resolved = match self.resolve_session_chat_file(session_id, trimmed) {
+        let context = match self.session_chat_file_resolution_context(session_id) {
+            Ok(context) => context,
+            Err(_) => {
+                self.report_session_chat_file_open_failure(
+                    "That session's project folder is unavailable.",
+                    cx,
+                );
+                return;
+            }
+        };
+        let trimmed = trimmed.to_string();
+        let path = trimmed.clone();
+        let background = cx.background_executor().clone();
+        cx.spawn_in(window, async move |this, cx| {
+            let resolved = background
+                .spawn(async move { resolve_session_chat_file(context, &path) })
+                .await;
+            let _ = this.update_in(cx, |this, window, cx| {
+                this.finish_session_chat_file_open(
+                    resolved,
+                    trimmed,
+                    line,
+                    column,
+                    requested_view,
+                    session_id,
+                    window,
+                    cx,
+                );
+            });
+        })
+        .detach();
+    }
+
+    fn finish_session_chat_file_open(
+        &mut self,
+        resolution: Result<GpuiResolvedSessionChatFile, GpuiSessionChatFileResolutionError>,
+        path: String,
+        line: Option<u32>,
+        column: Option<u32>,
+        requested_view: Option<shared_settings::SharedChatFileOpenView>,
+        session_id: TerminalSessionId,
+        window: &mut Window,
+        cx: &mut gpui::Context<Self>,
+    ) {
+        let resolved = match resolution {
             Ok(resolved) => resolved,
             Err(GpuiSessionChatFileResolutionError::InvalidPath) => return,
             Err(GpuiSessionChatFileResolutionError::ProjectUnavailable) => {
@@ -145,7 +189,7 @@ impl GhostexGpuiApp {
                 return;
             }
             Err(GpuiSessionChatFileResolutionError::NotFound) => {
-                self.copy_unresolved_session_chat_file_path(trimmed, cx);
+                self.copy_unresolved_session_chat_file_path(&path, cx);
                 return;
             }
         };
