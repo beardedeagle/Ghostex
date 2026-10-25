@@ -4,6 +4,7 @@
 //! kit), `publish` is the authenticated route that stores it, `serve` answers the page itself.
 
 mod answers;
+mod builtin;
 mod drafts;
 mod kit;
 mod prepare;

@@ -9,6 +9,7 @@ use axum::{
 use crate::server::RoutedResponse;
 
 use super::{
+    builtin::with_current_block,
     prepare::PAGE_CONTENT_SECURITY_POLICY,
     store::{is_page_id, read_page, read_record},
     theme::PAGE_STATE_MARKER,
@@ -116,13 +117,14 @@ fn header_policy(id: &str, host: Option<&str>) -> String {
     }
 }
 
-/// The page with its answered state where `PAGE_API` reads it: whether the reader already sent
+/// The page with today's built-in block (builtin.rs) and its answered state where `PAGE_API`
+/// reads it: whether the reader already sent
 /// answers, what they were, and when, or else the draft they left. A page published before
 /// answering existed has no marker. `page_script` adds [`PAGE_SCRIPT`] there too, or before
 /// `</head>` in a page without the marker.
 fn with_page_state(page: Vec<u8>, record: Option<serde_json::Value>, page_script: bool) -> Vec<u8> {
     let html = match String::from_utf8(page) {
-        Ok(html) => html,
+        Ok(html) => with_current_block(html),
         Err(error) => return error.into_bytes(),
     };
     let script = if page_script {
