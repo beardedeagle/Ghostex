@@ -363,6 +363,23 @@ pub(crate) fn gpui_gxserver_starting_answer(status: u16, body: &str) -> Option<(
     ))
 }
 
+/// CDXC:ServerDaemon 2026-10-25 WHY:
+/// On 2026-10-25 a `gxserver start` run elsewhere bound the port in the ~4 s between `cargo xtask start` stopping the old gxserver and the app's launchd start, so the job's gxserver found the port taken and exited after ~20 ms, twice; the 3 s pid wait never saw either run, the launcher reported "launchd loaded the gxserver job but never spawned it", and the app showed the startup failure report while the other gxserver was healthy. A start that ends while a gxserver of this build answers (or is still starting) is not a failure: the app uses that one. Another build or protocol still counts as not started, so the startup loop takes it over or reports it.
+pub(crate) fn gpui_gxserver_already_answers_for_launch(
+    health: &GpuiLocalGxserverHealthState,
+) -> bool {
+    matches!(
+        health,
+        GpuiLocalGxserverHealthState::Healthy { .. }
+            | GpuiLocalGxserverHealthState::Starting { .. }
+    )
+}
+
+/// Whether a launcher error is the final word on startup. Only a port nobody answers on is: any other answer goes to the startup loop, which uses a healthy gxserver, waits for a starting one, takes over another build and reports a protocol mismatch.
+pub(crate) fn gpui_gxserver_launch_error_is_final(health: &GpuiLocalGxserverHealthState) -> bool {
+    matches!(health, GpuiLocalGxserverHealthState::Unreachable)
+}
+
 /// Mirrors the macOS GxserverClient handshake: authenticated health, product
 /// check, hard protocol-version and build-identity matches, and availability
 /// of the tools shipped beside this GPUI build's gxserver binary.
@@ -1002,6 +1019,18 @@ fn gpui_spawn_local_gxserver_launchd_job(
         note(steps, "no pid within 3 s".to_string());
     }
     gpui_log_launchd_spawn_outcome(bootstrapped, spawned_pid.is_some(), spawned_pid, steps);
+    if spawned_pid.is_none() {
+        let (health, detail) = gpui_probe_local_gxserver_health_with_diagnostics();
+        if gpui_gxserver_already_answers_for_launch(&health) {
+            note(
+                steps,
+                format!(
+                    "the job's gxserver left at once because a gxserver already answers on the port: {detail}"
+                ),
+            );
+            return Ok(());
+        }
+    }
     match spawned_pid {
         Some(pid) => {
             note(steps, format!("gxserver spawned as pid {pid}"));
@@ -1403,4 +1432,44 @@ pub(crate) fn gpui_gxserver_protocol_mismatch_message(reported: Option<u64>) -> 
         "gxserver protocol mismatch. Expected protocol {GPUI_GXSERVER_PROTOCOL_VERSION}, got {}. Update Ghostex and gxserver so their protocol versions match.",
         reported.map_or_else(|| "none".to_string(), |version| version.to_string()),
     )
+}
+
+#[cfg(test)]
+mod launch_outcome_tests {
+    use super::*;
+
+    fn every_health_state() -> Vec<GpuiLocalGxserverHealthState> {
+        vec![
+            GpuiLocalGxserverHealthState::Healthy {
+                tools_available: true,
+            },
+            GpuiLocalGxserverHealthState::Healthy {
+                tools_available: false,
+            },
+            GpuiLocalGxserverHealthState::Starting {
+                starting_for: Duration::from_secs(3),
+            },
+            GpuiLocalGxserverHealthState::BuildMismatch,
+            GpuiLocalGxserverHealthState::ProtocolMismatch { reported: Some(0) },
+            GpuiLocalGxserverHealthState::Unreachable,
+        ]
+    }
+
+    #[test]
+    fn a_launch_that_ends_beside_a_gxserver_of_this_build_is_not_a_failure() {
+        let answers: Vec<bool> = every_health_state()
+            .iter()
+            .map(gpui_gxserver_already_answers_for_launch)
+            .collect();
+        assert_eq!(answers, [true, true, true, false, false, false]);
+    }
+
+    #[test]
+    fn only_a_silent_port_makes_a_launcher_error_final() {
+        let finals: Vec<bool> = every_health_state()
+            .iter()
+            .map(gpui_gxserver_launch_error_is_final)
+            .collect();
+        assert_eq!(finals, [false, false, false, false, false, true]);
+    }
 }

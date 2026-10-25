@@ -206,8 +206,35 @@ fn keychain_find() -> Result<KeychainLookup, String> {
     }
     Err(format!(
         "Couldn't read the Ghostex vault key from the Keychain ({}). Unlock the Keychain and try again.",
-        String::from_utf8_lossy(&output.stderr).trim()
+        security_failure_detail(&output.status, &output.stderr)
     ))
+}
+
+/// CDXC:ServerDaemon 2026-10-25 WHY:
+/// A gxserver started from an SSH login runs outside the user's GUI security session, where `security` fails without writing anything; the error read "Keychain ()" and said nothing about why. The exit status (or the signal that ended the tool) always goes in.
+fn security_failure_detail(status: &std::process::ExitStatus, stderr: &[u8]) -> String {
+    let ended = match status.code() {
+        Some(code) => format!("security exited with status {code}"),
+        None => {
+            #[cfg(unix)]
+            {
+                use std::os::unix::process::ExitStatusExt as _;
+                match status.signal() {
+                    Some(signal) => format!("security was ended by signal {signal}"),
+                    None => "security ended without an exit status".to_string(),
+                }
+            }
+            #[cfg(not(unix))]
+            {
+                "security ended without an exit status".to_string()
+            }
+        }
+    };
+    let stderr = String::from_utf8_lossy(stderr);
+    match stderr.trim() {
+        "" => format!("{ended} and printed nothing"),
+        message => format!("{ended}: {message}"),
+    }
 }
 
 /// Adds the key through `security -i` so the hex key goes over stdin instead of the command line,
@@ -279,4 +306,38 @@ fn parse_hex_key(hex: &str) -> Option<[u8; 32]> {
         *byte = u8::from_str_radix(&hex[index * 2..index * 2 + 2], 16).ok()?;
     }
     Some(bytes)
+}
+
+#[cfg(all(test, unix))]
+mod security_failure_detail_tests {
+    use super::security_failure_detail;
+    use std::os::unix::process::ExitStatusExt as _;
+    use std::process::ExitStatus;
+
+    #[test]
+    fn a_silent_failure_still_names_its_exit_status() {
+        assert_eq!(
+            security_failure_detail(&ExitStatus::from_raw(51 << 8), b""),
+            "security exited with status 51 and printed nothing"
+        );
+    }
+
+    #[test]
+    fn the_tool_output_follows_the_status() {
+        assert_eq!(
+            security_failure_detail(
+                &ExitStatus::from_raw(36 << 8),
+                b"security: SecKeychainSearchCopyNext: User interaction is not allowed.\n"
+            ),
+            "security exited with status 36: security: SecKeychainSearchCopyNext: User interaction is not allowed."
+        );
+    }
+
+    #[test]
+    fn a_signal_is_named() {
+        assert_eq!(
+            security_failure_detail(&ExitStatus::from_raw(9), b""),
+            "security was ended by signal 9 and printed nothing"
+        );
+    }
 }

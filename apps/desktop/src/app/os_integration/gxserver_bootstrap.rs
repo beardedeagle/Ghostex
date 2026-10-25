@@ -387,34 +387,45 @@ impl GhostexGpuiApp {
                 .spawn(async move { gpui_spawn_local_gxserver_daemon(&spawn_binary) })
                 .await;
             let launch_steps = match spawn_result {
-                Ok(steps) => steps,
+                Ok(steps) => Some(steps),
                 Err(message) => {
                     // The launcher's own step log is the evidence for this
                     // failure, so it goes into the same copyable report as a
                     // health timeout.
                     startup_diagnostics.push(format!("+{}ms launcher failed: {message}", startup_started.elapsed().as_millis()));
-                    let report = cx
+                    // A gxserver another client started can hold the port by now (CDXC:ServerDaemon 2026-10-25 on gpui_gxserver_already_answers_for_launch); the loop below decides then.
+                    let (health, detail) = cx
                         .background_executor()
-                        .spawn(async move { gpui_gxserver_startup_failure_report(&startup_diagnostics) })
+                        .spawn(async { gpui_probe_local_gxserver_health_with_diagnostics() })
                         .await;
-                    let _ = this.update(cx, |this, cx| {
-                        this.show_gpui_gxserver_bootstrap_toast(
-                            "error",
-                            "gxserver failed",
-                            message.lines().next().unwrap_or(&message),
-                            true,
-                            cx,
-                        );
-                        if let Some(toast) = this.app_toasts.iter_mut().find(|toast| toast.id == GPUI_GXSERVER_DAEMON_TOAST_ID) {
-                            toast.copy_text = Some(report);
-                        }
-                        this.sync_gpui_app_toast_window(cx);
-                    });
-                    return;
+                    startup_diagnostics.push(format!("+{}ms probe after the launcher error: {detail}", startup_started.elapsed().as_millis()));
+                    if gpui_gxserver_launch_error_is_final(&health) {
+                        let report = cx
+                            .background_executor()
+                            .spawn(async move { gpui_gxserver_startup_failure_report(&startup_diagnostics) })
+                            .await;
+                        let _ = this.update(cx, |this, cx| {
+                            this.show_gpui_gxserver_bootstrap_toast(
+                                "error",
+                                "gxserver failed",
+                                message.lines().next().unwrap_or(&message),
+                                true,
+                                cx,
+                            );
+                            if let Some(toast) = this.app_toasts.iter_mut().find(|toast| toast.id == GPUI_GXSERVER_DAEMON_TOAST_ID) {
+                                toast.copy_text = Some(report);
+                            }
+                            this.sync_gpui_app_toast_window(cx);
+                        });
+                        return;
+                    }
+                    None
                 }
             };
-            startup_diagnostics.extend(launch_steps);
-            startup_diagnostics.push(format!("+{}ms launcher accepted the start request.", startup_started.elapsed().as_millis()));
+            if let Some(launch_steps) = launch_steps {
+                startup_diagnostics.extend(launch_steps);
+                startup_diagnostics.push(format!("+{}ms launcher accepted the start request.", startup_started.elapsed().as_millis()));
+            }
             #[cfg(target_os = "windows")]
             if windows_first_run_setup_active {
                 let _ = this.update(cx, |this, cx| {
