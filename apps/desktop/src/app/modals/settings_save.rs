@@ -244,7 +244,8 @@ impl GhostexGpuiApp {
         LAST_REFRESHED_SETTINGS.with_borrow_mut(|last| *last = Some(settings_snapshot.clone()));
         if memory_only {
             // The save path unbound the previous chords before writing; they are the same chords.
-            cx.bind_keys(gpui_configured_hotkey_key_bindings_from_settings());
+            let configured_hotkeys = gpui_configured_hotkey_key_bindings_from_settings(cx);
+            cx.bind_keys(configured_hotkeys);
             return;
         }
         self.refresh_gpui_window_settings_consumers(settings_snapshot, cx);
@@ -252,7 +253,8 @@ impl GhostexGpuiApp {
         // adds targeted Unbind markers for the prior Ghostex action chords, so
         // removed/remapped entries stop dispatching without clearing GPUI or
         // gpui-component's unrelated keymap entries.
-        cx.bind_keys(gpui_configured_hotkey_key_bindings_from_settings());
+        let configured_hotkeys = gpui_configured_hotkey_key_bindings_from_settings(cx);
+        cx.bind_keys(configured_hotkeys);
         cx.notify();
         // The other open windows follow the same save; the keymap above is the process's one
         // (app/workspace_windows/).
