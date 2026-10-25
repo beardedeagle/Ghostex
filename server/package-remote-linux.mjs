@@ -615,7 +615,8 @@ async function gitSourceDirty(cwd) {
 
 async function run(command, args, options = {}) {
   console.log(`$ ${command} ${args.join(' ')}`);
-  await new Promise((resolve, reject) => {
+  /** @type {Promise<void>} */
+  const exited = new Promise((resolve, reject) => {
     const child = spawn(command, args, {
       cwd: options.cwd,
       env: { ...process.env, ...(options.env || {}) },
@@ -630,4 +631,5 @@ async function run(command, args, options = {}) {
       reject(new Error(`${command} exited with ${signal || code}`));
     });
   });
+  await exited;
 }
