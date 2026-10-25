@@ -29,7 +29,7 @@
 ### 🧩 Session details panel
 
 - **A Session details panel shows what a Claude session is working with,** beside the chat when there is room and as a floating card when there isn't: where it runs, how full its context is with Claude's own breakdown, its task list, connectors, skills, memory files, changes against main with Commit or Create PR, and background commands with a stop button.
-- **It is a beta, off by default:** turn it on in Settings > Extensions > Store, then click the context ring at the top right of the window to show or hide it. Claude sessions only for now.
+- **It is a beta, on by default:** click the context ring at the top right of the window to show or hide it, and turn it off in Settings > Extensions > Store. Each part shows a pulsing placeholder while it loads, and clicking a skill opens it in Agents Hub. Claude sessions only for now.
 
 ### 🤖 OpenCode
 
