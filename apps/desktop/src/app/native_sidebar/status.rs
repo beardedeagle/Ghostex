@@ -253,8 +253,8 @@ pub(crate) fn session_row_ring(
     base
 }
 
-pub(crate) fn completion_opacity(start: web_time::Instant) -> f32 {
-    let progress = (start.elapsed().as_secs_f32() / 3.0).min(1.0);
+pub(crate) fn completion_opacity(elapsed: std::time::Duration) -> f32 {
+    let progress = (elapsed.as_secs_f32() / 3.0).min(1.0);
     let stops = [
         (0.0, 1.0),
         (0.08, 0.9),

@@ -20,13 +20,26 @@ impl GhostexGpuiApp {
         mode: TitlebarMode,
         cx: &mut gpui::Context<Self>,
     ) -> bool {
-        let kept_awake = self.view_modes_kept_awake_by_parked_projects();
+        let mut kept_awake = self.view_modes_kept_awake_by_parked_projects();
+        kept_awake.extend(self.view_modes_never_auto_slept());
         let marked = self.project_editor_shell.mark_mode_awake(mode, &kept_awake);
         if marked {
             self.release_capped_view_surfaces(cx);
             self.schedule_project_editor_auto_sleep_for_inactive_modes(cx);
         }
         marked
+    }
+
+    /// The views whose Auto Sleep setting (Settings > General > System > Auto Sleep) is Off: the
+    /// awake cap leaves them awake too.
+    ///
+    /// CDXC:Workarea 2026-10-24 DECISION:
+    /// User: with five views open, visiting three others put Code to sleep through the awake cap although they want VS Code never to sleep, and Settings > System > Auto Sleep has no option for the cap; "if Auto Sleep is off, the cap must not sleep it either". Measured: a Code view the cap slept came back with its unsaved files, open tabs and layout, but its terminal was a fresh shell (the earlier output and the running process were gone), because sleeping Code stops code-server. Views without an Auto Sleep setting (extension views) stay under the cap.
+    pub(crate) fn view_modes_never_auto_slept(&self) -> impl Iterator<Item = TitlebarMode> {
+        let policy = self.project_editor_auto_sleep_policy;
+        project_editor_modes()
+            .into_iter()
+            .filter(move |mode| policy.duration_for_mode(*mode).is_none())
     }
 
     /// The active views of the projects the user left while they were awake (`active_view_awake`):

@@ -31,11 +31,14 @@ impl GhostexGpuiApp {
         cx: &mut gpui::Context<Self>,
     ) -> AnyElement {
         let view = cx.entity().clone();
+        // CDXC:SessionSleep 2026-10-25 WHY: a flash stays in the map until another session completes, and its last opacity (1.0) is set after the Dim sleeping sessions fade, so a session that finished a turn and then slept stayed bright; only a running flash counts. The clock is read once, so a frame that draws the flash also asks for the next one, and the flash always ends on a frame drawn without it.
         let completion = self
             .native_sidebar
             .completion_flashes
             .get(&session.session_id)
-            .copied();
+            .map(|start| start.elapsed())
+            .filter(|elapsed| elapsed.as_secs_f32() < 3.0)
+            .map(super::status::completion_opacity);
         let reveal_id = session.session_id.clone();
         let session_id = session.session_id.clone();
         let group_id = group.group_id.clone();
@@ -163,7 +166,8 @@ impl GhostexGpuiApp {
         .filter(|part| !part.is_empty())
         .collect::<Vec<_>>()
         .join(", ");
-        div().on_children_prepainted(move |bounds, window, cx| { if completion.is_some_and(|start| start.elapsed().as_secs_f32() < 3.0) { #[cfg(target_arch = "wasm32")] crate::app::helpers::indicator_animation::redraw_probe("raf sessions.rs completion".into()); window.request_animation_frame(); cx.notify(view.entity_id()); } if let Some(bounds) = bounds.first() { view.update(cx, |app, cx| { if app.native_sidebar.session_card_bounds.get(&reveal_id) != Some(bounds) { app.native_sidebar.session_card_bounds.insert(reveal_id.clone(), *bounds); } app.reveal_native_session_bounds(&reveal_id, *bounds, scale, window, cx) }); } }).w_full().pb(px(SESSION_SPACING * scale)).px(px(SESSION_INSET_X * scale))
+        div().on_children_prepainted(move |bounds, window, cx| { if completion.is_some() { #[cfg(target_arch = "wasm32")] crate::app::helpers::indicator_animation::redraw_probe("raf sessions.rs completion".into()); window.request_animation_frame(); cx.notify(view.entity_id()); }
+            if let Some(bounds) = bounds.first() { view.update(cx, |app, cx| { if app.native_sidebar.session_card_bounds.get(&reveal_id) != Some(bounds) { app.native_sidebar.session_card_bounds.insert(reveal_id.clone(), *bounds); } app.reveal_native_session_bounds(&reveal_id, *bounds, scale, window, cx) }); } }).w_full().pb(px(SESSION_SPACING * scale)).px(px(SESSION_INSET_X * scale))
             .child(div()
                 .id(format!("native-sidebar-session-{session_id}"))
                 .role(gpui::Role::TreeItem)
@@ -175,7 +179,7 @@ impl GhostexGpuiApp {
                 .when(stale, |row| row.opacity(0.55))
                 .when(dim_sleeping && !stale, |row| row.opacity(0.5))
                 .when(self.native_sidebar.is_dragging("session", &session_id), |row| row.opacity(0.2))
-                .when_some(completion, |row, start| row.opacity(super::status::completion_opacity(start)))
+                .when_some(completion, |row, opacity| row.opacity(opacity))
                 .when(visible && !highlighted, |row| row.bg(appearance.visible))
                 .when(highlighted, |row| row.bg(appearance.session_selected))
                 .when(visible || highlighted, |row| row.text_color(chrome_color(0xd8d8d8, 0x292929)))

@@ -900,7 +900,11 @@ when you open it.
   any project, or a Files, website or extension view, that has been off screen
   for its Browser or Project Auto Sleep time closes to free its memory and
   reloads when you select it again. Tabs playing sound, tabs where you typed
-  text you have not sent, and the page another Space opens on stay awake. Resources in the
+  text you have not sent, and the page another Space opens on stay awake. The side panel
+  also keeps only the view on screen and the two you used last awake; with more views open,
+  the oldest one sleeps, unless its VS Code, Browser or Project Auto Sleep is Off. When the
+  Code view sleeps, its editor restarts: open files and unsaved changes come back, but its
+  terminals start fresh. Resources in the
   header's ⋯ menu sleeps many at once and shows CPU and RAM per session. Clean RAM
   copies a diagnosis prompt; paste it into an agent session to reduce RAM use.
   Sleeping sidebar sessions keep their normal title color and show a dimmer

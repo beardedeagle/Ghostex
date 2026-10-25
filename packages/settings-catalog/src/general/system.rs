@@ -10,7 +10,7 @@ pub(crate) fn auto_sleep() -> Section {
             row(
                 "autoSleepCodeEditorIdleMinutes",
                 "VS Code Auto Sleep",
-                "Choose when inactive VS Code panes sleep, or turn Auto Sleep off.",
+                "Choose when inactive VS Code panes sleep, or turn Auto Sleep off. Off also keeps Code awake when more than three views are open.",
             )
             .num_options(AUTO_SLEEP_IDLE_MINUTE_OPTIONS),
             row(
@@ -22,13 +22,13 @@ pub(crate) fn auto_sleep() -> Section {
             row(
                 "autoSleepProjectEditorIdleMinutes",
                 "Project Auto Sleep",
-                "Choose when inactive Project panes sleep, or turn Auto Sleep off.",
+                "Choose when inactive Project panes sleep, or turn Auto Sleep off. Off also keeps them awake when more than three views are open.",
             )
             .num_options(AUTO_SLEEP_IDLE_MINUTE_OPTIONS),
             row(
                 "autoSleepBrowserIdleMinutes",
                 "Browser Auto Sleep",
-                "Choose when inactive browser panes sleep, or turn Auto Sleep off.",
+                "Choose when inactive browser panes sleep, or turn Auto Sleep off. Off also keeps the Browser awake when more than three views are open.",
             )
             .num_options(AUTO_SLEEP_IDLE_MINUTE_OPTIONS),
             row(
