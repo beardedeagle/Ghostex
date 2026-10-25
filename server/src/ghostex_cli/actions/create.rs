@@ -175,7 +175,8 @@ pub(super) fn create_gxserver_session(payload: &Value, flags: &Flags) -> CliResu
     match payload.get("cwd") {
         None | Some(Value::Null) => {}
         Some(Value::String(cwd)) if !cwd.trim().is_empty() => {
-            params.insert("cwd".to_string(), json!(node_path_resolve(cwd)));
+            let cwd = resolve_cli_cwd(cwd, flags, payload, "create-session")?;
+            params.insert("cwd".to_string(), json!(cwd));
         }
         Some(_) => {
             return Err(CliError::Other(

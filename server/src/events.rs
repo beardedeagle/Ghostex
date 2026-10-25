@@ -288,7 +288,7 @@ impl GxserverEventHub {
                     .lock()
                     .await
                     .remove(&command_id);
-                Err(RendererCommandError::dependency_unavailable())
+                Err(RendererCommandError::disconnected(&action))
             }
             Err(_) => {
                 self.inner
@@ -311,6 +311,17 @@ impl RendererCommandError {
         Self {
             code: "dependencyUnavailable",
             message: NO_RENDERER_MESSAGE.to_string(),
+        }
+    }
+
+    /// The renderer had the command and went away before it answered, so the command may have been
+    /// performed; [`NO_RENDERER_MESSAGE`] is only for a command no renderer received.
+    fn disconnected(action: &str) -> Self {
+        Self {
+            code: "dependencyUnavailable",
+            message: format!(
+                "The renderer disconnected before it answered renderer command {action}."
+            ),
         }
     }
 

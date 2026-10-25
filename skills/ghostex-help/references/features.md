@@ -550,12 +550,13 @@ groups sit indented under it with a guide line and hide while the project is
 collapsed; the collapsed project still shows when one of their agents is
 working or needs you. Collapse All in the More menu folds the projects and
 leaves each session group open or closed as it was.
-The commands below need a Ghostex release that includes them, and their edits
-are made by the Ghostex app, so it has to be running on that computer.
+The session group commands need Ghostex 10.36 or later, and their edits are
+made by the Ghostex app, so it has to be running on that computer.
 From the command line, `ghostex session-groups` lists each project's session
 groups with their ids; `create-session-group --project-id <id> [--title <name>]`,
-`rename-session-group` and `delete-session-group` (its sessions stay open in the
-project's own list) manage them, and `move-session-to-group <session> --group-id
+`rename-session-group` and `delete-session-group` (like Close Group in a
+group's menu, it closes the group's sessions, which then head History so you can
+restore them) manage them, and `move-session-to-group <session> --group-id
 <id>` and `remove-session-from-group <session>` move a session. `create-agent`
 and `create-session --start` take `--group-id <id>` to start the new session in
 a group, and `create-session --cwd <folder>` starts a terminal in another folder

@@ -5,6 +5,7 @@ use serde_json::{json, Map, Value};
 #[cfg(test)]
 use crate::ghostex_cli::args::parse_args;
 use crate::ghostex_cli::args::{FlagValue, Flags};
+use crate::ghostex_cli::rpc::{self, CliError, CliResult};
 
 #[cfg(test)]
 use super::*;
@@ -153,6 +154,30 @@ pub(super) fn node_path_resolve(input: &str) -> String {
         }
     }
     result.to_string_lossy().into_owned()
+}
+
+/// A `--cwd` for `/api/createSession`, which refuses anything but an absolute folder or `~/…` on
+/// the computer that runs the session. A relative folder is read from this shell's folder, so it is
+/// resolved only when gxserver is this computer's; for another computer it is refused rather than
+/// sent as a path of this one. `~` is left for gxserver to expand with its own home.
+pub(crate) fn resolve_cli_cwd(
+    cwd: &str,
+    flags: &Flags,
+    params: &Value,
+    verb: &str,
+) -> CliResult<String> {
+    let cwd = cwd.trim();
+    if cwd.starts_with('~') || Path::new(cwd).is_absolute() {
+        return Ok(cwd.to_string());
+    }
+    let target = rpc::resolve_gxserver_server_target(flags, params)?;
+    if !matches!(target.kind.as_str(), "ssh" | "tailcat") && rpc::is_local_gxserver_target(&target)
+    {
+        return Ok(node_path_resolve(cwd));
+    }
+    Err(CliError::Other(format!(
+        "{verb} --cwd needs an absolute path or ~/… when the session runs on another computer."
+    )))
 }
 
 pub(super) fn to_base36(mut value: u128) -> String {

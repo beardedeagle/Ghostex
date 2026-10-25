@@ -7,6 +7,7 @@ pub enum RendererCommandError {
     InvalidSettingsPatch,
     InvalidSettingsTab,
     NoMatchingProject,
+    /// CDXC:Sessions 2026-10-25 SEE-ALSO: `ghostex create-session --group-id` waits for a new session's sidebar row by matching this message's text (`SESSION_NOT_LISTED_MESSAGE` in server/src/ghostex_cli/session_groups.rs); change both together.
     NoMatchingSession,
     /// The app part that performs the command is not there (no runtime to focus through yet).
     BridgeUnavailable,

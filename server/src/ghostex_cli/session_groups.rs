@@ -21,6 +21,8 @@ const SIDEBAR_PROJECT_GROUP_PREFIX: &str = "combined-project:";
 /// gxserver's id for a project's own list, the `groupId` every listed session carries (and the one
 /// the phone's Create Terminal sends): `<project id>:active`.
 const PROJECT_GROUP_SUFFIX: &str = ":active";
+/// The groups document's key prefix for another computer's project (gx-core `keys.rs`).
+const REMOTE_PROJECT_PREFIX: &str = "remote:";
 /// The app's answer for a session its sidebar does not list
 /// (`RendererCommandError::NoMatchingSession` in packages/gx-core/src/renderer_commands/errors.rs).
 const SESSION_NOT_LISTED_MESSAGE: &str = "No matching session was found.";
@@ -154,16 +156,22 @@ fn ask_app_raw(payload: Map<String, Value>, flags: &Flags) -> CliResult<Value> {
     )
 }
 
-/// "No app" and "no answer" said plainly. A late answer may still have made the edit, so that one
-/// never says to retry.
-fn explain_no_answer(error: CliError) -> CliError {
+/// "No app" and "no answer" said plainly, for the op asked (`list`, `check`, or an edit). A late
+/// answer may still have made an edit, so that one never says to retry; `list` and `check` change
+/// nothing and can simply be asked again.
+fn explain_no_answer(error: CliError, op: &str) -> CliError {
+    let edits = !matches!(op, "list" | "check");
     match no_answer(&error) {
         Some(NoAnswer::NotRunning) => CliError::Other(
-            "Session groups are edited by the Ghostex app, and it is not running on this computer. Open Ghostex and retry."
+            "Session groups are edited by the Ghostex app, and it is not running on this computer. Open Ghostex and retry. On a computer without the app (a server another Ghostex connects to), use Move to Group in the sidebar of the Ghostex that connects to it."
+                .to_string(),
+        ),
+        Some(NoAnswer::TimedOut) if edits => CliError::Other(
+            "The Ghostex app did not answer in time, so the edit may or may not have been made. Check with \"ghostex session-groups\" before you retry."
                 .to_string(),
         ),
         Some(NoAnswer::TimedOut) => CliError::Other(
-            "The Ghostex app did not answer in time, so the edit may or may not have been made. Check with \"ghostex session-groups\" before you retry."
+            "The Ghostex app did not answer in time. Nothing was changed; try again in a moment."
                 .to_string(),
         ),
         None => error,
@@ -172,7 +180,12 @@ fn explain_no_answer(error: CliError) -> CliError {
 
 /// [`ask_app_raw`] with [`explain_no_answer`].
 fn ask_app(payload: Map<String, Value>, flags: &Flags) -> CliResult<Value> {
-    ask_app_raw(payload, flags).map_err(explain_no_answer)
+    let op = payload
+        .get("op")
+        .and_then(Value::as_str)
+        .unwrap_or_default()
+        .to_string();
+    ask_app_raw(payload, flags).map_err(|error| explain_no_answer(error, &op))
 }
 
 fn request(op: &str, project_id: Option<&str>, group_id: Option<&str>) -> Map<String, Value> {
@@ -195,13 +208,16 @@ fn answer_error(answer: &Value) -> String {
         .to_string()
 }
 
-/// gxserver's copy cut to the rows `session-groups` prints, for when the app is not running.
+/// gxserver's copy cut to the rows `session-groups` prints, for when the app is not running. Like
+/// the app's answer (`session_groups_json` in gx-core), it leaves out the groups the app keeps for
+/// another computer's projects, keyed `remote:<machine>:project:<id>`.
 fn copy_groups(document: &Value, project_id: Option<&str>) -> Vec<Value> {
     let Some(projects) = document.get("projects").and_then(Value::as_object) else {
         return Vec::new();
     };
     projects
         .iter()
+        .filter(|(id, _)| !id.starts_with(REMOTE_PROJECT_PREFIX))
         .filter(|(id, _)| project_id.is_none_or(|wanted| wanted == id.as_str()))
         .flat_map(|(id, project)| {
             project
@@ -292,7 +308,7 @@ pub(crate) fn move_created_session_to_group(
             &params,
             &attempt_flags,
         )
-        .map_err(|error| explain_no_answer(error).to_string())?;
+        .map_err(|error| explain_no_answer(error, "move").to_string())?;
         if !is_failed_cli_result(&answer) {
             return Ok(answer);
         }

@@ -265,6 +265,24 @@ impl GhostexGpuiApp {
                     self.gx_store_edit_workspace_groups(document, cx);
                 }
                 let mut answer = json!({ "ok": true });
+                // A delete is the group menu's Close Group (workspace_groups/group_commands.rs):
+                // the members close through the store's own close, then the group goes.
+                if let Some(sidebar_group_id) = outcome.close_group {
+                    if let (Some(project_id), Some(group_id)) =
+                        (request.project_id.as_deref(), outcome.group_id.as_deref())
+                    {
+                        answer["closedSessionIds"] = json!(
+                            self.gx_store
+                                .workspace_groups
+                                .sync
+                                .document()
+                                .subgroup_members(project_id, group_id)
+                        );
+                    }
+                    let message = json!({ "type": "closeGroup", "groupId": sidebar_group_id });
+                    let command = json!({ "type": "command", "message": message });
+                    self.gx_store_run_group_command(&command, &message, cx);
+                }
                 // Only a list prints the groups; an edit answers with the group it touched.
                 if request.op == SessionGroupOp::List {
                     answer["groups"] = self

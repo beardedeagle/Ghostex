@@ -28,6 +28,7 @@ pub use bridge::*;
 use create::*;
 pub use dispatch::*;
 use js_coercion::*;
+pub(crate) use js_coercion::resolve_cli_cwd;
 use parse_chat::*;
 use parse_sessions::*;
 use parse_views::*;

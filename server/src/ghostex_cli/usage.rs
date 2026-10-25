@@ -548,7 +548,7 @@ pub fn usage() -> String {
         ),
         format_help_command(
             "delete-session-group --project-id id --group-id id [--json]",
-            "Remove a session group; its sessions stay open in the project's own list",
+            "Close a session group and its sessions, as the sidebar's Close Group does; the closed sessions head the History list, where they can be restored",
         ),
         format_help_command(
             "move-session-to-group <selector> --group-id id [--json]",

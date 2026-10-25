@@ -3,12 +3,13 @@
 //! same edits a sidebar gesture makes.
 //!
 //! CDXC:Sessions 2026-10-25 WHY:
-//! The document is the client's and gxserver's copy is its write-through, so a CLI edit written to that copy was lost whenever the app had a push outstanding (a drag, a rename, or the prune after a grouped session closed): the app ignores echoes while it pushes and then writes its own document over them. The verbs therefore ask the app, which applies the edit to the document it is about to push. A session joins only a group of its own project, and deleting a group from the CLI leaves its sessions open in the project's list, unlike the sidebar's Close Group.
+//! The document is the client's and gxserver's copy is its write-through, so a CLI edit written to that copy was lost whenever the app had a push outstanding (a drag, a rename, or the prune after a grouped session closed): the app ignores echoes while it pushes and then writes its own document over them. The verbs therefore ask the app, which applies the edit to the document it is about to push. A session joins only a group of its own project.
 //! SEE-ALSO: server/src/ghostex_cli/session_groups.rs, apps/desktop/src/app/gx_store/renderer_commands/perform.rs, server/src/workspace_groups.rs (the copy's limits).
 
 use serde_json::{json, Value};
 
 use super::document::WorkspaceGroupsDocument;
+use crate::keys::{encode_workspace_subgroup_id, ProjectKey};
 use crate::renderer_commands::RendererCommandError;
 
 /// gxserver keeps at most this many members per group and this many projects in its copy
@@ -32,6 +33,7 @@ pub enum SessionGroupOp {
         group_id: String,
         title: String,
     },
+    /// CDXC:Sessions 2026-10-25 DECISION: Q569, on what deleting a group from the CLI does with its sessions. User: "close", and "they have to appear in history tho at the top pls so i can restore them". `delete-session-group` is the sidebar's Close Group: the app closes every member through its ordinary close and removes the group, and History lists closed sessions newest first, so the ones it can restore come first.
     Delete {
         group_id: String,
     },
@@ -54,6 +56,9 @@ pub struct SessionGroupRequest {
 pub struct SessionGroupOutcome {
     pub document: Option<WorkspaceGroupsDocument>,
     pub group_id: Option<String>,
+    /// A delete: the sidebar id (`gpui-wsg:…`) of the group the app closes with Close Group, which
+    /// writes the document itself.
+    pub close_group: Option<String>,
 }
 
 impl WorkspaceGroupsDocument {
@@ -70,6 +75,7 @@ impl WorkspaceGroupsDocument {
             Ok(SessionGroupOutcome {
                 document: None,
                 group_id: group_id.cloned(),
+                close_group: None,
             })
         };
         let Some(project_id) = request.project_id.as_deref() else {
@@ -117,11 +123,17 @@ impl WorkspaceGroupsDocument {
                     .ok_or(RendererCommandError::InvalidTitle)?;
                 (renamed, None)
             }
-            SessionGroupOp::Delete { group_id } => (
-                self.remove_subgroup(project_id, group_id)
-                    .ok_or(RendererCommandError::NoMatchingSessionGroup)?,
-                None,
-            ),
+            SessionGroupOp::Delete { group_id } => {
+                group(group_id)?;
+                return Ok(SessionGroupOutcome {
+                    document: None,
+                    group_id: Some(group_id.clone()),
+                    close_group: Some(encode_workspace_subgroup_id(
+                        &ProjectKey::local(project_id),
+                        group_id,
+                    )),
+                });
+            }
             SessionGroupOp::Move {
                 session_id,
                 group_id: Some(group_id),
@@ -158,14 +170,21 @@ impl WorkspaceGroupsDocument {
         Ok(SessionGroupOutcome {
             document: Some(next),
             group_id,
+            close_group: None,
         })
     }
 
     /// The groups `ghostex session-groups` prints: every project's, or one project's, in order.
+    /// Groups this app keeps for another computer's projects (`remote:<machine>:project:<id>`) are
+    /// left out, since the verbs act only on this computer's projects.
     pub fn session_groups_json(&self, project_id: Option<&str>) -> Value {
         let groups: Vec<Value> = self
             .projects
             .iter()
+            .filter(|(id, _)| {
+                ProjectKey::parse_workspace_project_id(id)
+                    .is_some_and(|project| project.machine.is_local())
+            })
             .filter(|(id, _)| project_id.is_none_or(|wanted| wanted == id.as_str()))
             .flat_map(|(id, project)| {
                 project.groups.iter().map(move |group| {
