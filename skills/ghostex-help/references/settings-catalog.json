@@ -1806,6 +1806,20 @@
       "agentWritable": true
     },
     {
+      "key": "docsOpenFilesAsTabs",
+      "title": "Show open files as tabs",
+      "subtitle": "Show the files open in the Files view as a row of tabs above the document, instead of the Open Files list in the files sidebar. Every file you open, from the files list, Quick Access or a chat link, gets a tab, and each keeps its own unsaved changes and notes.",
+      "tab": "settings",
+      "tabTitle": "General",
+      "group": "tools",
+      "groupTitle": "Tools",
+      "section": "fileOpening",
+      "sectionTitle": "File opening",
+      "type": "boolean",
+      "default": false,
+      "agentWritable": true
+    },
+    {
       "key": "ghosttySettingsActions",
       "title": "Ghostty settings actions",
       "subtitle": "Recommended terminal settings, Import from Ghostty (fonts and cursor, not the theme), the Ghostty app's config, Ghostex's own terminal config, Ghostty docs, and defaults.",

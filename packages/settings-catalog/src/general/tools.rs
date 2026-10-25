@@ -16,6 +16,7 @@ pub(crate) fn file_opening() -> Section {
             row("otherFileOpenTarget", "Other files", "Choose where every other file (code and text) opens from Quick Access, agent chat and the terminal: Files, Code, or an editor app installed on this computer.").option_list(crate::file_opening::file_open_target_options()),
             row("videoFileOpenTarget", "Videos", "Choose whether videos linked in agent chat or the terminal play in Files or open in the system app. Formats Files cannot play, such as .mp4 and .mov, always open in the system app.").options(MEDIA_FILE_OPEN_TARGET_OPTIONS),
             row("audioFileOpenTarget", "Audio", "Choose whether audio files linked in agent chat or the terminal play in Files or open in the system app. Formats Files cannot play, such as .m4a, always open in the system app.").options(MEDIA_FILE_OPEN_TARGET_OPTIONS),
+            row("docsOpenFilesAsTabs", "Show open files as tabs", "Show the files open in the Files view as a row of tabs above the document, instead of the Open Files list in the files sidebar. Every file you open, from the files list, Quick Access or a chat link, gets a tab, and each keeps its own unsaved changes and notes."),
         ],
     )
 }

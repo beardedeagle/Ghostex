@@ -58,6 +58,7 @@ pub const DEFAULT_GHOSTEX_SETTINGS: &[(&str, J)] = &[
     ("otherFileOpenTarget", J::Str("files")),
     ("videoFileOpenTarget", J::Str("files")),
     ("audioFileOpenTarget", J::Str("files")),
+    ("docsOpenFilesAsTabs", J::Bool(false)),
     // CDXC:Settings 2026-06-28-08:01:
     // New installs should start with ordinary Settings density, but an explicit
     // Show Advanced toggle is saved so restart hydration preserves the user's

@@ -348,6 +348,9 @@ pub struct GhostexGpuiApp {
     pub(crate) next_code_window_id: u64,
     pub(crate) code_window_handoff: Option<CodeWindowHandoff>,
     pub(crate) next_code_window_handoff_generation: u64,
+    /// `docsOpenFilesAsTabs`: Files draws its open files as a tab row above the document
+    /// (`native_docs/open_file_tabs.rs`) instead of the files sidebar's Open Files list.
+    pub(crate) docs_open_files_as_tabs: bool,
     /// The view the active project last had open, so closing the panel and reopening it comes back
     /// to the same view. Swapped with the rest of the project's view state on a project switch.
     pub(crate) last_open_view_mode: Option<TitlebarMode>,

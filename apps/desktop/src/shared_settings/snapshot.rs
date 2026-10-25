@@ -469,6 +469,11 @@ impl SharedSidebarSettingsSnapshot {
         )
     }
 
+    /// Files shows its open files as tabs above the document instead of the Open Files list.
+    pub fn docs_open_files_as_tabs(&self) -> bool {
+        strict_bool_field(&self.object, "docsOpenFilesAsTabs").unwrap_or(false)
+    }
+
     pub fn video_file_open_target(&self) -> SharedMediaFileOpenTarget {
         SharedMediaFileOpenTarget::from_settings_value(
             self.object

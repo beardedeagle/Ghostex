@@ -24,6 +24,7 @@ use crate::app::element::*;
 use crate::app::helpers::*;
 use crate::app::model::*;
 use crate::app::render::sleeping_card::{sleeping_card, view_card_button, view_card_frame};
+use crate::app::render::view_instance_tabs::with_view_instance_tab_row;
 use crate::*;
 
 impl GhostexGpuiApp {
@@ -257,17 +258,7 @@ impl GhostexGpuiApp {
                 self.render_project_editor_placeholder(signature, cx)
             }
         };
-        // The window tabs sit above the page as its sibling, never over it (render/code_window_tabs.rs).
-        let Some(window_tabs) = self.render_code_window_tab_row(cx) else {
-            return body;
-        };
-        v_flex()
-            .size_full()
-            .min_w_0()
-            .min_h_0()
-            .child(window_tabs)
-            .child(div().relative().flex_1().min_w_0().min_h_0().child(body))
-            .into_any_element()
+        with_view_instance_tab_row(self.render_code_window_tab_row(cx), body)
     }
 
     /// Kanban is the native GPUI board in app/native_kanban/ (see the DECISION on
@@ -306,7 +297,7 @@ impl GhostexGpuiApp {
         cx: &mut gpui::Context<Self>,
     ) -> AnyElement {
         if let Some(docs) = self.render_native_docs(window, cx) {
-            return docs;
+            return with_view_instance_tab_row(self.render_native_docs_tab_row(cx), docs);
         }
         /*
         CDXC:Workarea 2026-06-24-10:12:

@@ -52,7 +52,10 @@ impl GhostexGpuiApp {
             .filter(|document| document.data_view_open && document.data_view.is_none())
             .filter_map(|document| {
                 let editor = document.editor.as_ref()?;
-                Some((document.path.clone(), editor.read(cx).value().to_string()))
+                Some((
+                    document.path.to_string(),
+                    editor.read(cx).value().to_string(),
+                ))
             })
             .collect();
         for (path, text) in wanted {
