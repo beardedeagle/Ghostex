@@ -101,6 +101,35 @@ impl Client {
             .map_err(|_| error("OpenCode returned an invalid response."))
     }
 
+    /// A request answered for `directory` (`x-opencode-directory`): the service's shells and MCP
+    /// servers are per project folder, and without it the service uses its own folder's (a
+    /// `DELETE /api/shell/<id>` of another folder's shell then answers 204 and stops nothing).
+    pub(crate) fn request_in(
+        &self,
+        method: &str,
+        path: &str,
+        directory: &str,
+    ) -> Result<Value, DomainStateError> {
+        let response = self
+            .agent
+            .request(method, &format!("{}{path}", self.url))
+            .set("Authorization", &self.authorization)
+            .set("x-opencode-directory", directory)
+            .call()
+            .map_err(|failure| match failure {
+                ureq::Error::Status(status, _) => {
+                    error(format!("OpenCode rejected the request (HTTP {status})."))
+                }
+                _ => error("Could not reach the OpenCode service."),
+            })?;
+        if response.status() == 204 {
+            return Ok(Value::Null);
+        }
+        response
+            .into_json()
+            .map_err(|_| error("OpenCode returned an invalid response."))
+    }
+
     /// `/api/event` stays open for as long as the service runs, so it gets no read timeout.
     pub(crate) fn event_stream(&self) -> Result<ureq::Response, DomainStateError> {
         ureq::AgentBuilder::new()

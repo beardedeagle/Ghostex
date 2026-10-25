@@ -1,6 +1,8 @@
 //! The `sessionDetails` document value: every section of the panel, worded.
 //!
-//! `null` while the panel does not apply (the extension is off, or the session is not Claude's).
+//! `null` while the panel does not apply (the extension is off, or the chat has no agent yet).
+//! Claude's panel has every section; another agent's has the ones its data fills, and a section
+//! with nothing to show is left out rather than drawn empty.
 //! Otherwise `{enabled, visible, ring, loading, error, sections}`, where `sections` is the ordered
 //! list the renderers draw as cards, each `{id, title, meta, collapsed, …}` with its own rows. A row
 //! that opens something carries the action to send back (`sessionDetailsOpen`, `…Stop`, …).
@@ -8,7 +10,7 @@
 use serde_json::{json, Map, Value};
 
 use crate::extras::activity::format_activity_elapsed;
-use crate::extras::session_details::settle::enabled;
+use crate::extras::session_details::settle::{claude, enabled};
 use crate::extras::time::parse_iso_millis;
 use crate::menus::context::usage::{format_context_percentage, format_context_tokens};
 use crate::state::{ChatContext, ChatState};
@@ -237,6 +239,7 @@ fn context_card(
     utc_offset_minutes: i32,
 ) -> Value {
     let details = &state.extras.session_details;
+    let claude = claude(state);
     let served = data.and_then(|data| data.get("context"));
     let breakdown = served
         .and_then(|context| context.get("breakdown"))
@@ -352,12 +355,15 @@ fn context_card(
     let running =
         served.and_then(|context| context.get("breakdownRunning")) == Some(&Value::Bool(true));
     let error = served.and_then(|context| text(context, "/breakdownError"));
-    let breakdown_coming = breakdown.is_none()
+    let breakdown_coming = claude
+        && breakdown.is_none()
         && (running || details.refreshing || (data.is_none() && details.error.is_none()));
     let counted_at = served
         .and_then(|context| text(context, "/breakdownAt"))
         .and_then(|at| parse_iso_millis(&at, utc_offset_minutes));
-    let status = if running || details.refreshing {
+    let status = if !claude {
+        String::new()
+    } else if running || details.refreshing {
         "Counting with Claude…".to_string()
     } else if let Some(error) = error.as_ref().filter(|_| breakdown.is_none()) {
         format!("Couldn't count: {error}")
@@ -368,11 +374,19 @@ fn context_card(
     } else {
         String::new()
     };
+    // An agent that names no context window (OpenCode on an unknown model, Antigravity) shows
+    // the tokens it used in place of the percentage.
+    let percent_label = format_context_percentage(percent)
+        .map(|percent| format!("{percent} used"))
+        .or_else(|| {
+            used.filter(|_| !claude)
+                .map(|used| format!("{} used", format_context_tokens(Some(used))))
+        });
     json!({
-        "percentLabel": format_context_percentage(percent).map(|percent| format!("{percent} used")),
+        "percentLabel": percent_label,
         "tokensLabel": match (used, window) {
             (Some(used), Some(window)) => Some(format!("{} / {}", format_context_tokens(Some(used)), format_context_tokens(Some(window)))),
-            (Some(used), None) => Some(format_context_tokens(Some(used))),
+            (Some(used), None) if claude => Some(format_context_tokens(Some(used))),
             _ => None,
         },
         "segments": segments,
@@ -384,7 +398,7 @@ fn context_card(
         "statusError": error.is_some() && breakdown.is_none() && !running,
         "skeletonRows": if breakdown_coming { BREAKDOWN_SKELETON_ROWS } else { 0 },
         "refreshing": running || details.refreshing,
-        "refresh": json!({"type": "sessionDetailsRefresh"}),
+        "refresh": claude.then(|| json!({"type": "sessionDetailsRefresh"})),
     })
 }
 
@@ -456,13 +470,15 @@ fn connectors(data: &Value) -> Option<Value> {
                 Some("failed") => "failed",
                 _ => "connected",
             };
-            let tools = server["tools"].as_u64().unwrap_or(0);
-            let detail = match status {
-                "pending" => "connecting".to_string(),
-                "needsAuth" => "needs sign-in".to_string(),
-                "failed" => "failed".to_string(),
-                _ if tools == 1 => "1 tool".to_string(),
-                _ => format!("{tools} tools"),
+            // Codex and OpenCode name their servers without counting their tools.
+            let tools = server["tools"].as_u64();
+            let detail = match (status, tools) {
+                ("pending", _) => Some("connecting".to_string()),
+                ("needsAuth", _) => Some("needs sign-in".to_string()),
+                ("failed", _) => Some("failed".to_string()),
+                (_, Some(1)) => Some("1 tool".to_string()),
+                (_, Some(tools)) => Some(format!("{tools} tools")),
+                (_, None) => None,
             };
             json!({
                 "text": server["name"].as_str().unwrap_or_default(),
@@ -525,6 +541,9 @@ fn skills(state: &ChatState, data: &Value) -> Option<Value> {
     if used.is_empty() && available.is_empty() {
         return None;
     }
+    // Only Claude's transcript says which skills the session used; other agents list what they
+    // can load, with no "used" part.
+    let tracks_use = skills["tracksUse"] != false;
     let all: Vec<Value> = available
         .iter()
         .map(|skill| row(skill["name"].as_str().unwrap_or_default(), Some(skill)))
@@ -534,7 +553,7 @@ fn skills(state: &ChatState, data: &Value) -> Option<Value> {
     Some(json!({
         "meta": format!("{count} available"),
         "used": used,
-        "usedEmpty": "None used in this session yet",
+        "usedEmpty": tracks_use.then_some("None used in this session yet"),
         "all": all,
         "allLabel": match tokens {
             Some(tokens) => format!("All {count} skills · {} tokens", format_context_tokens(Some(tokens))),
@@ -629,11 +648,19 @@ fn background(
     utc_offset_minutes: i32,
 ) -> Option<Value> {
     let details = &state.extras.session_details;
-    let running: Vec<Value> = state
-        .session
-        .terminal_activity
-        .as_ref()
-        .and_then(|activity| activity.pointer("/background/tasks"))
+    let claude = claude(state);
+    // Claude's running commands come from its footer, every other agent's from the panel's read;
+    // only Claude's and OpenCode's can be stopped (`stoppable`).
+    let live = if claude {
+        state
+            .session
+            .terminal_activity
+            .as_ref()
+            .and_then(|activity| activity.pointer("/background/tasks"))
+    } else {
+        data.and_then(|data| data.pointer("/background/running"))
+    };
+    let running: Vec<Value> = live
         .and_then(Value::as_array)
         .into_iter()
         .flatten()
@@ -650,7 +677,8 @@ fn background(
                 "tooltip": task["command"].as_str(),
                 "elapsed": started.map(|started| format_activity_elapsed(((now_ms - started) / 1_000.0).max(0.0))),
                 "stopping": details.stopping.iter().any(|known| known == id),
-                "stop": (!id.is_empty()).then(|| json!({"type": "sessionDetailsStop", "id": id})),
+                "stop": (!id.is_empty() && (claude || task["stoppable"] == true))
+                    .then(|| json!({"type": "sessionDetailsStop", "id": id})),
             })
         })
         .collect();
@@ -712,39 +740,49 @@ pub fn document(state: &ChatState, context: &ChatContext) -> Value {
     // CDXC:SessionDetails 2026-10-25 DECISION:
     // User: "when i open the session details sidebar pls make it show shimmer skeleton for the parts that are still loading". Until the panel's first answer arrives, each card that answer fills shows its title over skeleton rows (Context sketches its breakdown while Claude counts it), drawn in the chat's own skeleton tint and pulse.
     let waiting = data.is_none() && details.error.is_none();
+    let claude = claude(state);
+    // Before the first answer, skeletons stand only where a card will surely come: every card for
+    // Claude, Environment and Changes for any other agent.
+    let sketch = |id: &str| waiting && (claude || matches!(id, "environment" | "changes"));
     let mut sections = Vec::new();
     if let Some(body) = data.and_then(|data| environment(data, state.core.hide_account_emails)) {
         sections.push(section("environment", "Environment", collapsed, body));
-    } else if waiting {
+    } else if sketch("environment") {
         sections.push(loading_section("environment", "Environment", collapsed, 4));
     }
-    sections.push(section(
-        "context",
-        "Context",
-        collapsed,
-        context_card(state, data, &usage, now_ms, offset),
-    ));
+    let context_known = usage.used.is_some()
+        || data
+            .and_then(|data| data.pointer("/context/breakdown"))
+            .is_some_and(Value::is_object);
+    if claude || context_known {
+        sections.push(section(
+            "context",
+            "Context",
+            collapsed,
+            context_card(state, data, &usage, now_ms, offset),
+        ));
+    }
     if let Some(body) = tasks(state) {
         sections.push(section("tasks", "Tasks", collapsed, body));
     }
     if let Some(body) = data.and_then(connectors) {
         sections.push(section("connectors", "Connectors", collapsed, body));
-    } else if waiting {
+    } else if sketch("connectors") {
         sections.push(loading_section("connectors", "Connectors", collapsed, 5));
     }
     if let Some(body) = data.and_then(|data| skills(state, data)) {
         sections.push(section("skills", "Skills", collapsed, body));
-    } else if waiting {
+    } else if sketch("skills") {
         sections.push(loading_section("skills", "Skills", collapsed, 2));
     }
     if let Some(body) = data.and_then(memory) {
         sections.push(section("memory", "Memory files", collapsed, body));
-    } else if waiting {
+    } else if sketch("memory") {
         sections.push(loading_section("memory", "Memory files", collapsed, 2));
     }
     if let Some(body) = data.and_then(changes) {
         sections.push(section("changes", "Changes", collapsed, body));
-    } else if waiting {
+    } else if sketch("changes") {
         sections.push(loading_section("changes", "Changes", collapsed, 1));
     }
     if let Some(body) = background(state, data, now_ms, offset) {
@@ -755,7 +793,14 @@ pub fn document(state: &ChatState, context: &ChatContext) -> Value {
         "visible": details.visible,
         "ring": {
             "percent": usage.percent,
-            "label": format_context_percentage(usage.percent).unwrap_or_default(),
+            "label": format_context_percentage(usage.percent)
+                .or_else(|| {
+                    usage
+                        .used
+                        .filter(|_| !claude)
+                        .map(|used| format_context_tokens(Some(used)))
+                })
+                .unwrap_or_default(),
         },
         "loading": data.is_none() && details.request.is_some(),
         "error": details.error,

@@ -119,7 +119,7 @@ fn read_details(
         project.as_ref(),
         folder.as_deref(),
         &home,
-        claude,
+        agent.as_deref(),
     );
     let changes = folder.as_deref().and_then(super::changes::read_changes);
     let mut result = json!({
@@ -130,6 +130,15 @@ fn read_details(
         "updatedAt": chrono::Utc::now().to_rfc3339_opts(chrono::SecondsFormat::Millis, true),
     });
     if !claude {
+        super::agents::read_agent_details(
+            state,
+            project_id,
+            session_id,
+            &session,
+            folder.as_deref(),
+            agent.as_deref().unwrap_or_default(),
+            &mut result,
+        );
         return Ok(result);
     }
     let resolution = crate::session_chat_read::resolve_session_chat_read_state(
@@ -273,7 +282,7 @@ fn read_details(
     Ok(result)
 }
 
-/// `/api/stopSessionBackgroundTask`: ends one background command of a Claude session.
+/// `/api/stopSessionBackgroundTask`: ends one background command of a Claude or OpenCode session.
 pub(crate) async fn handle_stop_session_background_task_http(
     state: &AppState,
     endpoint_path: String,
@@ -303,7 +312,20 @@ pub(crate) async fn handle_stop_session_background_task_http(
             ));
         }
         require_enabled(state)?;
-        let (session, _) = read_session(state, &project_id, &session_id)?;
+        let (session, project) = read_session(state, &project_id, &session_id)?;
+        if crate::session_chat_follower::session_chat_display_agent_for_session(&session).as_deref()
+            == Some("opencode")
+        {
+            let folder =
+                crate::session_git_status::effective_session_git_cwd(&session, project.as_ref());
+            tokio::task::spawn_blocking(move || {
+                super::opencode::stop_opencode_shell(&session, folder.as_deref(), &task_id)
+            })
+            .await
+            .map_err(|error| failure("internalError", error.to_string()))?
+            .map_err(|message| failure("failed", message))?;
+            return Ok(json!({"stopped": true}));
+        }
         let zmx_name = crate::zmx::provider_zmx_session_name(&session)?;
         let home = state.paths.home_dir.clone();
         tokio::task::spawn_blocking(move || {

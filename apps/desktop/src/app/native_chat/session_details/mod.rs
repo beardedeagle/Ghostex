@@ -82,7 +82,7 @@ impl NativeChatView {
         cx.notify();
     }
 
-    /// The panel applies to this chat (the extension is on and the session is Claude's).
+    /// The panel applies to this chat (the extension is on and the chat knows its agent).
     pub(crate) fn session_details_available(&self) -> bool {
         self.snapshot["sessionDetails"]["enabled"] == true
     }

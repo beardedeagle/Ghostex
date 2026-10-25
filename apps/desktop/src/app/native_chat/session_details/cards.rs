@@ -76,11 +76,16 @@ pub(super) fn panel_height(details: &Value) -> f32 {
                 } else {
                     0
                 };
+                let status = if section["refresh"].is_object() {
+                    NOTE_HEIGHT
+                } else {
+                    0.0
+                };
                 SUMMARY_HEIGHT
                     + BAR_HEIGHT
                     + (len(section, "rows") + len(section, "deferred") + messages) as f32
                         * ROW_HEIGHT
-                    + NOTE_HEIGHT
+                    + status
             }
             "connectors" => section["groups"]
                 .as_array()
@@ -89,7 +94,11 @@ pub(super) fn panel_height(details: &Value) -> f32 {
                 .map(|group| SUBTITLE_HEIGHT + len(group, "rows").max(1) as f32 * ROW_HEIGHT)
                 .sum(),
             "skills" => {
-                let used = len(section, "used").max(1);
+                let used = if section["usedEmpty"].is_string() {
+                    len(section, "used").max(1)
+                } else {
+                    len(section, "used")
+                };
                 let all = if section["allOpen"] == true {
                     len(section, "all")
                 } else {
@@ -252,7 +261,9 @@ impl NativeChatView {
         let collapsed = section["collapsed"] == true;
         let toggle = serde_json::json!({"type": "sessionDetailsSection", "section": id});
         let trailing: Option<AnyElement> = match id.as_str() {
-            "context" => Some(self.refresh_button(section, p, cx)),
+            "context" => section["refresh"]
+                .is_object()
+                .then(|| self.refresh_button(section, p, cx)),
             "connectors" => section["manage"].is_object().then(|| {
                 let action = section["manage"].clone();
                 self.link_button("session-details-manage", "Manage", action, p, cx)
@@ -706,9 +717,11 @@ impl NativeChatView {
                 .truncate()
                 .text_color(p.card_muted)
         };
-        column
-            .child(status_line.text_size(px(11.5 * s)).child(status))
-            .into_any_element()
+        // Agents other than Claude have no breakdown (and no refresh), so no status line under it.
+        if section["refresh"].is_object() {
+            column = column.child(status_line.text_size(px(11.5 * s)).child(status));
+        }
+        column.into_any_element()
     }
 
     fn connectors_body(
@@ -788,7 +801,8 @@ impl NativeChatView {
                 .into_any_element()
         };
         let used = section["used"].as_array().map_or(&[][..], Vec::as_slice);
-        if used.is_empty() {
+        // An agent that doesn't say which skills it used has no "used" part at all.
+        if used.is_empty() && section["usedEmpty"].is_string() {
             column = column.child(
                 div()
                     .h(px(ROW_HEIGHT * s))
