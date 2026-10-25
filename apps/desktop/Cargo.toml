@@ -94,6 +94,7 @@ image = { version = "0.25", default-features = false, features = ["png", "webp"]
 # CDXC:SessionTitles 2026-09-15 WHY: the native Rename Session dialog ports `normalizeSessionRenameTitle` (NFKC + a Unicode-class glyph filter); both crates were already in the graph through gpui and url, so this is a direct-dependency promotion, not a new download.
 icu_normalizer = "2"
 libc = "0.2"
+log = "0.4"
 portable-pty = "0.9"
 # CDXC:RemotePairing 2026-09-15: the native Remote Setup dialog draws the Android install QR code itself (src/app/window/remote_setup_modal.rs); no image or svg render features, the modules are painted as gpui squares.
 qrcode = { version = "0.14", default-features = false }

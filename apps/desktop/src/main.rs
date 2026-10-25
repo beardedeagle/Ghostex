@@ -254,6 +254,7 @@ fn main() {
     // NativeCrashDiagnostics).
     support_logs::install_panic_hook();
     support_logs::install_uncaught_exception_handler();
+    support_logs::install_log_records_sink();
     app::gx_store::initialize_client_storage_at_start();
     // Before anything reads or writes terminal settings, so the first config Ghostex
     // terminals load is the copied one.

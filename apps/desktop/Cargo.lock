@@ -2589,6 +2589,7 @@ dependencies = [
  "instant",
  "libc",
  "liblzma",
+ "log",
  "markup5ever_rcdom",
  "mermaid-rs-renderer",
  "oo7 0.6.0 (registry+https://github.com/rust-lang/crates.io-index)",
