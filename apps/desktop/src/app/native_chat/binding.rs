@@ -87,9 +87,14 @@ impl GhostexGpuiApp {
         let subscription =
             cx.subscribe(
                 &view,
-                move |this, _view, event: &NativeChatEvent, cx| match event {
+                move |this, view, event: &NativeChatEvent, cx| match event {
                     NativeChatEvent::Broker(message) => {
                         this.relay_session_chat_runtime_request(generation, message);
+                    }
+                    NativeChatEvent::SessionDetailsRing => {
+                        if this.session_details_target_chat().as_ref() == Some(&view) {
+                            cx.notify();
+                        }
                     }
                     NativeChatEvent::ComposerFocused => {
                         this.reclaim_gpui_root_for_chrome_input_focus();

@@ -198,9 +198,11 @@ impl GhostexGpuiApp {
                         14.0,
                     ),
                 )
-                .when(!label.is_empty(), |button| {
-                    button.child(div().text_size(px(12.0)).text_color(text).child(label))
-                })
+                .child(
+                    crate::app::native_chat::session_details::session_details_ring_label(
+                        label, text,
+                    ),
+                )
                 .tooltip(move |window, cx| {
                     gpui_component::tooltip::Tooltip::new(if open {
                         "Hide session details"

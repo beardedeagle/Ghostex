@@ -38,6 +38,10 @@ pub(crate) enum NativeChatEvent {
     DraftState(bool),
     /// The composer input took GPUI focus by any route (click, handoff, draft insert).
     ComposerFocused,
+    /// The header's Session details ring changed: the panel came or went for this chat, or its
+    /// context percentage moved. The app draws the header and does not redraw for the chat's own
+    /// changes, so without this the ring showed whatever the last unrelated redraw caught.
+    SessionDetailsRing,
 }
 
 pub(crate) struct NativeChatView {
@@ -866,7 +870,13 @@ impl NativeChatView {
             }
             let selection_only = !self.host_composer
                 && super::suggestions::only_selection_moved(&self.snapshot, &snapshot);
+            let ring_moved = ["enabled", "ring"]
+                .iter()
+                .any(|key| self.snapshot["sessionDetails"][key] != snapshot["sessionDetails"][key]);
             self.snapshot = Arc::new(snapshot);
+            if ring_moved {
+                cx.emit(NativeChatEvent::SessionDetailsRing);
+            }
             if selection_only {
                 self.repaint_suggestions(cx);
             } else {

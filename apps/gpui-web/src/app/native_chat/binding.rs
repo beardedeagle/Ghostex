@@ -41,6 +41,8 @@ impl GhostexGpuiApp {
                     NativeChatEvent::Broker(message) => this.web_relay_chat_broker(&key, message),
                     NativeChatEvent::Host(message) => this.web_chat_host_action(&key, message, cx),
                     NativeChatEvent::ComposerFocused | NativeChatEvent::DraftState(_) => {}
+                    // The header's ring is the web app's to draw.
+                    NativeChatEvent::SessionDetailsRing => cx.notify(),
                 },
             );
         view.update(cx, |view, _| view.subscriptions.push(subscription));

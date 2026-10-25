@@ -14,7 +14,7 @@
 mod cards;
 mod ring;
 
-pub(crate) use ring::session_details_ring;
+pub(crate) use ring::{session_details_ring, session_details_ring_label};
 
 use super::{appearance::ChatAppearance, state::NativeChatView};
 use gpui::prelude::FluentBuilder as _;

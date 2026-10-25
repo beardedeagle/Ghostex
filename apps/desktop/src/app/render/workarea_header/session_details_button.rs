@@ -13,7 +13,7 @@ use gpui::{
 use gpui_component::ElementExt as _;
 
 use crate::app::helpers::*;
-use crate::app::native_chat::session_details::session_details_ring;
+use crate::app::native_chat::session_details::{session_details_ring, session_details_ring_label};
 use crate::*;
 
 impl GhostexGpuiApp {
@@ -59,9 +59,7 @@ impl GhostexGpuiApp {
                     text,
                     14.0,
                 ))
-                .when(!label.is_empty(), |this| {
-                    this.child(div().text_size(px(12.0)).text_color(text).child(label))
-                })
+                .child(session_details_ring_label(label, text))
                 .tooltip(move |window, cx| {
                     gpui_component::tooltip::Tooltip::new(if open {
                         "Hide session details"
