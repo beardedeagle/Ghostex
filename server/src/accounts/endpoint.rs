@@ -19,9 +19,9 @@ fn provider_param(params: &Map<String, Value>) -> Result<Provider, DomainStateEr
 }
 pub(crate) fn account_id(account: &DiscoveredAccount) -> String {
     format!(
-        "{}-{:x}",
+        "{}-{}",
         account.provider.id(),
-        Sha256::digest(account.identity.as_bytes())
+        hex::encode(Sha256::digest(account.identity.as_bytes()))
     )
 }
 pub(crate) fn dispatch(

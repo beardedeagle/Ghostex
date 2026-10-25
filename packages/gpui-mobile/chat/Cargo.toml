@@ -35,7 +35,7 @@ image = { version = "0.25", default-features = false, features = ["png"] }
 instant = "0.1"
 log = "0.4"
 raw-window-handle = "0.6"
-rusqlite = { version = "0.32", features = ["bundled"] }
+rusqlite = { version = "0.40", features = ["bundled"] }
 serde = { version = "1", features = ["derive", "rc"] }
 serde_json = "1"
 uuid = { version = "1", features = ["v4"] }

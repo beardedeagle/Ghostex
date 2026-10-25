@@ -344,7 +344,7 @@ pub(crate) fn verify_file(
         }
         digest.update(&buffer[..count]);
     }
-    let actual = format!("{:x}", digest.finalize());
+    let actual = hex::encode(digest.finalize());
     if actual != expected_sha256 {
         return Err("Downloaded component asset failed SHA-256 verification against the app's sealed manifest".to_string());
     }

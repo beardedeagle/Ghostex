@@ -703,7 +703,7 @@ fn lookup_cursor(project_path: &str, title: &str) -> Option<String> {
     }
     let mut hasher = Md5::new();
     hasher.update(project_path.as_bytes());
-    let project_hash = format!("{:x}", hasher.finalize());
+    let project_hash = hex::encode(hasher.finalize());
     let chats_dir = home_dir().join(".cursor").join("chats").join(project_hash);
     let chat_dirs = fs::read_dir(&chats_dir).ok()?;
 

@@ -221,10 +221,7 @@ impl Drop for LoginProfile {
         #[cfg(target_os = "macos")]
         {
             use sha2::{Digest, Sha256};
-            let hash = format!(
-                "{:x}",
-                Sha256::digest(self.0.path().as_os_str().as_encoded_bytes())
-            );
+            let hash = hex::encode(Sha256::digest(self.0.path().as_os_str().as_encoded_bytes()));
             let _ = Command::new("/usr/bin/security")
                 .args([
                     "delete-generic-password",

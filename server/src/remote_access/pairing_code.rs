@@ -3,7 +3,7 @@ use std::sync::{Arc, Mutex};
 use anyhow::Result;
 use base64::{engine::general_purpose::URL_SAFE_NO_PAD, Engine};
 use chrono::{DateTime, Duration, Utc};
-use rand::RngCore;
+use rand::Rng;
 use rusqlite::Connection;
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
@@ -147,7 +147,7 @@ impl RemotePairingRuntime {
 
 fn mint_remote_pairing_secret(expires_at: DateTime<Utc>) -> RemotePairingSecret {
     let mut bytes = [0u8; 32];
-    rand::thread_rng().fill_bytes(&mut bytes);
+    rand::rng().fill_bytes(&mut bytes);
     let secret = URL_SAFE_NO_PAD.encode(bytes);
     RemotePairingSecret {
         secret_hash: hash_remote_pairing_secret(&secret),
@@ -157,7 +157,7 @@ fn mint_remote_pairing_secret(expires_at: DateTime<Utc>) -> RemotePairingSecret 
 }
 
 pub fn hash_remote_pairing_secret(secret: &str) -> String {
-    format!("{:x}", Sha256::digest(secret.as_bytes()))
+    hex::encode(Sha256::digest(secret.as_bytes()))
 }
 
 #[cfg(test)]
@@ -211,6 +211,9 @@ mod tests {
             user: "madda".to_string(),
         });
         assert!(code.starts_with("ghostex-ts1:"));
-        assert_eq!(pairing_link(&code), format!("https://ghostex.dev/pair#{code}"));
+        assert_eq!(
+            pairing_link(&code),
+            format!("https://ghostex.dev/pair#{code}")
+        );
     }
 }

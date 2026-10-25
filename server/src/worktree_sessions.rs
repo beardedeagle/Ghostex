@@ -21,7 +21,7 @@ use std::path::Path;
 use std::process::Stdio;
 use std::time::{Duration, Instant};
 
-use rand::Rng;
+use rand::RngExt;
 use serde_json::{json, Map, Value};
 
 use crate::session_git_status::{resolve_default_branch, DefaultBranch};
@@ -59,10 +59,10 @@ pub const WORKTREE_FETCH_COMMAND_TIMEOUT: Duration = Duration::from_secs(120);
 /// after a failed create collide with neither a leftover branch nor a leftover
 /// directory; cleanup still runs, this is the belt to that suspenders.
 pub fn create_temp_branch_suffix() -> String {
-    let mut rng = rand::thread_rng();
+    let mut rng = rand::rng();
     (0..WORKTREE_TEMP_BRANCH_SUFFIX_LENGTH)
         .map(|_| {
-            let digit: u8 = rng.gen_range(0..16);
+            let digit: u8 = rng.random_range(0..16);
             char::from_digit(u32::from(digit), 16).unwrap_or('0')
         })
         .collect()

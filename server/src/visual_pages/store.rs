@@ -5,7 +5,7 @@ use std::{
     time::UNIX_EPOCH,
 };
 
-use rand::RngCore;
+use rand::TryRng;
 use serde_json::json;
 
 /// The largest prepared page gxserver stores, local images included.
@@ -25,7 +25,9 @@ pub(super) fn visual_pages_dir(gxserver_state_dir: &Path) -> PathBuf {
 /// 128 random bits from the operating system's generator, as 32 lowercase hex characters.
 fn new_page_id() -> String {
     let mut bytes = [0u8; 16];
-    rand::rngs::OsRng.fill_bytes(&mut bytes);
+    rand::rngs::SysRng
+        .try_fill_bytes(&mut bytes)
+        .expect("the operating system's random generator failed");
     bytes.iter().map(|byte| format!("{byte:02x}")).collect()
 }
 

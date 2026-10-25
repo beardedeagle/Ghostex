@@ -196,20 +196,21 @@ pub(super) enum KeyCheck {
 
 /// Asks the provider whether the key works (blocking; run it off the async runtime).
 pub(super) fn check_key(provider: Provider, key: &str) -> KeyCheck {
-    let response = ureq::get(provider.key_check_url())
-        .set("authorization", &format!("Bearer {key}"))
-        .timeout(Duration::from_secs(15))
+    let response = crate::http_agent::agent()
+        .get(provider.key_check_url())
+        .header("authorization", format!("Bearer {key}"))
+        .config()
+        .timeout_global(Some(Duration::from_secs(15)))
+        .build()
         .call();
     match response {
         Ok(_) => KeyCheck::Valid,
-        Err(ureq::Error::Status(400 | 401 | 403, _)) => KeyCheck::Refused,
-        Err(ureq::Error::Status(status, _)) => {
+        Err(ureq::Error::StatusCode(400 | 401 | 403)) => KeyCheck::Refused,
+        Err(ureq::Error::StatusCode(status)) => {
             KeyCheck::Unreachable(format!("{} answered HTTP {status}.", provider.label()))
         }
-        Err(error) => KeyCheck::Unreachable(format!(
-            "Couldn't reach {}: {}",
-            provider.label(),
-            error.kind()
-        )),
+        Err(error) => {
+            KeyCheck::Unreachable(format!("Couldn't reach {}: {error}", provider.label()))
+        }
     }
 }

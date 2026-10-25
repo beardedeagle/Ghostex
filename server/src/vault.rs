@@ -15,7 +15,7 @@ use aes_gcm::aead::{Aead, KeyInit};
 use aes_gcm::Aes256Gcm;
 use base64::engine::general_purpose::STANDARD as BASE64;
 use base64::Engine as _;
-use rand::RngCore;
+use rand::Rng;
 
 use crate::paths::GxserverPaths;
 
@@ -66,7 +66,7 @@ pub(crate) fn seal(paths: &GxserverPaths, plain: &str) -> Result<String, String>
     let cipher = Aes256Gcm::new_from_slice(&key.bytes)
         .map_err(|_| "The vault key is not valid.".to_string())?;
     let mut iv = [0u8; 12];
-    rand::thread_rng().fill_bytes(&mut iv);
+    rand::rng().fill_bytes(&mut iv);
     let nonce = aes_gcm::aead::Nonce::<Aes256Gcm>::try_from(&iv[..])
         .map_err(|_| "Couldn't seal the secret.".to_string())?;
     let mut sealed = cipher
@@ -167,7 +167,7 @@ fn keychain_master_key() -> Result<Option<[u8; 32]>, String> {
         KeychainLookup::Missing => {}
     }
     let mut bytes = [0u8; 32];
-    rand::thread_rng().fill_bytes(&mut bytes);
+    rand::rng().fill_bytes(&mut bytes);
     if !keychain_add(&hex_encode(&bytes)) {
         return Ok(None);
     }
@@ -272,7 +272,7 @@ fn create_key_file(file: &Path) -> Result<[u8; 32], String> {
             .map_err(|error| format!("Couldn't create the vault folder: {error}"))?;
     }
     let mut bytes = [0u8; 32];
-    rand::thread_rng().fill_bytes(&mut bytes);
+    rand::rng().fill_bytes(&mut bytes);
     let mut options = std::fs::OpenOptions::new();
     options.write(true).create_new(true);
     #[cfg(unix)]

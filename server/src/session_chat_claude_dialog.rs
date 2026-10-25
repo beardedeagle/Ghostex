@@ -533,7 +533,7 @@ pub fn detect_claude_dialog(text: &str) -> Option<TerminalDialog> {
         actions.push("confirm");
     }
     Some(TerminalDialog {
-        id: format!("{:x}", Sha256::digest(identity.join("\n").as_bytes())),
+        id: hex::encode(Sha256::digest(identity.join("\n").as_bytes())),
         title,
         body,
         footer,
