@@ -108,6 +108,21 @@ fn section(id: &str, title: &str, collapsed: &[String], body: Value) -> Value {
     Value::Object(section)
 }
 
+/// A card still waiting for the panel's first answer: its title and `rows` skeleton rows, about
+/// what it usually holds, so the panel keeps its height when the real rows replace them.
+fn loading_section(id: &str, title: &str, collapsed: &[String], rows: usize) -> Value {
+    section(
+        id,
+        title,
+        collapsed,
+        json!({"loading": true, "skeletonRows": rows}),
+    )
+}
+
+/// The breakdown's usual length (its categories and the deferred tools), sketched while Claude
+/// counts it for the first time.
+const BREAKDOWN_SKELETON_ROWS: usize = 11;
+
 fn environment(data: &Value) -> Option<Value> {
     let environment = data.get("environment")?;
     let mut rows = Vec::new();
@@ -289,6 +304,8 @@ fn context_card(
     let running =
         served.and_then(|context| context.get("breakdownRunning")) == Some(&Value::Bool(true));
     let error = served.and_then(|context| text(context, "/breakdownError"));
+    let breakdown_coming = breakdown.is_none()
+        && (running || details.refreshing || (data.is_none() && details.error.is_none()));
     let counted_at = served
         .and_then(|context| text(context, "/breakdownAt"))
         .and_then(|at| parse_iso_millis(&at, utc_offset_minutes));
@@ -317,6 +334,7 @@ fn context_card(
         "messagesOpen": details.open_lists.iter().any(|list| list == "messages"),
         "status": status,
         "statusError": error.is_some() && breakdown.is_none() && !running,
+        "skeletonRows": if breakdown_coming { BREAKDOWN_SKELETON_ROWS } else { 0 },
         "refreshing": running || details.refreshing,
         "refresh": json!({"type": "sessionDetailsRefresh"}),
     })
@@ -637,9 +655,14 @@ pub fn document(state: &ChatState, context: &ChatContext) -> Value {
     let collapsed = &details.collapsed;
     let now_ms = context.now_ms;
     let offset = context.utc_offset_minutes;
+    // CDXC:SessionDetails 2026-10-25 DECISION:
+    // User: "when i open the session details sidebar pls make it show shimmer skeleton for the parts that are still loading". Until the panel's first answer arrives, each card that answer fills shows its title over skeleton rows (Context sketches its breakdown while Claude counts it), drawn in the chat's own skeleton tint and pulse.
+    let waiting = data.is_none() && details.error.is_none();
     let mut sections = Vec::new();
     if let Some(body) = data.and_then(environment) {
         sections.push(section("environment", "Environment", collapsed, body));
+    } else if waiting {
+        sections.push(loading_section("environment", "Environment", collapsed, 4));
     }
     sections.push(section(
         "context",
@@ -652,15 +675,23 @@ pub fn document(state: &ChatState, context: &ChatContext) -> Value {
     }
     if let Some(body) = data.and_then(connectors) {
         sections.push(section("connectors", "Connectors", collapsed, body));
+    } else if waiting {
+        sections.push(loading_section("connectors", "Connectors", collapsed, 5));
     }
     if let Some(body) = data.and_then(|data| skills(state, data)) {
         sections.push(section("skills", "Skills", collapsed, body));
+    } else if waiting {
+        sections.push(loading_section("skills", "Skills", collapsed, 2));
     }
     if let Some(body) = data.and_then(memory) {
         sections.push(section("memory", "Memory files", collapsed, body));
+    } else if waiting {
+        sections.push(loading_section("memory", "Memory files", collapsed, 2));
     }
     if let Some(body) = data.and_then(changes) {
         sections.push(section("changes", "Changes", collapsed, body));
+    } else if waiting {
+        sections.push(loading_section("changes", "Changes", collapsed, 1));
     }
     if let Some(body) = background(state, data, now_ms, offset) {
         sections.push(section("background", "Background tasks", collapsed, body));

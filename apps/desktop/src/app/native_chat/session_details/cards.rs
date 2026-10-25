@@ -63,6 +63,12 @@ pub(super) fn panel_height(details: &Value) -> f32 {
         if section["collapsed"] == true {
             continue;
         }
+        let sketched = section["skeletonRows"].as_u64().unwrap_or(0) as f32 * ROW_HEIGHT;
+        if section["loading"] == true {
+            total += sketched;
+            continue;
+        }
+        total += sketched;
         total += match section["id"].as_str().unwrap_or_default() {
             "context" => {
                 let messages = if section["messagesOpen"] == true {
@@ -110,6 +116,65 @@ pub(super) fn panel_height(details: &Value) -> f32 {
     total + 4.0
 }
 
+/// One skeleton text bar, `width` of its row.
+fn skeleton_bar(width: f32, p: &ChatAppearance) -> AnyElement {
+    let (tint, _, _) = super::super::transcript_reveal::skeleton_look(p);
+    div()
+        .w(gpui::relative(width))
+        .h(px(9.0 * p.scale))
+        .rounded_full()
+        .bg(tint)
+        .into_any_element()
+}
+
+/// The card's `skeletonRows` rows that have not arrived yet: an icon slot and a text bar each,
+/// pulsing like the transcript's skeleton, and still under Reduce Motion.
+fn skeleton_rows(id: &str, section: &Value, p: &ChatAppearance) -> AnyElement {
+    const WIDTHS: [f32; 5] = [0.62, 0.8, 0.48, 0.72, 0.56];
+    let s = p.scale;
+    let (tint, period, lowest) = super::super::transcript_reveal::skeleton_look(p);
+    let rows = section["skeletonRows"].as_u64().unwrap_or(0) as usize;
+    let column = div()
+        .id(SharedString::from(format!("session-details-skeleton-{id}")))
+        .role(gpui::Role::Status)
+        .aria_label("Loading…")
+        .flex()
+        .flex_col()
+        .min_w_0()
+        .children((0..rows).map(|row| {
+            div()
+                .h(px(ROW_HEIGHT * s))
+                .flex()
+                .items_center()
+                .gap(px(8.0 * s))
+                .child(
+                    div()
+                        .flex_shrink_0()
+                        .size(px(12.0 * s))
+                        .rounded(px(3.0 * s))
+                        .bg(tint),
+                )
+                .child(skeleton_bar(WIDTHS[row % WIDTHS.len()], p))
+        }));
+    if crate::app::helpers::gpui_macos_reduce_motion_enabled() {
+        return column.into_any_element();
+    }
+    column
+        .with_throttled_animation(
+            SharedString::from(format!("session-details-skeleton-pulse-{id}")),
+            period,
+            move |column, frame| {
+                let dip = gpui::ease_in_out(if frame < 0.5 {
+                    frame * 2.0
+                } else {
+                    (1.0 - frame) * 2.0
+                });
+                column.opacity(1.0 - (1.0 - lowest) * dip)
+            },
+        )
+        .into_any_element()
+}
+
 impl NativeChatView {
     /// Every card, top to bottom.
     pub(super) fn session_details_cards(
@@ -145,7 +210,9 @@ impl NativeChatView {
         let id = str_of(section, "id");
         let collapsed = section["collapsed"] == true;
         let header = self.card_header(section, p, cx);
+        let loading = section["loading"] == true;
         let body = (!collapsed).then(|| match id.as_str() {
+            _ if loading => skeleton_rows(&id, section, p),
             "context" => self.context_body(section, details, p, cx),
             "tasks" => tasks_body(section, p),
             "connectors" => self.connectors_body(section, p, cx),
@@ -461,31 +528,31 @@ impl NativeChatView {
     ) -> AnyElement {
         let s = p.scale;
         let mut column = div().flex().flex_col().min_w_0();
+        let reading = section["percentLabel"].is_null() && details["loading"] == true;
         let percent = section["percentLabel"]
             .as_str()
-            .map(str::to_string)
-            .unwrap_or_else(|| {
-                if details["loading"] == true {
-                    "Reading the session…".to_string()
-                } else {
-                    "No usage reported yet".to_string()
-                }
-            });
+            .unwrap_or("No usage reported yet")
+            .to_string();
         column = column.child(
             div()
                 .flex()
                 .items_center()
                 .h(px(SUMMARY_HEIGHT * s))
                 .gap(px(6.0 * s))
-                .child(
-                    div()
-                        .flex_1()
-                        .min_w_0()
-                        .truncate()
-                        .font_weight(FontWeight::SEMIBOLD)
-                        .text_color(p.foreground)
-                        .child(percent),
-                )
+                .map(|line| {
+                    if reading {
+                        return line.child(skeleton_bar(0.4, p));
+                    }
+                    line.child(
+                        div()
+                            .flex_1()
+                            .min_w_0()
+                            .truncate()
+                            .font_weight(FontWeight::SEMIBOLD)
+                            .text_color(p.foreground)
+                            .child(percent),
+                    )
+                })
                 .when_some(section["tokensLabel"].as_str(), |line, tokens| {
                     line.child(
                         div()
@@ -516,6 +583,9 @@ impl NativeChatView {
             );
         }
         column = column.child(div().h(px(BAR_HEIGHT * s)).flex().items_center().child(bar));
+        if section["skeletonRows"].as_u64().unwrap_or(0) > 0 {
+            column = column.child(skeleton_rows("context", section, p));
+        }
         let messages_open = section["messagesOpen"] == true;
         for (index, row) in section["rows"].as_array().into_iter().flatten().enumerate() {
             let id = str_of(row, "id");

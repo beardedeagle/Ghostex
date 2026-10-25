@@ -161,6 +161,17 @@ impl NativeChatView {
     }
 }
 
+/// The shared skeleton look for the chat's other loading skeletons (the Session details panel's
+/// cards): its tint over `p`, its pulse period and the opacity the pulse dips to.
+pub(super) fn skeleton_look(p: &ChatAppearance) -> (gpui::Hsla, Duration, f32) {
+    let g = &*SKELETON;
+    (
+        p.foreground.opacity(g.tint),
+        Duration::from_millis(g.pulse_ms),
+        g.pulse_min_opacity,
+    )
+}
+
 /// The skeleton rows, in the transcript's own column, pulsing like the other skeletons.
 fn transcript_skeleton(p: &ChatAppearance) -> AnyElement {
     use crate::app::helpers::ThrottledAnimationExt as _;
