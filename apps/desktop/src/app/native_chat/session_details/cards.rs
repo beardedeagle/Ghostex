@@ -278,7 +278,7 @@ impl NativeChatView {
         div()
             .id("session-details-refresh")
             .role(gpui::Role::Button)
-            .aria_label("Count the context again")
+            .aria_label("Refresh Context Breakdown")
             .flex_shrink_0()
             .size(px(20.0 * s))
             .flex()
@@ -295,7 +295,7 @@ impl NativeChatView {
                 gpui_component::tooltip::Tooltip::new(if refreshing {
                     "Counting…"
                 } else {
-                    "Count again with Claude"
+                    "Refresh Context Breakdown"
                 })
                 .build(window, cx)
             })
