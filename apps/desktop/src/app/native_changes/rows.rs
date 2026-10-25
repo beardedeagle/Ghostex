@@ -318,18 +318,15 @@ impl ChangesView {
         let open_path = path.clone();
         let viewed_path = path.clone();
         let revert_path = path.clone();
-        // CDXC:Changes 2026-10-25 DECISION: User: "please hide these buttons until i hover on a file". Copy path, Open in Files and Viewed show while the pointer is over the file's header or the user moved into that file with the keys (never by default: a stale cursor left the last file's buttons up); Viewed stays visible on a file already marked viewed so its state still reads.
-        let group: SharedString = format!("changes-file-group-{sticky}-{path}").into();
-        let focused = self.key_file.as_deref() == Some(path.as_str());
-        let on_hover = move |this: gpui::Stateful<gpui::Div>, group: &SharedString| {
-            this.when(!focused, |this| {
-                this.opacity(0.0)
-                    .group_hover(group.clone(), |this| this.opacity(1.0))
-            })
-        };
+        // CDXC:Changes 2026-10-25 DECISION: User: "please hide these buttons until i hover on a file", then "please make the text shift like that only when i hover on each header not always". Copy path, Open in Files and Viewed are left out of the row (so the path, name and counts take its whole width) unless the pointer is over that header or the user moved into that file with the keys (never by default: a stale cursor left the last file's buttons up); Viewed stays on a file already marked viewed so its state still reads.
+        let hover_path = path.clone();
+        let show_actions = self.key_file.as_deref() == Some(path.as_str())
+            || self
+                .hovered_header
+                .as_ref()
+                .is_some_and(|(hovered, pinned)| hovered == &path && *pinned == sticky);
         h_flex()
             .id(id)
-            .group(group.clone())
             .w_full()
             .h(px(FILE_HEADER_HEIGHT))
             .px(px(8.0))
@@ -342,6 +339,17 @@ impl ChangesView {
             .cursor_pointer()
             .hover(|this| this.bg(hsla(if sticky { s.sticky_hover } else { s.hover })))
             .on_click(cx.listener(move |this, _, _, cx| this.toggle_collapsed(&toggle_path, cx)))
+            .on_hover(cx.listener(move |this, hovered: &bool, _, cx| {
+                let key = (hover_path.clone(), sticky);
+                if *hovered {
+                    this.hovered_header = Some(key);
+                } else if this.hovered_header.as_ref() == Some(&key) {
+                    this.hovered_header = None;
+                } else {
+                    return;
+                }
+                cx.notify();
+            }))
             .on_mouse_down(
                 MouseButton::Right,
                 cx.listener(move |this, event: &MouseDownEvent, _, cx| {
@@ -350,7 +358,8 @@ impl ChangesView {
                     cx.notify();
                 }),
             )
-            .child(modal_icon(
+            // The row's leading marks keep their size when a long path fills the row.
+            .child(div().flex_none().child(modal_icon(
                 if collapsed {
                     ICON_CHEVRON_RIGHT
                 } else {
@@ -358,10 +367,11 @@ impl ChangesView {
                 },
                 ICON_SIZE - 1.0,
                 s.muted,
-            ))
+            )))
             .when(file.uncommitted, |this| {
                 this.child(
                     div()
+                        .flex_none()
                         .id(SharedString::from(format!(
                             "changes-include-{}-{path}",
                             sticky
@@ -435,8 +445,8 @@ impl ChangesView {
                     }),
                 ))
             })
-            .when(!confirming, |this| {
-                this.child(on_hover(
+            .when(!confirming && show_actions, |this| {
+                this.child(
                     h_flex()
                         .id(SharedString::from(format!(
                             "changes-file-actions-{sticky}-{path}"
@@ -466,10 +476,11 @@ impl ChangesView {
                                 this.open_in_files(&open_path, None, window, cx);
                             }),
                         )),
-                    &group,
-                ))
-                .child({
-                    let button = h_flex()
+                )
+            })
+            .when(!confirming && (show_actions || viewed), |this| {
+                this.child(
+                    h_flex()
                         .id(SharedString::from(format!(
                             "changes-viewed-{sticky}-{path}"
                         )))
@@ -488,13 +499,8 @@ impl ChangesView {
                             this.toggle_viewed(&viewed_path, cx);
                         }))
                         .child(checkbox(s, viewed))
-                        .child("Viewed");
-                    if viewed {
-                        button
-                    } else {
-                        on_hover(button, &group)
-                    }
-                })
+                        .child("Viewed"),
+                )
             })
             .into_any_element()
     }

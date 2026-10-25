@@ -485,7 +485,11 @@ impl ChangesView {
         let view = cx.entity().downgrade();
         let list_state = self.list.clone();
         list_state.set_scroll_handler(move |_, _, cx| {
-            let _ = view.update(cx, |_, cx| cx.notify());
+            // A header that scrolls away never hears the pointer leave it.
+            let _ = view.update(cx, |this, cx| {
+                this.hovered_header = None;
+                cx.notify();
+            });
         });
         div()
             .relative()

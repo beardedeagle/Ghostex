@@ -211,6 +211,8 @@ pub(crate) struct ChangesView {
     /// The file the user last moved into with J, K, ] or [; its header keeps its buttons showing.
     /// Only a key sets it, never a load, a scroll or a jump.
     pub(crate) key_file: Option<String>,
+    /// The file header under the pointer (its path, and whether it is the pinned copy).
+    pub(crate) hovered_header: Option<(String, bool)>,
     pub(crate) focus: FocusHandle,
     pub(crate) view_origin: gpui::Point<gpui::Pixels>,
     /// The view's width, so a menu opened near its right edge stays inside it.
@@ -252,6 +254,7 @@ impl ChangesView {
             hide_whitespace: false,
             jump_open: false,
             key_file: None,
+            hovered_header: None,
             jump_anchor: gpui::Bounds::default(),
             data: None,
             loading: false,
