@@ -588,12 +588,14 @@ pub(crate) fn validate_identity(
                 })
             })
             .ok_or_else(fail)?;
-        row.pointer("/identity/accountId")
-            .and_then(Value::as_str)
-            .unwrap_or("")
-            .to_string()
+        super::codex_identity::codex_identity(
+            row.pointer("/identity/accountId")
+                .and_then(Value::as_str)
+                .unwrap_or(""),
+            row.pointer("/identity/userId").and_then(Value::as_str),
+        )
     };
-    if identity != account.identity || identity.is_empty() {
+    if !super::codex_identity::identity_matches(account.provider, &account.identity, &identity) {
         return Err(fail());
     }
     Ok(())

@@ -2047,6 +2047,11 @@ to Claude or Codex and choose Sign in with browser; a Claude account needs no
 email (pick it in the browser), while Codex asks for the new account's email
 first. The first account of a provider also asks to share chat history between
 your accounts, which lets a conversation carry on with another account.
+Each Codex login is its own account with its own name and settings, also when
+two people sign in to the same ChatGPT Business workspace or one person has
+several workspaces; this needs Codex Swap 0.3.2 or later (its Update button sits
+under the account list in Settings > Accounts), and accounts saved earlier keep
+their names, settings and sessions.
 Quick launch, the main launcher row, and any session started without
 picking an account use New sessions start on in each provider's rules (Claude
 rules or Codex rules in the list). The automatic rules only consider accounts
