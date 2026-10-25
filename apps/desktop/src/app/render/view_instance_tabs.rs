@@ -150,7 +150,7 @@ impl GhostexGpuiApp {
             .into_any_element()
     }
 
-    /// One tab, drawn as the view tab strip draws its tabs: its label, its tooltip beside it, and
+    /// One tab, drawn as the view tab strip draws its tabs: its label, its tooltip under it, and
     /// the close control after the label.
     ///
     /// CDXC:CodeEditor 2026-10-25 WHY:
@@ -197,9 +197,10 @@ impl GhostexGpuiApp {
                             .text_color(titlebar_active_text_color())
                     })
             })
-            // Beside the tab, as the strip's tooltips are: below it would sit behind the page.
+            // Under the tab: beside it the bubble covers the neighbouring tab. It draws in the
+            // frosted tooltip host's own window, so it sits above the page below the row.
             .managed_tooltip_with_placement(
-                ManagedTooltipPlacement::WiderSide,
+                ManagedTooltipPlacement::Below,
                 move |window, cx| {
                     titlebar_tooltip(view_tab_strip_tooltip_text(&tooltip), window, cx)
                 },

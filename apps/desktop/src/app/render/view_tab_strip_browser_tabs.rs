@@ -135,7 +135,7 @@ impl GhostexGpuiApp {
             })
             .when(asleep && !is_showing, |this| this.opacity(0.72))
             .managed_tooltip_with_placement(
-                ManagedTooltipPlacement::WiderSide,
+                ManagedTooltipPlacement::Below,
                 move |window, cx| {
                     titlebar_tooltip(view_tab_strip_tooltip_text(&tooltip_title), window, cx)
                 },
