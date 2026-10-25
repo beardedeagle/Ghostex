@@ -15,6 +15,7 @@ use crate::state::{
 use crate::transcript::agent_message::{
     agent_display_name, parse_agent_message, parse_inter_agent_message,
 };
+use crate::transcript::background_rows::background_task_source;
 use crate::transcript::file_changes::{split_file_changes, FileChange};
 use crate::transcript::foreign::{
     is_pending_message_id, is_terminal_tool_message, is_working, terminal_tool_activity,
@@ -394,6 +395,7 @@ pub fn project_message(
 /// ship as plain-text placeholders and are backfilled in batches on the runtime's timer, newest
 /// first, each batch republishing.
 fn placeholder(message: &ChatMessage) -> Value {
+    let message = &*background_task_source(message);
     let text = js_trim(
         &message
             .blocks
@@ -642,6 +644,8 @@ fn project_entry(
     context: &ChatContext,
     message: &ChatMessage,
 ) -> ProjectedMessage {
+    // A background task's end is projected (and its details read) as the tool calls it reports.
+    let message = &*background_task_source(message);
     // How long each call ran comes from the rows as they arrived, before the fold merged them.
     let durations = tool_durations(
         message,
@@ -676,7 +680,7 @@ fn project_entry(
 /// The cached model still stands: the same message, projected under the same line-break rule, and
 /// the same of its words are question tags (a new question links words an older reply already had).
 fn fresh(entry: &ProjectedMessage, message: &ChatMessage, scope: &ProjectionScope<'_>) -> bool {
-    entry.source == *message
+    entry.source == *background_task_source(message)
         && entry.line_breaks == scope.line_breaks
         && linked_words(&entry.tag_words, &scope.question_tags) == entry.linked_tags
 }

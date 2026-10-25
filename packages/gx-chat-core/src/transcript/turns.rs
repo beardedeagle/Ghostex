@@ -10,6 +10,7 @@
 
 use ghostex_gx_protocol::{ChatBlock, ChatMessage, ChatRole};
 
+use crate::transcript::background_rows::is_background_task_row;
 use crate::transcript::foreign::STREAMING_ID;
 use crate::transcript::jsstr::js_trim;
 use crate::transcript::noise::{
@@ -182,7 +183,7 @@ pub fn partition_completed_work(messages: &[ChatMessage]) -> (Vec<ChatMessage>, 
         // The "Interrupted" marker stays in view as it does in summary mode; Claude's used to be a user row, gxserver's own is a system row.
         // A model or effort change made while the turn ran stays in view too, as a status row.
         if is_visible_assistant_artifact(message)
-            || message.role == ChatRole::User
+            || (message.role == ChatRole::User && !is_background_task_row(message))
             || suppressed_turn_label(message).as_deref() == Some("Interrupted")
             || is_setting_status(message)
         {
@@ -337,6 +338,10 @@ pub fn completed_work_render_items(
         // so it was folded into the turn before it and drawn above that turn's reply.
         while next_user_index < messages.len()
             && (messages[next_user_index].role != ChatRole::User
+                // A background task ending mid-response is one of the turn's calls
+                // (`background_rows.rs`); one that woke the agent after its reply opens a turn.
+                || (is_background_task_row(&messages[next_user_index])
+                    && !wakes_settled_agent(messages, next_user_index))
                 || (message.deferred_work.is_some()
                     && messages[next_user_index].byte_offset.is_none()
                     && !is_command_turn(&messages[next_user_index])))
@@ -387,10 +392,19 @@ pub fn completed_work_render_items(
             .and_then(|next| raw_index(&next.id))
             .unwrap_or(raw_messages.len());
         let final_id = final_message.as_ref().map(|row| row.id.clone());
-        items.push(RenderItem::Message(Box::new(message.clone())));
+        // A turn a background task's end opened folds that row with its work, as the call it is.
+        let opener_is_work = is_background_task_row(message);
+        if !opener_is_work {
+            items.push(RenderItem::Message(Box::new(message.clone())));
+        }
+        let work_start = if opener_is_work {
+            raw_start
+        } else {
+            raw_start + 1
+        };
         items.push(RenderItem::CompletedWork(Box::new(CompletedWorkTurn {
             user: message.clone(),
-            work: raw_messages[(raw_start + 1).min(raw_end)..raw_end]
+            work: raw_messages[work_start.min(raw_end)..raw_end]
                 .iter()
                 .filter(|row| {
                     Some(&row.id) != final_id.as_ref()

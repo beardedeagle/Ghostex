@@ -66,7 +66,8 @@ impl NativeChatView {
         }
     }
 
-    /// One card per status: a turn reporting several background tasks reports each of them.
+    /// One card per status: a model change with a pin warning reports both. A background task's end
+    /// is a tool row instead (gx-chat-core `transcript/background_rows.rs`).
     ///
     /// The column carries no padding of its own. Every transcript row already
     /// ends with the same trailing space (`transcript_item_row`).
@@ -112,7 +113,6 @@ impl NativeChatView {
         let s = p.scale;
         let card = &*SINGLE_LINE_CARD;
         let glyph = match subject {
-            "task" => "titlebar/terminal-2.svg",
             "compaction" => "titlebar/arrows-diagonal-minimize.svg",
             _ => "titlebar/adjustments-horizontal.svg",
         };

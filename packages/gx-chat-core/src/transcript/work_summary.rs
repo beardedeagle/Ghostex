@@ -8,6 +8,7 @@ use std::collections::HashMap;
 use ghostex_gx_protocol::{ChatBlock, ChatMessage};
 use serde_json::{json, Value};
 
+use crate::transcript::background_rows::background_task_source;
 use crate::transcript::jsstr::js_trim;
 use crate::transcript::tool_fold::{pair_tool_blocks, split_blocks};
 use crate::transcript::tool_summary::truncate_tool_preview;
@@ -134,6 +135,8 @@ pub fn work_stats(rows: &[&ChatMessage], changed_files: usize) -> Vec<Value> {
     let calls: usize = rows
         .iter()
         .map(|message| {
+            // A background task's end counts as the call it reports (`background_rows.rs`).
+            let message = background_task_source(message);
             let (_, tools) = split_blocks(&message.blocks);
             pair_tool_blocks(tools)
                 .iter()
