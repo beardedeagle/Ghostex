@@ -136,7 +136,7 @@ impl GhostexGpuiApp {
                 .project_workarea_runtime_cef_surfaces
                 .iter()
                 .filter(|(slot, owned)| {
-                    **slot != ProjectWorkareaCefSurfaceSlotKey::Source
+                    !slot.is_code_editor()
                         && slot.titlebar_mode() != self.active_mode
                         && web_page_is_due(&owned.surface, limit, cx)
                 })

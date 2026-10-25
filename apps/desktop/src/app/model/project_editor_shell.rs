@@ -147,6 +147,9 @@ pub(crate) struct GpuiProjectViewState {
     /// CDXC:Workarea 2026-09-26 DECISION:
     /// User: going between Spaces must not sleep the side panel view; "it should stay active", just the currently active view. A view's awake flag is app-wide, so while another project is on screen the idle timer and the awake cap would count this project's active view as a hidden tab and sleep it. A project left with its active view awake keeps that view out of both (`view_modes_kept_awake_by_parked_projects`) until the user is back or sleeps it on purpose (Sleep Space clears this). Supersedes the 2026-09-25 rule that let it sleep and woke it on the way back in. Runtime only, never persisted: after a launch every view starts asleep (CDXC:Browser 2026-09-19).
     pub(crate) active_view_awake: bool,
+    /// CDXC:CodeEditor 2026-10-24 WHY:
+    /// The project's extra Code windows. Runtime only, never persisted: a window's address names the folder or workspace it has open, and the shell state writer keeps project and file paths out (CDXC:Telemetry 2026-06-23 in model/workspace_shell_state.rs), so they last until the app quits.
+    pub(crate) code_windows: CodeWindows,
 }
 
 pub(crate) struct ProjectEditorShellModel {
@@ -480,6 +483,7 @@ pub(crate) fn project_view_state_from_shell_state(
             .filter(|mode| *mode != TitlebarMode::Agents),
         workarea_split_ratio: workarea_split_ratio_from_shell_state(object, "companionWidthRatio"),
         active_view_awake: false,
+        code_windows: CodeWindows::default(),
     })
 }
 

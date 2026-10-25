@@ -384,6 +384,15 @@ fn editor_section(
     rows.extend(page.toggle(
         g,
         s,
+        "codeServerNewWindowsAsTabs",
+        "Open Code windows as tabs",
+        "Show a window Code opens (File > New Window, a folder or workspace opened in a new window) as another window tab above the Code page instead of blocking it.",
+        false,
+        cx,
+    ));
+    rows.extend(page.toggle(
+        g,
+        s,
         "showUntrackedProjectDiffWhenNoTrackedChanges",
         "Show untracked lines without tracked changes",
         "When tracked git diff is +0 -0, show untracked line counts in project headers.",

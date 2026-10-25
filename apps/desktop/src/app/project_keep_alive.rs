@@ -36,6 +36,25 @@ pub(crate) fn project_keep_alive_active(
     }
 }
 
+/// Whether a parked page may go back to `wanted`: any page of the same address, except that an
+/// extra Code window's page belongs to that window alone.
+///
+/// CDXC:CodeEditor 2026-10-25 WHY:
+/// Every empty Code window has the same address (`/?ew=true`) and two windows can have the same folder open, in one project or in two. Matched by address alone, a project's new window took another project's live page, and the page's own messages (title, address, File > Close Window) still named the window it was made for. A Code window's id is never reused, so the slot is the page's owner; the project's own Code page and its windows never take each other's page either.
+fn parked_page_is_for_slot(
+    parked: ProjectWorkareaCefSurfaceSlotKey,
+    wanted: ProjectWorkareaCefSurfaceSlotKey,
+) -> bool {
+    let code_window = |slot: ProjectWorkareaCefSurfaceSlotKey| {
+        matches!(slot, ProjectWorkareaCefSurfaceSlotKey::CodeWindow(_))
+    };
+    if code_window(parked) || code_window(wanted) {
+        parked == wanted
+    } else {
+        true
+    }
+}
+
 fn keep_alive_remaining(parked_at: Option<Instant>, keep: Option<Duration>) -> Option<Duration> {
     let keep = keep?;
     keep.checked_sub(parked_at?.elapsed())
@@ -76,8 +95,10 @@ impl GhostexGpuiApp {
         if !was_visible || self.project_switch_keep_alive().is_none() {
             return;
         }
-        self.parked_project_workarea_surfaces
-            .retain(|parked| !parked.owned.matches_runtime_url(&owned.runtime_url));
+        self.parked_project_workarea_surfaces.retain(|parked| {
+            !(parked.owned.matches_runtime_url(&owned.runtime_url)
+                && parked_page_is_for_slot(parked.slot_key, slot_key))
+        });
         self.parked_project_workarea_surfaces
             .push(ParkedProjectWorkareaSurface {
                 owned,
@@ -119,6 +140,7 @@ impl GhostexGpuiApp {
     pub(crate) fn take_parked_project_workarea_runtime_cef_surface(
         &mut self,
         runtime_url: &ProjectWorkareaRealRuntimeUrl,
+        slot_key: ProjectWorkareaCefSurfaceSlotKey,
     ) -> Option<ProjectWorkareaRuntimeCefSurface> {
         if let Some(owned) = self.take_custom_project_view(runtime_url) {
             return Some(owned);
@@ -128,9 +150,36 @@ impl GhostexGpuiApp {
             .parked_project_workarea_surfaces
             .iter()
             .position(|parked| {
-                parked.owned.matches_runtime_url(runtime_url) && parked.kept(keep)
+                parked.owned.matches_runtime_url(runtime_url)
+                    && parked_page_is_for_slot(parked.slot_key, slot_key)
+                    && parked.kept(keep)
             })?;
         Some(self.parked_project_workarea_surfaces.remove(index).owned)
+    }
+
+    /// Closes the parked pages of the Code view (its own window's and every extra window's), as
+    /// stopping or losing the editor does for the pages on screen.
+    pub(crate) fn release_parked_code_editor_pages(&mut self) -> bool {
+        let before = self.parked_project_workarea_surfaces.len();
+        self.parked_project_workarea_surfaces
+            .retain(|parked| !parked.slot_key.is_code_editor());
+        self.parked_project_workarea_surfaces.len() != before
+    }
+
+    /// The parked page of one extra Code window, whichever project is on screen.
+    pub(crate) fn parked_code_window_page_mut(
+        &mut self,
+        id: CodeWindowId,
+    ) -> Option<&mut ParkedProjectWorkareaSurface> {
+        self.parked_project_workarea_surfaces
+            .iter_mut()
+            .find(|parked| parked.slot_key == ProjectWorkareaCefSurfaceSlotKey::CodeWindow(id))
+    }
+
+    /// Closes the parked page of one extra Code window.
+    pub(crate) fn release_parked_code_window_page(&mut self, id: CodeWindowId) {
+        self.parked_project_workarea_surfaces
+            .retain(|parked| parked.slot_key != ProjectWorkareaCefSurfaceSlotKey::CodeWindow(id));
     }
 
     fn expire_parked_project_workarea_surfaces(&mut self) {

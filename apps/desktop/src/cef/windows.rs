@@ -385,6 +385,11 @@ pub(super) fn set_native_view_visible(native_view: *mut c_void, visible: bool) {
     }
 }
 
+/// Not read on Windows: a Code window switch there waits out its fixed hold.
+pub(super) fn native_view_content_identity(_native_view: *mut c_void) -> u64 {
+    0
+}
+
 pub(super) fn order_native_view_front(native_view: *mut c_void) {
     let hwnd: HWND = native_view.cast();
     if hwnd.is_null() {

@@ -1520,6 +1520,21 @@
       "agentWritable": true
     },
     {
+      "key": "codeServerNewWindowsAsTabs",
+      "title": "Open Code windows as tabs",
+      "subtitle": "When Code opens a new window (File > New Window, or a folder or workspace opened in a new window), show it as another window tab above the Code page instead of blocking it. Each tab is its own VS Code window, so you can keep several projects or workspaces open at once.",
+      "tab": "settings",
+      "tabTitle": "General",
+      "group": "tools",
+      "groupTitle": "Tools",
+      "section": "editor",
+      "sectionTitle": "Editor",
+      "type": "boolean",
+      "default": false,
+      "advanced": true,
+      "agentWritable": true
+    },
+    {
       "key": "showUntrackedProjectDiffWhenNoTrackedChanges",
       "title": "Show untracked lines without tracked changes",
       "subtitle": "When tracked git diff is +0 -0, show untracked line counts in project headers (Starship-style prompts ignore untracked lines).",

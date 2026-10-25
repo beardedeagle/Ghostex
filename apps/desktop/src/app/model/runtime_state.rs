@@ -489,6 +489,9 @@ pub(crate) enum ProjectWorkareaCefSurfaceSlotKey {
     /// The Work page (`work.html`): app-wide, one per window.
     Work,
     Extension(ExtensionId),
+    /// One of the Code view's extra VS Code windows (`app/workarea/code_windows.rs`), on the same
+    /// code-server as `Source`.
+    CodeWindow(CodeWindowId),
 }
 
 impl ProjectWorkareaCefSurfaceSlotKey {
@@ -504,7 +507,13 @@ impl ProjectWorkareaCefSurfaceSlotKey {
             Self::Manage => "manage",
             Self::Work => "work",
             Self::Extension(id) => id.as_str(),
+            Self::CodeWindow(_) => "code-window",
         }
+    }
+
+    /// The Code view's own window or one of its extra windows.
+    pub(crate) fn is_code_editor(self) -> bool {
+        matches!(self, Self::Source | Self::CodeWindow(_))
     }
 
     /// The slot a view's page lives in, or nothing for the modes that own no workarea surface:
@@ -535,15 +544,23 @@ impl ProjectWorkareaCefSurfaceSlotKey {
             Self::Manage => TitlebarMode::Manage,
             Self::Work => TitlebarMode::Work,
             Self::Extension(id) => TitlebarMode::Extension(id),
+            Self::CodeWindow(_) => TitlebarMode::Source,
         }
     }
 
     pub(crate) fn cef_surface_id(self) -> String {
-        format!("project-workarea-{}", self.privacy_label())
+        match self {
+            Self::CodeWindow(id) => format!("project-workarea-code-window-{}", id.0),
+            _ => format!("project-workarea-{}", self.privacy_label()),
+        }
     }
 
+    /// Code windows share the Code view's profile, as VS Code's windows share one install.
     pub(crate) fn cef_profile_id(self) -> String {
-        format!("project-workarea-{}", self.privacy_label())
+        match self {
+            Self::CodeWindow(_) => Self::Source.cef_profile_id(),
+            _ => format!("project-workarea-{}", self.privacy_label()),
+        }
     }
 }
 

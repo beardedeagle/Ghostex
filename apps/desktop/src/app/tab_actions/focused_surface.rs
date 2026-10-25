@@ -346,7 +346,11 @@ impl GhostexGpuiApp {
                 }
             }
             FocusedSurfaceCloseDecision::CloseViewTab(mode) => {
-                self.close_view_tab(mode, window, cx);
+                match (mode, self.code_windows.active) {
+                    // One of Code's extra windows closes on its own, not with the Code tab.
+                    (TitlebarMode::Source, Some(id)) => self.close_code_window(id, window, cx),
+                    _ => self.close_view_tab(mode, window, cx),
+                }
             }
             FocusedSurfaceCloseDecision::CloseViewPanel => {
                 if self.view_picker_open() {

@@ -149,6 +149,7 @@ pub const DEFAULT_GHOSTEX_SETTINGS: &[(&str, J)] = &[
     // into local VS Code settings explicitly from Settings.
     ("codeServerLinkVscodeUserConfig", J::Bool(false)),
     ("codeServerUseVscodeInsidersUserConfig", J::Bool(false)),
+    ("codeServerNewWindowsAsTabs", J::Bool(false)),
     // Legacy external-IDE preference keys remain normalized so existing settings
     // files and generic Open in IDE actions stay readable. They are no longer
     // exposed in Settings or used by Agents Hub, which opens files in Source.

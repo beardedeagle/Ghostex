@@ -125,6 +125,17 @@ impl GhostexGpuiApp {
             cx.notify();
         }
         self.refresh_workarea_page_themes(settings, cx);
+        // Not part of the runtime snapshot below, and not a code-server launch option: turning it
+        // on or off rebuilds the Code pages only (`apply_code_windows_setting`).
+        let code_windows_on = settings
+            .object()
+            .get("codeServerNewWindowsAsTabs")
+            .and_then(serde_json::Value::as_bool)
+            .unwrap_or(false);
+        if self.code_windows_setting_on != code_windows_on {
+            self.code_windows_setting_on = code_windows_on;
+            self.apply_code_windows_setting(code_windows_on, cx);
+        }
         let next_snapshot = sidebar_runtime_settings_snapshot_from_shared_settings(settings);
         let Some(next_snapshot) = changed_sidebar_runtime_settings_snapshot(
             &self.sidebar_runtime_settings_snapshot,
