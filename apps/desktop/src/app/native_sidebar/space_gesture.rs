@@ -428,12 +428,6 @@ impl GhostexGpuiApp {
         if complete {
             self.native_sidebar.space_gesture.transition = None;
         }
-        #[cfg(target_arch = "wasm32")]
-        crate::app::helpers::indicator_animation::redraw_probe(format!(
-            "raf {}:{}",
-            file!(),
-            line!()
-        ));
         window.request_animation_frame();
         cx.notify();
     }

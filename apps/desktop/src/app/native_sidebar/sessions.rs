@@ -166,7 +166,7 @@ impl GhostexGpuiApp {
         .filter(|part| !part.is_empty())
         .collect::<Vec<_>>()
         .join(", ");
-        div().on_children_prepainted(move |bounds, window, cx| { if completion.is_some() { #[cfg(target_arch = "wasm32")] crate::app::helpers::indicator_animation::redraw_probe("raf sessions.rs completion".into()); window.request_animation_frame(); cx.notify(view.entity_id()); }
+        div().on_children_prepainted(move |bounds, window, cx| { if completion.is_some() { window.request_animation_frame(); cx.notify(view.entity_id()); }
             if let Some(bounds) = bounds.first() { view.update(cx, |app, cx| { if app.native_sidebar.session_card_bounds.get(&reveal_id) != Some(bounds) { app.native_sidebar.session_card_bounds.insert(reveal_id.clone(), *bounds); } app.reveal_native_session_bounds(&reveal_id, *bounds, scale, window, cx) }); } }).w_full().pb(px(SESSION_SPACING * scale)).px(px(SESSION_INSET_X * scale))
             .child(div()
                 .id(format!("native-sidebar-session-{session_id}"))

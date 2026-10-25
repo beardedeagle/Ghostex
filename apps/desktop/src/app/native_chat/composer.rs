@@ -278,12 +278,6 @@ impl NativeChatView {
         let frame = self.composer_frame(cx);
         let collapsed = frame.collapsed;
         if frame.running && !maximized {
-            #[cfg(target_arch = "wasm32")]
-            crate::app::helpers::indicator_animation::redraw_probe(format!(
-                "raf {}:{}",
-                file!(),
-                line!()
-            ));
             window.request_animation_frame();
         }
         let input = self.input.as_ref().unwrap().clone();
