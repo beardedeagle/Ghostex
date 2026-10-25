@@ -16,7 +16,7 @@
 //! launches on the model when the user keeps an agent of that family. Every open replaces the
 //! parked request, so a plain Handoff / Export never inherits an earlier target.
 //!
-//! SEE-ALSO: apps/desktop/src/app/window/export_transcript_modal.rs (`targetAgentId`),
+//! SEE-ALSO: apps/desktop/src/app/window/export_transcript_modal.rs (`targetProvider`, `handoff_target_agent`),
 //! server/src/agents/launch_plan.rs (`agentModel` / `agentEffort`, Claude, Codex and Antigravity CLI).
 
 use ghostex_gx_core::git_menu::GitToastLevel;
@@ -167,16 +167,10 @@ impl GhostexGpuiApp {
                 .unwrap_or_default(),
             host.sequence
         );
-        let target_agent_id = handoff_target.as_ref().and_then(|target| {
-            self.git_hud_agents()
-                .into_iter()
-                .find(|agent| {
-                    agent.has_command()
-                        && model_picker_provider(agent.icon.as_deref())
-                            == Some(target.provider.as_str())
-                })
-                .map(|agent| agent.agent_id)
-        });
+        // The dialog resolves the target's agent from its own list (`handoff_target_agent`).
+        let target = handoff_target
+            .as_ref()
+            .map(|target| (target.provider.clone(), target.model.clone()));
         let host = &mut self.gx_store.git.export;
         host.exported = None;
         host.request = Some(ExportRequest {
@@ -195,8 +189,9 @@ impl GhostexGpuiApp {
         if let Some(agent_id) = agent_id {
             message["agentId"] = json!(agent_id);
         }
-        if let Some(target) = target_agent_id {
-            message["targetAgentId"] = json!(target);
+        if let Some((provider, model)) = target {
+            message["targetProvider"] = json!(provider);
+            message["targetModel"] = json!(model);
         }
         self.open_app_modal_from_bridge(message, cx);
     }

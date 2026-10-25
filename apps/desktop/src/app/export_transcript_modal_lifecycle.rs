@@ -44,22 +44,28 @@ impl GhostexGpuiApp {
             .map(str::trim)
             .filter(|agent_id| !agent_id.is_empty())
             .map(str::to_string);
-        let target_agent_id = message
-            .get("targetAgentId")
-            .and_then(serde_json::Value::as_str)
-            .map(str::trim)
-            .filter(|agent_id| !agent_id.is_empty())
-            .map(str::to_string);
+        let text = |key: &str| {
+            message
+                .get(key)
+                .and_then(serde_json::Value::as_str)
+                .map(str::trim)
+                .filter(|value| !value.is_empty())
+                .map(str::to_string)
+        };
+        let handoff_target = text("targetProvider").map(|family| ExportTranscriptHandoffTarget {
+            family,
+            model: text("targetModel").unwrap_or_default(),
+        });
         let config = ExportTranscriptModalConfig {
             agents: self.gpui_export_transcript_prompt_agents(),
             default_agent_id,
             palette: self.gpui_native_modal_palette(),
             prefs_path: Some(gpui_export_transcript_modal_prefs_path()),
             // A handover from the chat model picker opens on Handoff without rewriting the remembered mode.
-            initial_mode: target_agent_id
+            initial_mode: handoff_target
                 .is_some()
                 .then_some(ExportTranscriptMode::Handoff),
-            target_agent_id,
+            handoff_target,
         };
         let host = self.native_app_modal_host(cx, move |app, command, cx| {
             app.handle_gpui_export_transcript_modal_command(&request_id, command, cx);
@@ -184,6 +190,12 @@ impl GhostexGpuiApp {
                 Some(ExportTranscriptAgent {
                     agent_id: field("agentId")?,
                     name: field("name")?,
+                    // The chat core's own mapping, so the dialog and the model picker agree on
+                    // which agent a picked model belongs to.
+                    family: ghostex_gx_chat_core::menus::picker::model_picker::model_picker_provider(
+                        field("icon").as_deref(),
+                    )
+                    .map(|family| family.as_str().to_string()),
                 })
             })
             .collect()

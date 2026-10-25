@@ -132,6 +132,38 @@ pub(crate) fn persist_export_transcript_modal_prefs(
 pub(crate) struct ExportTranscriptAgent {
     pub(crate) agent_id: String,
     pub(crate) name: String,
+    /// The chat model picker's family for this agent's logo (`claude`, `codex`, …), when it has one.
+    pub(crate) family: Option<String>,
+}
+
+/// The chat model picker's pick of another agent's model, which the dialog hands over to.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub(crate) struct ExportTranscriptHandoffTarget {
+    pub(crate) family: String,
+    pub(crate) model: String,
+}
+
+/// The agent a model picker handoff goes to: the first agent of the picked family in the list the
+/// dialog shows, or none. Never the session's own agent standing in for a family that is missing.
+pub(crate) fn handoff_target_agent<'a>(
+    agents: &'a [ExportTranscriptAgent],
+    family: &str,
+) -> Option<&'a ExportTranscriptAgent> {
+    agents
+        .iter()
+        .find(|agent| agent.family.as_deref() == Some(family))
+}
+
+/// The family's name as the dialog says it.
+fn family_display_name(family: &str) -> &str {
+    match family {
+        "claude" => "Claude",
+        "codex" => "Codex",
+        "cursor" => "Cursor",
+        "grok" => "Grok",
+        "antigravity" => "Antigravity CLI",
+        other => other,
+    }
 }
 
 /// The dialog's lifecycle, owned by the host: choose what to include, watch
@@ -170,8 +202,8 @@ pub(crate) struct ExportTranscriptModalConfig {
     pub(crate) agents: Vec<ExportTranscriptAgent>,
     /// The exported session's own agent, preselected so "handoff to the same agent" is one click away.
     pub(crate) default_agent_id: Option<String>,
-    /// The agent the chat model picker is handing over to. It fills the user's own selection, which the finished export's agent cannot outrank the way it outranks `default_agent_id`.
-    pub(crate) target_agent_id: Option<String>,
+    /// The chat model picker's pick. Its agent is resolved from `agents` (and again whenever they refresh), and it outranks `default_agent_id` and the finished export's agent.
+    pub(crate) handoff_target: Option<ExportTranscriptHandoffTarget>,
     pub(crate) palette: ModalPalette,
     pub(crate) prefs_path: Option<PathBuf>,
     /// Overrides the remembered mode on open; the demo uses it to show one branch.
@@ -184,6 +216,7 @@ pub(crate) struct GpuiExportTranscriptModalWindow {
     prefs_path: Option<PathBuf>,
     agents: Vec<ExportTranscriptAgent>,
     default_agent_id: Option<String>,
+    handoff_target: Option<ExportTranscriptHandoffTarget>,
     mode: ExportTranscriptMode,
     include: ExportTranscriptIncludeOptions,
     selected_agent_id: Option<String>,
@@ -218,12 +251,13 @@ impl GpuiExportTranscriptModalWindow {
             prefs_path: config.prefs_path,
             agents: config.agents,
             default_agent_id: config.default_agent_id,
+            handoff_target: config.handoff_target,
             mode: config
                 .initial_mode
                 .or(prefs.mode)
                 .unwrap_or(ExportTranscriptMode::Handoff),
             include: prefs.include,
-            selected_agent_id: config.target_agent_id,
+            selected_agent_id: None,
             stage: ExportTranscriptStage::Options,
             handoff_requested: false,
             copied: false,
@@ -308,15 +342,38 @@ impl GpuiExportTranscriptModalWindow {
             ExportTranscriptStage::Done { agent_id, .. } => agent_id.as_deref(),
             _ => None,
         };
-        self.selected_agent_id
+        let selected = self
+            .selected_agent_id
             .as_deref()
-            .and_then(|id| self.agents.iter().find(|agent| agent.agent_id == id))
+            .and_then(|id| self.agents.iter().find(|agent| agent.agent_id == id));
+        // CDXC:TranscriptExport 2026-10-25 WHY:
+        // A model picker handoff resolves its agent from the list this dialog shows. Until 2026-10-25 the host matched it against a second agent list and the dialog fell back to the session's own agent when that id was not in its list, so picking GPT 6 Astra in a Claude session said "Handoff to Claude" and started Claude. A family with no agent here leaves the choice empty and says so (`target_unavailable_hint`).
+        if let Some(target) = &self.handoff_target {
+            return selected.or_else(|| handoff_target_agent(&self.agents, &target.family));
+        }
+        selected
             .or_else(|| {
                 done_agent_id
                     .or(self.default_agent_id.as_deref())
                     .and_then(|id| self.agents.iter().find(|agent| agent.agent_id == id))
             })
             .or_else(|| self.agents.first())
+    }
+
+    /// What the dialog says when the picked model's agent is not one it can start.
+    fn target_unavailable_hint(&self) -> Option<String> {
+        let target = self.handoff_target.as_ref()?;
+        if self.agents.is_empty()
+            || self.effective_mode() != ExportTranscriptMode::Handoff
+            || self.effective_agent().is_some()
+        {
+            return None;
+        }
+        let family = family_display_name(&target.family);
+        Some(format!(
+            "No {family} agent is set up here, so this can't hand off to {}. Pick another agent, or add {family} in Settings > Agents.",
+            target.model
+        ))
     }
 
     fn effective_agent_index(&self) -> Option<usize> {
@@ -784,6 +841,9 @@ impl GpuiExportTranscriptModalWindow {
             .gap(px(10.0))
             .child(self.render_mode_grid(cx))
             .child(self.render_agent_row(cx));
+        if let Some(hint) = self.target_unavailable_hint() {
+            body = body.child(modal_hint(&self.palette, hint));
+        }
         if self.show_result() {
             body = body.child(self.render_result(cx));
         } else {
@@ -888,5 +948,37 @@ impl ModalCornerClose for GpuiExportTranscriptModalWindow {
             self.stage,
             ExportTranscriptStage::Options | ExportTranscriptStage::Exporting
         )
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn agent(agent_id: &str, family: Option<&str>) -> ExportTranscriptAgent {
+        ExportTranscriptAgent {
+            agent_id: agent_id.to_string(),
+            name: agent_id.to_string(),
+            family: family.map(str::to_string),
+        }
+    }
+
+    #[test]
+    fn handoff_target_is_the_picked_family_not_the_sessions_agent() {
+        let agents = [
+            agent("claude", Some("claude")),
+            agent("opencode", None),
+            agent("codex", Some("codex")),
+        ];
+        assert_eq!(
+            handoff_target_agent(&agents, "codex").map(|agent| agent.agent_id.as_str()),
+            Some("codex")
+        );
+    }
+
+    #[test]
+    fn handoff_target_of_a_missing_family_is_none() {
+        let agents = [agent("claude", Some("claude")), agent("pi", None)];
+        assert_eq!(handoff_target_agent(&agents, "codex"), None);
     }
 }
