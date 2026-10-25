@@ -8,6 +8,70 @@ IMPORTANT: This file was signed by Sparkle. Any modifications to this file requi
         <link>https://github.com/maddada/Ghostex/releases</link>
         <description>Sparkle appcast for Ghostex macOS releases.</description>
         <item>
+            <title>10.35.0</title>
+            <pubDate>Sun, 25 Oct 2026 13:07:57 +0000</pubDate>
+            <sparkle:fullReleaseNotesLink>https://github.com/maddada/Ghostex/releases/tag/v10.35.0</sparkle:fullReleaseNotesLink>
+            <sparkle:version>103500</sparkle:version>
+            <sparkle:shortVersionString>10.35.0</sparkle:shortVersionString>
+            <sparkle:minimumSystemVersion>13.0</sparkle:minimumSystemVersion>
+            <sparkle:hardwareRequirements>arm64</sparkle:hardwareRequirements>
+            <description sparkle:format="markdown"><![CDATA[# Ghostex 10.35.0
+
+## 10.35.0 - 2026-10-25
+
+**Ghostex 10.35.0 is out.** A new Changes view reviews a project's diff with line comments for the agent, revert and a commit bar, the Code Editor view is now called VS Code, Handoff to Remote moves a session to another computer's project, and the Session details panel, Files compare and remote starts get a round of fixes.
+
+### 🔍 Changes view
+
+- **A Changes view shows a project's diff against main or its uncommitted changes,** in Unified or Split, with word-level highlights and Files-sized text, and it works for projects on remote computers too.
+- **Comment on any line and the comment joins the chat box as a pill,** one pill per comment, and the agent gets the file, the lines and your comment when you send. The chat shows the same pills, and the lines stay marked Sent until they change.
+- **Revert a whole file or a single hunk, and mark files viewed** as you go; a file's buttons show on hover and the file count opens a jump-to-file menu.
+- **A commit bar with an agent picker commits what you picked:** Commit, Commit & Push, Commit, Push & Create PR, Multiple Commits or Merge into main, and leaving the message empty lets the agent write it. Only agents that run on your computer are offered.
+- **It replaces the old commit review window,** so every place that opened that window now opens Changes on the matching scope.
+- **It is on by default, right after Files** in the view picker, the + menu and the Store.
+- **Settings > General > File opening > Open file changes in picks Changes view or VS Code** for Review all and the Session details Changes card.
+- **The phone gets a read-only Changes screen** with the same diff, from a session's ⋯ menu or a long-press on its row.
+
+### 💻 VS Code view
+
+- **The Code Editor view is now called VS Code** everywhere, with the VS Code icon, and the outside editor in File opening menus is called VS Code app.
+
+### 🤝 Handoff
+
+- **Handoff to Remote hands a session to another computer's project:** pick the computer and project (the one with the same repository is preselected), clone the repository there if it is missing, and see a note when the branches differ. The original session keeps running.
+- **Picking another agent's model hands off to exactly that agent and model,** and Handoff says why when no agent of that kind is set up.
+- **The chat's … menu works on remote sessions:** Handoff/Export, Fork, Full Reload, Rename, Close After Done and Note.
+
+### 🧩 Session details panel
+
+- **Clicking a skill opens that skill,** in Agents Hub for your own skills and as its SKILL.md for a project or plugin skill.
+- **The details button stays on the last chat you focused,** even while you work in the sidebar, Files, the Commands panel or another view.
+- **The docked panel slides in and out** like the side panel, without the chat re-wrapping mid-slide.
+
+### 📂 Files
+
+- **When a file changes on disk while you edit it, Compare shows the difference right inside Files,** with Back to editing, Keep mine and Take theirs.
+
+### 🤖 Agents
+
+- **A custom agent whose command is a built-in agent, such as omp, starts on a remote computer as that agent,** and one that matches no built-in agent says how to fix it.
+- **Antigravity chats no longer show agy's system messages,** each turn closes after agy's last reply, and agy 1.4.7's file edits, timers and task checks show as proper tool rows.
+- **A finished background command shows as a tool call inside its turn** for every agent, instead of a separate card.
+
+### 🌐 Startup and remote computers
+
+- **Ghostex no longer shows a false startup report** when another start of gxserver got there first.
+- **macOS: when a remote computer starts gxserver over SSH, it keeps Keychain access,** so connectors stay signed in.
+
+### 🩹 Fixes and polish
+
+- **Floating controls are solid, so text behind them no longer shows through:** the chat's command bar, the picture viewer's buttons in the chat and Files, and the composer's thumbnail remove button.
+- **Tooltips across the app go away when their click opens a window** instead of staying up over it.
+- **Windows: clicking a file link in a WSL session's chat opens the file** instead of saying the project folder is unavailable, thanks to @omegafrog.
+]]></description>
+            <enclosure url="https://github.com/maddada/Ghostex/releases/download/v10.35.0/ghostex-10.35.0-arm64.dmg" length="48183505" type="application/octet-stream" sparkle:edSignature="9Iuubq1JjzDH6c8VgkxwLNOK8rxGle0YmWkNEsQ95zjknkdj5p36YZRoohDwxuEVdnY9kJNIhDpeXxi0WX1jAQ=="/>
+        </item>
+        <item>
             <title>10.34.0</title>
             <pubDate>Sun, 25 Oct 2026 01:06:54 +0000</pubDate>
             <sparkle:fullReleaseNotesLink>https://github.com/maddada/Ghostex/releases/tag/v10.34.0</sparkle:fullReleaseNotesLink>
@@ -417,77 +481,6 @@ IMPORTANT: This file was signed by Sparkle. Any modifications to this file requi
             <enclosure url="https://github.com/maddada/Ghostex/releases/download/v10.30.0/ghostex-10.30.0-arm64.dmg" length="60054838" type="application/octet-stream" sparkle:edSignature="T6IQHmtjfWj5NTgkIv4m9r9JyB6n5ClA+ZctnvG6ERbJy/BDYcW2RcubzM85NgTt4XmOQsSfXODa20Ueq4f/AQ=="/>
         </item>
         <item>
-            <title>10.29.0</title>
-            <pubDate>Tue, 20 Oct 2026 18:18:53 +0000</pubDate>
-            <sparkle:fullReleaseNotesLink>https://github.com/maddada/Ghostex/releases/tag/v10.29.0</sparkle:fullReleaseNotesLink>
-            <sparkle:version>102900</sparkle:version>
-            <sparkle:shortVersionString>10.29.0</sparkle:shortVersionString>
-            <sparkle:minimumSystemVersion>13.0</sparkle:minimumSystemVersion>
-            <sparkle:hardwareRequirements>arm64</sparkle:hardwareRequirements>
-            <description sparkle:format="markdown"><![CDATA[# Ghostex 10.29.0
-
-## 10.29.0 - 2026-10-20
-
-**Ghostex 10.29.0 is out.** The voice agent comes to Windows and Linux and learns to draft, remember your last talk and show you the session it is talking about, Dictate never loses a recording, Cmd-clicked file links open at their line, and the downloads get smaller.
-
-### 🎧 Voice agent
-
-- **The voice agent, its panel and Dictate now work on Windows and Linux,** with the same keys and settings as on the Mac.
-- **It shows you the session it is talking about:** when it reads, answers or drafts in a session, Ghostex switches to it, in any project, unless you are typing; on the phone it shows an "Open <session>" chip instead.
-- **It can draft a message into a session's chat without sending it,** for you to read and send, and it asks out loud before sending anything risky or destructive.
-- **It remembers your last conversation:** a Continue / Start fresh card in the call picks up where you left off with a one-sentence recap; forget it from the panel or Settings > Voice agent.
-- **It answers the chat's questions for you,** by option name, number or "the recommended one", and tells you what it recorded.
-- **It sees an orchestrator's threads as sub-threads** and reads one when you ask for it by name.
-- **The voice panel can be moved,** and clicking the voice's name picks another voice; a small speed button next to it sets how fast it talks, from 1× to 2×, on the computer and the phone.
-- **New hotkeys:** ⌃⌥V starts or ends a voice call and ⌃⌥D dictates into the chat box (Ctrl+Alt+Shift+V and Ctrl+Alt+Shift+D on Windows and Linux).
-- **The headset button now sits left of Start** in the work area header.
-
-### 🎙️ Dictate
-
-- **Dictate never loses a recording:** it records first and transcribes after, keeps every recording, and lists them at the bottom of Settings > Voice agent to play, download, recover or transcribe to the clipboard.
-- **Dictating shows as a small pill right above the microphone** with the timer, Transcribing and a ✕ to cancel (Escape cancels too), and the chat box keeps its cursor so you see where the text will land.
-
-### 💬 Chat
-
-- **Find (Cmd+F) searches only what you can see** and highlights the matched words instead of whole blocks.
-- **A reply stays in view when a watcher, a background task or a timer wakes the agent again,** instead of folding into the next turn.
-- **Clicking anywhere on the working bar above the chat box scrolls to the bottom** while the ↓ button shows; on the phone, tap it.
-- **Summary mode and Stash prompt leave the chat box toolbar:** Summary mode is under More actions > View and Stash prompt is a More actions row, with the same shortcuts.
-- **Skip all on a question form or page now skips every question,** even ones you had already picked.
-- **Handover heading color strength** is a new advanced Settings > Chat slider that fades the colored Done, Needs you and Untested headings toward plain text.
-- **A question page shows when its questions were withdrawn,** like the chat's own forms.
-
-### 🗂️ Sidebar and notifications
-
-- **The New terminal button is back on every project header,** next to the agent button, on the computer and the phone.
-- **Every status dot is the same size,** overlapping dots get a thin ring, and Spaces and computer tabs show a dot when a session in them is waiting on your answers.
-- **In-progress notices pulse their dot and end with "…"** ("Committing…", "Pushing…", "Creating worktree…") until the result arrives.
-
-### 🧭 Orchestrators
-
-- **Show all effort levels** is a new advanced setting: the orchestrator effort pickers offer only High and XHigh unless you turn it on, since lower levels aren't recommended for orchestrators.
-
-### 🛠 Code view
-
-- **Cmd-clicking a `file:line` or `file:line:column` link in the terminal opens the Code view at that line,** and `ghostex edit --goto` no longer gets lost after the Code view was closed or reloaded; if no Code view takes an open within a minute, Ghostex says so instead of doing nothing (#266).
-
-### 📦 Smaller downloads
-
-- **The Mac download is about a third smaller** (about 76 MB instead of 110 MB).
-- **Windows: the installer no longer carries the Code editor and the WSL terminal engine;** Ghostex downloads them the first time you need them, so the first Code view or WSL setup needs internet.
-
-### 📱 On the phone
-
-- **Easy Connect reconnects after the app sat in the background,** thanks to @banozz0 (#265).
-
-### 🩹 Fixes and polish
-
-- **Windows: chat menus and pickers have one clean corner,** with and without window transparency.
-- **The Settings > Appearance theme previews are rounded on all four corners.**
-]]></description>
-            <enclosure url="https://github.com/maddada/Ghostex/releases/download/v10.29.0/ghostex-10.29.0-arm64.dmg" length="76219508" type="application/octet-stream" sparkle:edSignature="j3Dt19aVCiBcVkeGhSLXcEwqR1A/uLhHY621DuSUWwWx4WAosrkzQs1ForctHTV5J504SbtetSaMAYySLFjTAg=="/>
-        </item>
-        <item>
             <title>3.26.1</title>
             <pubDate>Mon, 01 Jun 2026 18:43:20 +0400</pubDate>
             <sparkle:fullReleaseNotesLink>https://github.com/maddada/Ghostex/releases/tag/v3.26.1</sparkle:fullReleaseNotesLink>
@@ -499,6 +492,6 @@ IMPORTANT: This file was signed by Sparkle. Any modifications to this file requi
     </channel>
 </rss>
 <!-- sparkle-signatures:
-edSignature: ltsOEwCp9f8xtG2bZe4m7mUYXt34FGN90LZry1KZ/Nm/U/3siCVZ4MRdxc+9l3ocU9F9Na6s2B9+ZDFX41gLAg==
-length: 39179
+edSignature: hxiql2JVlfhjGdlOhDTCIsUWxlvg9Aeb3JppSbdEvPtsVJCL4ahDS1tC3A/+eMGY/iqrbt8ELWVzyp/Ac2VgAA==
+length: 38769
 -->
