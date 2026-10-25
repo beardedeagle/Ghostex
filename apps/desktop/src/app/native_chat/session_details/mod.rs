@@ -49,6 +49,10 @@ pub(crate) struct SessionDetailsView {
     pane_bounds: Rc<Cell<Bounds<Pixels>>>,
     /// The panel is docked this frame.
     pub(super) docked: bool,
+    /// The docked column's slide in and out, on the window panels' own tween.
+    pub(super) motion: crate::app::panel_motion::PanelMotion,
+    /// The pane was wide enough to dock last frame; a change of it snaps instead of sliding.
+    fits: bool,
     /// The floating card is about to open; nothing opens it again until it has.
     opening: bool,
     /// The card is being closed by this view (it docked, or the button turned it off), not by a
@@ -111,11 +115,28 @@ impl NativeChatView {
             && self.maximized_window.is_none()
             && !self.pane_hidden;
         let pane = self.session_details.pane_bounds.get().size.width.as_f32();
-        let docked = wanted && pane >= DOCK_MIN_WIDTH * p.scale;
+        let fits = pane >= DOCK_MIN_WIDTH * p.scale;
+        let docked = wanted && fits;
         if self.session_details.docked != docked {
             self.session_details.docked = docked;
             // The transcript re-wraps at its new width.
             self.list.remeasure();
+        }
+        // CDXC:SessionDetails 2026-10-25 DECISION:
+        // User: "please when showing the session details and hiding them let them slide in and out like we do for the sidepanel itself (this is only when the session details panel isn't floating)", and of the side panel: "doesn't resize chat until it settles". The docked column slides on the window panels' tween (panel_motion/tween.rs): its cards keep their width inside a clipping frame, fade in over the end of an opening and out over the start of a closing, and the transcript holds its text width until the slide settles (`hold_text_width_while_sliding`). A dock that comes or goes because the pane got wider or narrower, or a chat coming on screen, snaps; the floating card is unchanged.
+        if self.pane_hidden || fits != self.session_details.fits {
+            self.session_details.fits = fits;
+            self.session_details.motion.reset();
+        }
+        let frame = self.session_details.motion.sample(
+            docked,
+            PANEL_WIDTH * p.scale,
+            0.0,
+            cx.reduce_motion(),
+            web_time::Instant::now(),
+        );
+        if frame.animating {
+            window.request_animation_frame();
         }
         let floating = wanted && !docked && pane > 0.0;
         let menu_open = self.session_details_menu_open(cx);
@@ -230,31 +251,42 @@ impl NativeChatView {
         p: &ChatAppearance,
         cx: &mut Context<Self>,
     ) -> Option<AnyElement> {
-        if !self.session_details.docked {
+        // A closing slide keeps drawing the column until its frame has shut.
+        let frame = self.session_details.motion.frame();
+        if !self.session_details.docked && frame.extent <= 0.0 {
             return None;
         }
         let s = p.scale;
         let body = self.session_details_cards(p, cx);
-        Some(
-            div()
-                .id("chat-session-details-dock")
-                .role(gpui::Role::Group)
-                .aria_label("Session details")
-                .flex_shrink_0()
-                .w(px(PANEL_WIDTH * s))
-                .h_full()
-                .min_h_0()
-                .border_l_1()
-                .border_color(p.border)
-                .overflow_y_scroll()
-                .track_scroll(&self.session_details.scroll)
-                .when(self.under_workarea_header, |column| {
-                    // The header floats over the pane's top: the column starts below it.
-                    column.pt(px(crate::app::consts::WORKAREA_HEADER_HEIGHT))
-                })
-                .child(div().p(px(10.0 * s)).child(body))
-                .into_any_element(),
-        )
+        let column = div()
+            .id("chat-session-details-dock")
+            .role(gpui::Role::Group)
+            .aria_label("Session details")
+            .flex_shrink_0()
+            .w(px(PANEL_WIDTH * s))
+            .h_full()
+            .min_h_0()
+            .border_l_1()
+            .border_color(p.border)
+            .overflow_y_scroll()
+            .track_scroll(&self.session_details.scroll)
+            .when(self.under_workarea_header, |column| {
+                // The header floats over the pane's top: the column starts below it.
+                column.pt(px(crate::app::consts::WORKAREA_HEADER_HEIGHT))
+            })
+            .child(
+                div()
+                    .p(px(10.0 * s))
+                    .opacity(frame.opening_content_opacity() * frame.closing_content_opacity())
+                    .child(body),
+            )
+            .into_any_element();
+        Some(if frame.animating {
+            crate::app::panel_motion::clip_panel_horizontally(frame, true, column)
+                .into_any_element()
+        } else {
+            column
+        })
     }
 
     /// The pane measure the dock decision reads: the chat and the panel together.

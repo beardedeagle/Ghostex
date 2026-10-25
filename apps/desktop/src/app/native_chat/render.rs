@@ -10,8 +10,8 @@ use gpui::{
 use serde_json::json;
 
 impl NativeChatView {
-    /// Decides this frame's `held_text_width`: while a window panel slides
-    /// (`terminal_element::grid_resize_held`) and the pane's width would change the transcript's
+    /// Decides this frame's `held_text_width`: while a window panel or the docked Session details
+    /// column slides (`terminal_element::grid_resize_held`, `session_details.motion`) and the pane's width would change the transcript's
     /// text width, the rows keep the width they had before the slide, centred; the settling frame
     /// gives them the new one.
     ///
@@ -26,7 +26,9 @@ impl NativeChatView {
             Some(ratio) => pane * ratio,
             None => pane.min(768.0 * p.scale),
         };
-        if crate::terminal_element::grid_resize_held() {
+        if crate::terminal_element::grid_resize_held()
+            || self.session_details.motion.frame().animating
+        {
             self.held_text_width = self
                 .settled_text_width
                 .filter(|settled| (settled - natural).abs() > 0.5);
@@ -112,9 +114,10 @@ impl Render for NativeChatView {
             crate::app::helpers::window_glass_active_for(self.main_window),
         );
         let s = p.scale;
-        self.hold_text_width_while_sliding(&p);
-        // Docked, floating or none: decided before anything measures the transcript's width.
+        // Docked, floating or none: decided before anything measures the transcript's width, and
+        // before the hold below reads whether the docked column is sliding.
         self.sync_session_details(&p, window, cx);
+        self.hold_text_width_while_sliding(&p);
         self.sync_search_scroll();
         self.sync_files_links_jump();
         self.sync_open_question_jump(window);

@@ -18,6 +18,11 @@ pub(crate) mod model;
 pub(crate) mod native_changes;
 pub(crate) mod native_chat;
 pub(crate) mod native_sidebar;
+/// The window panels' tween alone (the page has none of the desktop's panels), which the chat's
+/// docked Session details column slides on.
+#[allow(dead_code)]
+#[path = "../../../desktop/src/app/panel_motion/tween.rs"]
+pub(crate) mod panel_motion;
 #[allow(dead_code, unused_imports)]
 pub(crate) mod native_app_modal_lifecycle {
     use crate::app::helpers::*;
