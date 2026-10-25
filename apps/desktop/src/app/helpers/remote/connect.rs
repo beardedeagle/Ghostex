@@ -115,6 +115,34 @@ pub(crate) fn gpui_connect_remote_gxserver_platform_inner(
             "The saved remote machine is missing required SSH settings.",
         );
     }
+    // Every command below rides this one login; it closes when the connect returns.
+    let ssh_share = match GpuiRemoteSshConnectionShare::open(&config) {
+        Ok(ssh_share) => ssh_share,
+        Err(login_result) => {
+            support_logs::append(
+                support_logs::GpuiSupportLog::RemoteGxserverInstall,
+                "gpui.remoteGxserver.sshShare",
+                serde_json::json!({
+                    "shared": false,
+                    "stderrCategory": gpui_remote_process_stderr_category(&login_result),
+                }),
+            );
+            return GpuiRemoteGxserverConnectResult::without_connection(
+                gpui_remote_ssh_failure_state(&login_result),
+                gpui_remote_sanitized_process_failure(
+                    "Remote gxserver SSH setup failed.",
+                    &login_result,
+                )
+                .as_str(),
+            );
+        }
+    };
+    support_logs::append(
+        support_logs::GpuiSupportLog::RemoteGxserverInstall,
+        "gpui.remoteGxserver.sshShare",
+        serde_json::json!({ "shared": ssh_share.is_shared() }),
+    );
+    let config = ssh_share.share_into(config);
     let mut execution_target = GpuiRemoteExecutionTarget::PosixHost;
     let mut token_result = gpui_run_remote_ssh(
         &config,
