@@ -249,7 +249,7 @@ impl GhostexGpuiApp {
                     false,
                     p,
                 )
-                .tooltip(|window, cx| titlebar_tooltip("Open in Code view", window, cx))
+                .tooltip(|window, cx| titlebar_tooltip("Open in VS Code view", window, cx))
                 .on_click(cx.listener(move |this, _, _, cx| {
                     this.native_docs_open_in_code_view(&code_path, cx);
                 }))

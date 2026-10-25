@@ -242,7 +242,7 @@ impl GhostexGpuiApp {
             if gpui_titlebar_mode_hidden_from_settings(TitlebarMode::Source)
                 || !self.titlebar_mode_available(TitlebarMode::Source)
             {
-                Some("Code view is not available for this project.")
+                Some("VS Code view is not available for this project.")
             } else {
                 self.embedded_code_editor_unavailable_reason()
             };
@@ -273,8 +273,8 @@ impl GhostexGpuiApp {
         if destination.is_none() {
             self.copy_path_for_unavailable_project_workarea(
                 &resolved_path,
-                "Files and Code",
-                "Files and Code views are not available for this project.",
+                "Files and VS Code",
+                "Files and VS Code views are not available for this project.",
                 cx,
             );
             return;
@@ -313,7 +313,7 @@ impl GhostexGpuiApp {
             }
             return;
         }
-        self.report_session_chat_file_opening("Code view", &file_path, cx);
+        self.report_session_chat_file_opening("VS Code view", &file_path, cx);
         self.pending_source_file_open = Some(PendingSourceFileOpen {
             column,
             file_path,
@@ -402,7 +402,7 @@ impl GhostexGpuiApp {
         if gpui_titlebar_mode_hidden_from_settings(TitlebarMode::Source)
             || !self.titlebar_mode_available(TitlebarMode::Source)
         {
-            self.copy_path_for_disabled_project_workarea(path, "Code", cx);
+            self.copy_path_for_disabled_project_workarea(path, "VS Code", cx);
             return;
         }
         // Naming Code view is only useful advice when Code view can actually
@@ -411,7 +411,7 @@ impl GhostexGpuiApp {
         let description = if self.embedded_code_editor_unavailable_reason().is_some() {
             "Couldn't find this file in the session's project.".to_string()
         } else {
-            "Couldn't find this file. Try searching in Code.".to_string()
+            "Couldn't find this file. Try searching in VS Code.".to_string()
         };
         gpui_copy_to_clipboard(ClipboardItem::new_string(path.to_string()), cx);
         self.upsert_gpui_app_toast(
@@ -494,15 +494,15 @@ impl GhostexGpuiApp {
             .as_ref()
             .and_then(|snapshot| self.source_code_server_runtime_target(snapshot))
         else {
-            return Some("Code view is not available for this project.");
+            return Some("VS Code view is not available for this project.");
         };
         match source_code_server_runtime_availability(&target) {
             SourceCodeServerRuntimeAvailability::Available => None,
             SourceCodeServerRuntimeAvailability::InstallRequired => {
-                Some("Code view is not installed on this machine.")
+                Some("VS Code view is not installed on this machine.")
             }
             SourceCodeServerRuntimeAvailability::Failed(_) => {
-                Some("Code view is unavailable on this machine.")
+                Some("VS Code view is unavailable on this machine.")
             }
         }
     }

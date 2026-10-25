@@ -408,7 +408,7 @@ fn document_file_open_as_before(g: &GeneralCx) -> Option<String> {
         return None;
     }
     let place = |kind| match legacy_document_file_open_target(g.values.map(), kind) {
-        "code" => "Code",
+        "code" => "VS Code",
         "system-app" => "the system app",
         _ => "Files",
     };
@@ -562,6 +562,28 @@ fn file_opening_section(
             )
         }),
     );
+    let changes_options = g.options("FILE_CHANGES_OPEN_TARGET_OPTIONS");
+    let key = "fileChangesOpenTarget";
+    if g.visible(s, key) {
+        let allowed: Vec<String> = changes_options
+            .iter()
+            .map(|option| option.value.clone())
+            .collect();
+        let value = g.values.choice(key, &allowed);
+        rows.push(segmented_field(
+            &g.p,
+            key,
+            RowSpec::new("Open file changes in").subtitle(
+                "Review all on an agent's file changes and Session details' Changes card open here. If this view is turned off, the other one opens.",
+            ),
+            None,
+            &changes_options,
+            Some(&value),
+            None,
+            move |page: &mut GeneralTab, next, _window, cx| save(page, key, json!(next), cx),
+            cx,
+        ));
+    }
     settings_section(
         &g.p,
         "File opening",

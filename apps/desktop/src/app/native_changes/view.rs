@@ -52,10 +52,13 @@ pub(crate) struct ChangesHostInfo {
 }
 
 /// What an entry point asks the view to show when it opens it.
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[derive(Clone, Debug, PartialEq, Eq)]
 pub(crate) struct ChangesPreset {
     pub(crate) scope: ChangesScope,
     pub(crate) action: Option<CommitAction>,
+    /// A file to show (absolute, or relative to the project): the view picks Uncommitted when
+    /// the file has uncommitted work and Against main otherwise, and scrolls to it.
+    pub(crate) reveal: Option<String>,
 }
 
 /// The commit bar's main button.
@@ -205,6 +208,8 @@ pub(crate) struct ChangesView {
     pub(crate) cursor: Option<usize>,
     pub(crate) focus: FocusHandle,
     pub(crate) view_origin: gpui::Point<gpui::Pixels>,
+    /// The file an entry point asked to show, until the diff that has it arrives.
+    pending_reveal: Option<String>,
     memory: HashMap<String, ProjectMemory>,
     last_render_ms: u64,
     _poll: Task<()>,
@@ -264,6 +269,7 @@ impl ChangesView {
             cursor: None,
             focus: cx.focus_handle(),
             view_origin: gpui::Point::default(),
+            pending_reveal: None,
             memory: HashMap::new(),
             last_render_ms: 0,
             _poll: poll,
@@ -305,7 +311,11 @@ impl ChangesView {
             changed = true;
         }
         if let Some(preset) = preset {
-            if self.scope != preset.scope {
+            if let Some(path) = preset.reveal.clone() {
+                self.pending_reveal = Some(path);
+                self.try_reveal(cx);
+            }
+            if preset.reveal.is_none() && self.scope != preset.scope {
                 self.scope = preset.scope;
                 self.data = None;
                 self.load(true, cx);
@@ -433,6 +443,7 @@ impl ChangesView {
                             this.forget_stale_viewed();
                             this.rebuild_rows();
                         }
+                        this.try_reveal(cx);
                     }
                     Err(error) => {
                         this.error = Some(error.message.clone());
@@ -494,6 +505,45 @@ impl ChangesView {
             .is_some_and(|(a, b)| a.max(b) >= self.rows.len())
         {
             self.selection = None;
+        }
+    }
+
+    /// Shows the file an entry point asked for once a diff is loaded: on Uncommitted when the file
+    /// has uncommitted work, otherwise on Against main, scrolled to its header.
+    fn try_reveal(&mut self, cx: &mut Context<Self>) {
+        let Some(wanted) = self.pending_reveal.clone() else {
+            return;
+        };
+        let Some(data) = &self.data else {
+            return;
+        };
+        let matches = |path: &str| {
+            wanted == path
+                || wanted
+                    .strip_suffix(path)
+                    .is_some_and(|rest| rest.ends_with('/') || rest.ends_with('\\'))
+        };
+        let uncommitted = data.uncommitted_paths.iter().any(|path| matches(path));
+        let want_scope = if uncommitted {
+            ChangesScope::Uncommitted
+        } else {
+            ChangesScope::AgainstMain
+        };
+        if self.scope != want_scope {
+            self.set_scope(want_scope, cx);
+            return;
+        }
+        self.pending_reveal = None;
+        if let Some(path) = data
+            .files
+            .iter()
+            .find(|file| matches(&file.path))
+            .map(|file| file.path.clone())
+        {
+            self.collapsed.remove(&path);
+            self.viewed.remove(&path);
+            self.rebuild_rows();
+            self.scroll_to_file(&path, cx);
         }
     }
 

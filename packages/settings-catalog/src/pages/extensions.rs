@@ -41,7 +41,7 @@ pub(crate) fn official(platform: Platform) -> Section {
         row("posthog", "PostHog", "Explore product analytics and session replays. Choose a home URL for each project or worktree."),
         row("custom-website", "Custom Website", "Keep any website beside your work. Choose a home URL for each project or worktree."),
         row("storybook", "Storybook", "Build, browse, and annotate your project’s components without a persistent development server. Appears only in projects with Storybook."),
-        row("code", "Code editor", "Explore, edit, and search your project in a familiar, full-featured workspace without ever leaving Ghostex."),
+        row("code", "VS Code", "Explore, edit, and search your project in a familiar, full-featured workspace without ever leaving Ghostex."),
         row("browser", "Browser", "Open websites alongside your project and keep useful pages organized without leaving Ghostex."),
         row("kanban", "Kanban", "Plan upcoming work and track task progress at a glance."),
         row("automate", "Automate", "Turn repeatable project routines into simple workflows you can run whenever you need them."),
@@ -65,7 +65,7 @@ pub(crate) fn official(platform: Platform) -> Section {
         row("osIntegration", "OS Integration", "Make Ghostex your default editor, terminal-link handler and script runner, and check how this computer opens its files and links."),
         row("debugging", "Debugging", "The Debugging page in Settings: debug UI controls and the diagnostic logs you turn on while reproducing an issue."),
         row("extensionsButton", "Extensions", "An entry in the work area header’s ⋯ menu that lists your installed extensions."),
-        row("cef", "Chromium runtime (CEF)", "Install, reinstall or uninstall the optional web runtime used by the Browser, the Code view, website and extension views, and HTML files in Files."),
+        row("cef", "Chromium runtime (CEF)", "Install, reinstall or uninstall the optional web runtime used by the Browser, the VS Code view, website and extension views, and HTML files in Files."),
     ];
     rows.retain(|row| crate::built_in_extensions::available_on(row.key, platform));
     section("official", "Built-in", rows)

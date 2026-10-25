@@ -103,10 +103,12 @@ impl TitlebarMode {
 
     /// CDXC:Docs 2026-09-27 DECISION:
     /// User: "change Docs from Docs to Files instead so it covers more". The view is called Files everywhere a user reads it; internal ids (`Manage`, the `docs` setting values, `docsViewTabHidden`) keep their names so saved settings still work.
+    /// CDXC:CodeEditor 2026-10-25 DECISION:
+    /// User: "please rename Code Editor to "VS Code" instead and give it the vscode svg icon". The view is called VS Code everywhere a user reads it, with the VS Code brand icon; internal ids (`Source`, the `code` setting values, `codeViewTabHidden`) keep their names so saved settings still work.
     pub(crate) fn display_label(self) -> &'static str {
         match self {
             Self::Agents => "Agents",
-            Self::Source => "Code",
+            Self::Source => "VS Code",
             Self::Browser => "Browser",
             Self::Kanban => "Kanban",
             Self::Automate => "Automate",
@@ -145,7 +147,7 @@ impl TitlebarMode {
             }
             mode if mode.is_storybook() => TITLEBAR_ICON_LAYOUT_BOARD_SPLIT,
             Self::Agents => TITLEBAR_ICON_LAYOUT_COLUMNS,
-            Self::Source => TITLEBAR_ICON_CODE,
+            Self::Source => "titlebar/brand-vscode.svg",
             Self::Browser => TITLEBAR_ICON_WORLD,
             Self::Kanban => TITLEBAR_ICON_LAYOUT_BOARD_SPLIT,
             Self::Automate => TITLEBAR_ICON_BOLT,

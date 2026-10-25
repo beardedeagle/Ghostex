@@ -95,7 +95,7 @@ pub const GHOSTEX_OFFICIAL_EXTENSIONS: J = J::Arr(&[
         ("id", J::Str("code")),
         ("placement", J::Str("view")),
         ("settingsKey", J::Str("codeViewTabHidden")),
-        ("title", J::Str("Code editor")),
+        ("title", J::Str("VS Code")),
     ]),
     J::Obj(&[
         ("description", J::Str("Open websites alongside your project and keep useful pages organized without leaving Ghostex.")),

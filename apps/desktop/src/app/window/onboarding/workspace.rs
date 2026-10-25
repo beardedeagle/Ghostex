@@ -63,7 +63,7 @@ const VIEW_ROWS: [(ViewKey, &str, &str, &str, f32); 4] = [
     (
         ViewKey::Code,
         "code",
-        "Code",
+        "VS Code",
         "VS Code, built in: source, diffs and review.",
         532.0,
     ),
@@ -99,7 +99,7 @@ pub(super) const DEMO_AGENTS: [(&str, &str, &str); 4] = [
 fn tab_meta(tab: WsTab) -> (&'static str, &'static str) {
     match tab {
         WsTab::Agents => ("users", "Agents"),
-        WsTab::View(ViewKey::Code) => ("code", "Code"),
+        WsTab::View(ViewKey::Code) => ("code", "VS Code"),
         WsTab::View(ViewKey::Browser) => ("target", "Browser"),
         WsTab::View(ViewKey::Kanban) => ("kanban", "Kanban"),
         WsTab::View(ViewKey::Automate) => ("bolt", "Automate"),

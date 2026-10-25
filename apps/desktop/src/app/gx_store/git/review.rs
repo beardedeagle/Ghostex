@@ -51,6 +51,7 @@ impl GhostexGpuiApp {
             Some(crate::app::native_changes::ChangesPreset {
                 scope: changes_scope,
                 action: Some(commit_action),
+                reveal: None,
             }),
             cx,
         );

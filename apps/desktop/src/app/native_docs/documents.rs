@@ -97,7 +97,7 @@ impl GhostexGpuiApp {
             if let Some(error) = response["error"].as_str() {
                 this.dispatch_gpui_workspace_action_toast(
                     "error",
-                    "Couldn't open the file in Code view",
+                    "Couldn't open the file in VS Code view",
                     error,
                     cx,
                 );

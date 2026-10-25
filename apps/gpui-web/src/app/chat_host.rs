@@ -229,11 +229,17 @@ impl GhostexGpuiApp {
                 "The header's Commit menu commits and opens pull requests here.",
                 cx,
             ),
-            // Review all and Session details' Changes card open the Changes panel beside the chat.
+            // Review all and Session details' Changes card open the Changes panel beside the chat
+            // on their first file; the page has no VS Code view for `fileChangesOpenTarget`.
             Some("reviewChanges") => self.open_changes_view(
                 Some(crate::app::native_changes::ChangesPreset {
                     scope: crate::app::native_changes::ChangesScope::AgainstMain,
                     action: None,
+                    reveal: message["paths"]
+                        .as_array()
+                        .and_then(|paths| paths.first())
+                        .and_then(serde_json::Value::as_str)
+                        .map(str::to_string),
                 }),
                 cx,
             ),

@@ -316,6 +316,10 @@ pub fn exports(module: &str, platform: Platform) -> Vec<(&'static str, Json)> {
                 MAX_WINDOW_GLASS_WORK_AREA_TINT_PERCENT.to_json(),
             ),
             (
+                "FILE_CHANGES_OPEN_TARGET_OPTIONS",
+                FILE_CHANGES_OPEN_TARGET_OPTIONS.to_json(),
+            ),
+            (
                 "MEDIA_FILE_OPEN_TARGET_OPTIONS",
                 MEDIA_FILE_OPEN_TARGET_OPTIONS.to_json(),
             ),

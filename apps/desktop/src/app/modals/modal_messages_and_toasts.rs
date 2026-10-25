@@ -208,6 +208,9 @@ impl GhostexGpuiApp {
             GpuiAppToastAction::OpenAccounts { provider } => {
                 self.open_gpui_settings_accounts_page_for_provider(provider.as_deref(), None, cx);
             }
+            GpuiAppToastAction::OpenViewSettings => {
+                self.open_gpui_settings_extensions_page(None, cx);
+            }
         }
     }
 

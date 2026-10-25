@@ -137,6 +137,12 @@ impl GhostexGpuiApp {
                 "Accounts are in the Ghostex app's Settings > Accounts.",
                 cx,
             ),
+            GpuiAppToastAction::OpenViewSettings => self.dispatch_gpui_workspace_action_toast(
+                "info",
+                "Not in the browser",
+                "Views are turned on in the Ghostex app's Settings > Extensions.",
+                cx,
+            ),
         }
     }
 

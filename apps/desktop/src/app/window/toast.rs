@@ -162,12 +162,15 @@ pub(crate) struct GpuiAppToast {
 pub(crate) enum GpuiAppToastAction {
     /// Settings > Accounts, on this agent's accounts (`claude`, `codex`) when one is named.
     OpenAccounts { provider: Option<String> },
+    /// Settings > Extensions, where views are turned on.
+    OpenViewSettings,
 }
 
 impl GpuiAppToastAction {
     pub(crate) fn label(&self) -> &'static str {
         match self {
             Self::OpenAccounts { .. } => "Open Accounts",
+            Self::OpenViewSettings => "Open Settings",
         }
     }
 }

@@ -430,8 +430,8 @@ pub const HOTKEY_DEFINITIONS: &[HotkeyDefinition] = &[
     },
     HotkeyDefinition {
         id: "switchSourceView",
-        title: "Switch to Code",
-        description: "Switch to Code view.",
+        title: "Switch to VS Code",
+        description: "Switch to VS Code view.",
         default_key: "",
         windows_linux_default_key: None,
         alternate_default_keys: &[],

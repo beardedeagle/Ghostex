@@ -849,7 +849,7 @@ impl SourceCodeServerRuntimeFailure {
             }
             Self::EditorMissing => "This Ghostex build doesn’t include the VS Code IDE component.",
             Self::RemoteEditorMissing => {
-                "Ghostex on the remote computer doesn’t have the VS Code IDE yet. Open the Code view on that computer once to install it, or update Ghostex there, then try again."
+                "Ghostex on the remote computer doesn’t have the VS Code IDE yet. Open the VS Code view on that computer once to install it, or update Ghostex there, then try again."
             }
             Self::PortInUse => {
                 "Another program is using the Code editor’s port. Close it or restart, then Retry."

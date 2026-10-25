@@ -16,6 +16,9 @@ use crate::app::native_changes::{
 };
 use crate::app::session_chat_context_menu::GpuiResolvedSessionChatFile;
 use crate::shared_settings;
+use crate::{
+    GPUI_APP_TOAST_DEFAULT_DURATION_MS, GpuiAppToast, GpuiAppToastAction, GpuiAppToastLevel,
+};
 
 /// The commit agent the user last picked (client-storage store `commitAgent`, which the commit
 /// review window used before the Changes view replaced it, so the old pick carries over).
@@ -72,6 +75,64 @@ impl GhostexGpuiApp {
             )
             .child(AnyView::from(view).cached(StyleRefinement::default().size_full()))
             .into_any_element()
+    }
+
+    /// File changes (Review all, Session details' Changes card) open where Settings > General >
+    /// File opening says: the Changes view showing the first of `paths`, or the VS Code view. A
+    /// chosen view that is turned off gives way to the other; with neither, a toast says so.
+    ///
+    /// CDXC:Changes 2026-10-25 DECISION: User: make it a setting, "Open file changes in": Changes view (default) or VS Code. Diff and changed-file clicks, Review all and the Session details Changes card follow it; if the chosen view isn't turned on the other one opens, and if neither is, a toast says so with a way to turn one on.
+    pub(crate) fn open_file_changes(
+        &mut self,
+        paths: &[String],
+        window: &mut Window,
+        cx: &mut gpui::Context<Self>,
+    ) {
+        let prefer_code =
+            shared_settings::shared_sidebar_settings_snapshot().file_changes_open_in_code();
+        let changes_on = !gpui_titlebar_mode_hidden_from_settings(TitlebarMode::Changes)
+            && self.titlebar_mode_available(TitlebarMode::Changes);
+        let code_on = !gpui_titlebar_mode_hidden_from_settings(TitlebarMode::Source)
+            && self.titlebar_mode_available(TitlebarMode::Source)
+            && self.embedded_code_editor_unavailable_reason().is_none();
+        let open_code = match (prefer_code, code_on, changes_on) {
+            (true, true, _) | (false, true, false) => true,
+            (_, _, true) => false,
+            _ => {
+                return self.upsert_gpui_app_toast(
+                    GpuiAppToast {
+                        id: "gpui-file-changes-no-view".to_string(),
+                        level: GpuiAppToastLevel::Info,
+                        title: "No view to show file changes in".to_string(),
+                        description: Some(
+                            "Turn on the Changes view or VS Code in Settings > Extensions."
+                                .to_string(),
+                        ),
+                        copy_text: None,
+                        loading: false,
+                        persistent: false,
+                        duration_ms: GPUI_APP_TOAST_DEFAULT_DURATION_MS,
+                        action: Some(GpuiAppToastAction::OpenViewSettings),
+                        epoch: 0,
+                    },
+                    cx,
+                );
+            }
+        };
+        if open_code {
+            if self.set_active_mode(TitlebarMode::Source, window, cx) {
+                cx.notify();
+            }
+            return;
+        }
+        self.open_changes_view(
+            Some(ChangesPreset {
+                scope: crate::app::native_changes::ChangesScope::AgainstMain,
+                action: None,
+                reveal: paths.first().cloned(),
+            }),
+            cx,
+        );
     }
 
     /// Opens the Changes tab for the active project, on `preset`'s scope and commit action.

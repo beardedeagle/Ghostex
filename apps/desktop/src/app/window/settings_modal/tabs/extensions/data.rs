@@ -174,7 +174,8 @@ pub(crate) fn official_icon(id: &str) -> &'static str {
         "automate" => "modals/settings/bolt.svg",
         "botAutomations" => "modals/settings/rss.svg",
         "bots" => "modals/settings/robot.svg",
-        "code" | "storybook" => "modals/settings/code-dots.svg",
+        "code" => "modals/space-editor/brand-vscode.svg",
+        "storybook" => "modals/settings/code-dots.svg",
         "docs" => "modals/settings/file-text.svg",
         "changes" => "modals/settings/git-commit.svg",
         "extensionsButton" => "modals/settings/puzzle.svg",
@@ -195,7 +196,7 @@ pub(crate) const SHARED_RUNTIME_LABEL: &str = "Shared runtime";
 pub(crate) const CEF_TITLE: &str = "Chromium runtime (CEF)";
 /// CDXC:CefRuntime 2026-09-28 SEE-ALSO: the web runtime is optional (app/helpers/web_runtime.rs);
 /// plugins_modal.rs `CEF_ROW_DESCRIPTION` says the same.
-pub(crate) const CEF_DESCRIPTION: &str = "Chromium Embedded Framework is the optional web runtime for the Browser, the Code view, website and extension views, and HTML files in Files. Install it here or from the first view that needs it.";
+pub(crate) const CEF_DESCRIPTION: &str = "Chromium Embedded Framework is the optional web runtime for the Browser, the VS Code view, website and extension views, and HTML files in Files. Install it here or from the first view that needs it.";
 
 /// `BUILT_IN_CATEGORY_LABELS`.
 pub(crate) fn built_in_category_labels() -> Vec<String> {

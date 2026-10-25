@@ -485,17 +485,18 @@ impl GhostexGpuiApp {
             }
             return;
         }
-        // A file change card's Review all, and Session details' Changes card: the project's
-        // Changes tab, on everything the branch changed (CDXC:Changes 2026-10-25 in
-        // gx_store/git/changes.rs).
+        // A file change card's Review all, and Session details' Changes card: where Settings > General
+        // > File opening sends file changes (native_changes_host.rs).
         if action == "reviewChanges" {
-            self.open_changes_view(
-                Some(crate::app::native_changes::ChangesPreset {
-                    scope: crate::app::native_changes::ChangesScope::AgainstMain,
-                    action: None,
-                }),
-                cx,
-            );
+            let paths: Vec<String> = message
+                .get("paths")
+                .and_then(serde_json::Value::as_array)
+                .into_iter()
+                .flatten()
+                .filter_map(serde_json::Value::as_str)
+                .map(str::to_string)
+                .collect();
+            self.open_file_changes(&paths, window, cx);
             return;
         }
         if action == "locateFile" {

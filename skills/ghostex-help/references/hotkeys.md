@@ -40,7 +40,7 @@ Default bindings are listed for macOS (`cmd`) with the Windows/Linux default whe
 | Rename Active Session | `cmd+r` | `cmd+shift+r` | Rename the focused session. | `renameActiveSession` |
 | Open Browser Pane | `cmd+t` |  | Open a browser tab beside the focused tab. | `openBrowserPane` |
 | Switch to Agents | unassigned |  | Switch to Agents view. | `switchAgentsView` |
-| Switch to Code | unassigned |  | Switch to Code view. | `switchSourceView` |
+| Switch to VS Code | unassigned |  | Switch to VS Code view. | `switchSourceView` |
 | Switch to Browser | unassigned |  | Switch to Browser view. | `switchGitHubView` |
 | Switch to Kanban | unassigned |  | Switch to Kanban view. | `switchKanbanView` |
 | Switch to Files | unassigned |  | Switch to Files view. | `switchManageView` |

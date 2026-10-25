@@ -585,7 +585,7 @@ impl GhostexGpuiApp {
                         action_button(
                             "native-docs-open-code-view-button",
                             crate::app::consts::TITLEBAR_ICON_CODE,
-                            "Open in Code view",
+                            "Open in VS Code view",
                         )
                         .on_click(cx.listener(move |this, _, _, cx| {
                             this.native_docs_open_in_code_view(&path, cx);

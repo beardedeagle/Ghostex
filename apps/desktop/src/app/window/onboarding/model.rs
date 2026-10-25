@@ -59,7 +59,7 @@ impl ViewKey {
         match self {
             ViewKey::Browser => "Browser",
             ViewKey::Docs => "Files",
-            ViewKey::Code => "Code",
+            ViewKey::Code => "VS Code",
             ViewKey::Kanban => "Kanban",
             ViewKey::Automate => "Automate",
         }

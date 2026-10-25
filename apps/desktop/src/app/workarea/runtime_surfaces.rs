@@ -506,7 +506,7 @@ impl GhostexGpuiApp {
                         ),
                         PendingSourceFileOpenOrigin::SessionChat => (
                             GPUI_SESSION_CHAT_FILE_OPENING_TOAST_ID,
-                            "Could not open file in Code view",
+                            "Could not open file in VS Code view",
                         ),
                     };
                     this.upsert_gpui_app_toast(

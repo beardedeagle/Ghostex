@@ -1537,7 +1537,7 @@
     {
       "key": "documentFileOpenTarget",
       "title": "HTML, Markdown and images",
-      "subtitle": "Choose where HTML, Markdown and picture files open from Quick Access, agent chat and the terminal: Files, Code, or an editor app installed on this computer.",
+      "subtitle": "Choose where HTML, Markdown and picture files open from Quick Access, agent chat and the terminal: Files, VS Code, or an editor app installed on this computer.",
       "tab": "settings",
       "tabTitle": "General",
       "group": "tools",
@@ -1552,11 +1552,11 @@
           "value": "files"
         },
         {
-          "label": "Code",
+          "label": "VS Code",
           "value": "code"
         },
         {
-          "label": "VS Code",
+          "label": "VS Code app",
           "value": "vscode"
         },
         {
@@ -1641,7 +1641,7 @@
     {
       "key": "otherFileOpenTarget",
       "title": "Other files",
-      "subtitle": "Choose where every other file (code and text) opens from Quick Access, agent chat and the terminal: Files, Code, or an editor app installed on this computer.",
+      "subtitle": "Choose where every other file (code and text) opens from Quick Access, agent chat and the terminal: Files, VS Code, or an editor app installed on this computer.",
       "tab": "settings",
       "tabTitle": "General",
       "group": "tools",
@@ -1656,11 +1656,11 @@
           "value": "files"
         },
         {
-          "label": "Code",
+          "label": "VS Code",
           "value": "code"
         },
         {
-          "label": "VS Code",
+          "label": "VS Code app",
           "value": "vscode"
         },
         {
@@ -1762,6 +1762,30 @@
         {
           "label": "System App",
           "value": "system-app"
+        }
+      ],
+      "agentWritable": true
+    },
+    {
+      "key": "fileChangesOpenTarget",
+      "title": "Open file changes in",
+      "subtitle": "Choose where Review all on an agent's file changes and Session details' Changes card open: the Changes view or the VS Code view. If the chosen view is turned off, the other one opens.",
+      "tab": "settings",
+      "tabTitle": "General",
+      "group": "tools",
+      "groupTitle": "Tools",
+      "section": "fileOpening",
+      "sectionTitle": "File opening",
+      "type": "enum",
+      "default": "changes",
+      "options": [
+        {
+          "label": "Changes view",
+          "value": "changes"
+        },
+        {
+          "label": "VS Code",
+          "value": "code"
         }
       ],
       "agentWritable": true
@@ -9625,8 +9649,8 @@
     },
     {
       "key": "codeViewTabHidden",
-      "title": "Hide Code view",
-      "subtitle": "Stop offering the Code view, so it is missing from the view panel tab strip, its + menu and the view picker.",
+      "title": "Hide VS Code view",
+      "subtitle": "Stop offering the VS Code view, so it is missing from the view panel tab strip, its + menu and the view picker.",
       "tab": "extensions",
       "tabTitle": "Store",
       "section": "viewOrder",
@@ -10035,7 +10059,7 @@
     },
     {
       "key": "code",
-      "title": "Code editor",
+      "title": "VS Code",
       "subtitle": "Explore, edit, and search your project in a familiar, full-featured workspace without ever leaving Ghostex.",
       "tab": "extensions",
       "tabTitle": "Store",
@@ -10300,7 +10324,7 @@
     {
       "key": "cef",
       "title": "Chromium runtime (CEF)",
-      "subtitle": "Install, reinstall or uninstall the optional web runtime used by the Browser, the Code view, website and extension views, and HTML files in Files.",
+      "subtitle": "Install, reinstall or uninstall the optional web runtime used by the Browser, the VS Code view, website and extension views, and HTML files in Files.",
       "tab": "extensions",
       "tabTitle": "Store",
       "section": "official",
@@ -12158,8 +12182,8 @@
     },
     {
       "id": "switchSourceView",
-      "title": "Switch to Code",
-      "description": "Switch to Code view.",
+      "title": "Switch to VS Code",
+      "description": "Switch to VS Code view.",
       "defaultKey": "",
       "retiredDefaultKeys": [
         "alt+2"

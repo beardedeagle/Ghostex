@@ -351,7 +351,7 @@ pub(crate) fn view_order_items(
     };
     let mut items = vec![
         item("agents", "Agents", true),
-        item("source", "Code", !values.bool("codeViewTabHidden")),
+        item("source", "VS Code", !values.bool("codeViewTabHidden")),
         item("browser", "Browser", !values.bool("browserViewTabHidden")),
         item("kanban", "Kanban", !values.bool("kanbanViewTabHidden")),
         item(

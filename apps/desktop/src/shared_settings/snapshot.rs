@@ -469,6 +469,15 @@ impl SharedSidebarSettingsSnapshot {
         )
     }
 
+    /// `fileChangesOpenTarget`: whether file-change links prefer the VS Code (code-server) view
+    /// over the Changes view.
+    pub fn file_changes_open_in_code(&self) -> bool {
+        self.object
+            .get("fileChangesOpenTarget")
+            .and_then(Value::as_str)
+            == Some("code")
+    }
+
     pub fn video_file_open_target(&self) -> SharedMediaFileOpenTarget {
         SharedMediaFileOpenTarget::from_settings_value(
             self.object

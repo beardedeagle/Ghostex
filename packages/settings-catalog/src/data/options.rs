@@ -570,6 +570,10 @@ pub const KEEP_AWAKE_DURATION_OPTIONS: &[NumOpt] = &[
     num_opt("5 hours", 300.0),
 ];
 
+/// Where Review all and Session details' Changes card open.
+pub const FILE_CHANGES_OPEN_TARGET_OPTIONS: &[Opt] =
+    &[opt("Changes view", "changes"), opt("VS Code", "code")];
+
 pub const MEDIA_FILE_OPEN_TARGET_OPTIONS: &[Opt] =
     &[opt("Files", "files"), opt("System App", "system-app")];
 

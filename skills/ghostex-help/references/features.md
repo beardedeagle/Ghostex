@@ -77,7 +77,7 @@ them as installed by another Ghostex) instead of rewriting them.
 
 **Open a view** is the picker the panel shows when nothing is open in it. It
 lists every view you can open here: the built-in views first, then your own views
-and extensions. Press a view's letter to open it (C for Code, B for Browser, K for
+and extensions. Press a view's letter to open it (C for VS Code, B for Browser, K for
 Kanban, U for Automate, D for Files, G for Changes, T for Terminal, W for Issues) while the picker is in front. Views you hid
 for this project are not in the list; **Manage views and where they appear…** at
 the bottom opens their settings, and **Hidden here** on the `+` menu brings one
@@ -191,8 +191,15 @@ the work into commits) and **Merge into main…** on any branch other than main.
 Keys while the view has focus: J and K step through hunks, ] and [ through files,
 C comments on the current hunk, V marks the file viewed, O opens it in Files and
 Esc clears the selection. The header's Commit button, the Git menu's Commit, Push
-and Create PR, Session details' Changes card and a chat's **Review all** all open
-this view (Commit and Push on Uncommitted, a pull request on Against main). In
+and Create PR open this view (Commit and Push on Uncommitted, a pull request on
+Against main). A chat's **Review all** and Session details' Changes card follow
+**Open file changes in** (Settings > General > File opening,
+`fileChangesOpenTarget`): **Changes view** (the default) opens Changes scrolled to
+the card's first file, on Uncommitted when that file has uncommitted edits and
+Against main otherwise (Session details opens Against main); **VS Code** opens the
+VS Code view. When the chosen view is turned off the other one opens, and when both
+are off a notice says so, with a button to the views' settings. Opening a file to
+edit it keeps following the other File opening settings. In
 Ghostex Web the right-panel button in the header shows Changes beside the chat.
 Hide it with `changesViewTabHidden`; give it a key with the **Switch to Changes**
 hotkey (`switchChangesView`).
@@ -236,7 +243,7 @@ view from the strip.
   Cmd+Shift+A (or Option+Shift+S) sleeps it, and Cmd+Shift+Backspace (or Cmd+W)
   closes it. On Windows and Linux use Ctrl for Cmd, except that fork is
   Ctrl+Alt+Shift+F and rename is Ctrl+Shift+R, because Ctrl+R belongs to the
-  terminal. While the Code editor itself has keyboard focus, Cmd+N and
+  terminal. While the VS Code view itself has keyboard focus, Cmd+N and
   Cmd+Shift+O go to VS Code instead (New File, Go to Symbol).
   Starting a new session always creates a new one; empty sessions stay in the
   sidebar until you close them. An Advanced setting, Close empty sessions when
@@ -253,10 +260,10 @@ view from the strip.
   Hotkeys: `createAgentSession`, `openNewThreadPalette`, `createSession`,
   `openBrowserPane`, `forkSession`, `renameActiveSession`, `sleepFocusedSession`,
   `closeFocusedSession`.
-- **Code**: the built-in VS Code based editor (code-server). Opens files from
+- **VS Code**: the built-in VS Code based editor (code-server). Opens files from
   chat links, `ghostex edit <file>`, and Open In. Optional Use VS Code settings
   reuses the local VS Code configuration. The editor and the web runtime (see
-  Browser) are both optional installs; the Code view offers each one the first
+  Browser) are both optional installs; the VS Code view offers each one the first
   time it opens.
 - **Browser**: embedded Chromium tabs with profiles, splits, annotations,
   DevTools, and agent control through the `$ghostex-embedded-browser-use`
@@ -286,7 +293,7 @@ view from the strip.
   open here or in the system browser depending on Open links in.
   The Browser runs on the web runtime (Chromium), an optional one-time install
   that Ghostex does not need for anything else: until it is installed the
-  Browser, the Code view, website and extension views, and HTML, drawing and
+  Browser, the VS Code view, website and extension views, and HTML, drawing and
   media files in Files show an Install button instead of the page (or Hide tab
   to remove the view), and web links and saved Browser actions open in the
   system browser. Nothing is downloaded until you press Install; once installed,
@@ -414,8 +421,8 @@ view from the strip.
   values, and hover a row to copy its path (such as $.scripts.build) or its value.
   Dockerfiles, PowerShell scripts and Terraform files are coloured, and so are
   .env, .gitignore, .ini and .jsonl files. A Jupyter notebook (.ipynb) opened from
-  Quick Access or a link opens in the Code view, which shows its cells; opened from
-  the files list it shows its JSON, with an Open in Code view button. The button at the sidebar's
+  Quick Access or a link opens in the VS Code view, which shows its cells; opened from
+  the files list it shows its JSON, with an Open in VS Code view button. The button at the sidebar's
   window edge hides the files list; the same button in the corner brings it
   back, and hovering that button peeks the list without pinning it. Hidden or pinned is remembered. When the Files view is narrower than 800px the list opens as a
   temporary drawer over the document and closes when you open a file, press
@@ -460,7 +467,7 @@ view from the strip.
   Settings > File opening decides where a file opens from Quick Access, a chat
   link or a terminal link: one dropdown for HTML, Markdown and images, one for
   every other file (code and text). Both offer Files (the default), the built-in
-  Code view, and the editor apps Ghostex knows (VS Code, Cursor, Zed, the
+  VS Code view, and the editor apps Ghostex knows (VS Code, Cursor, Zed, the
   JetBrains IDEs and the rest); an editor that is not installed on this computer
   is listed but cannot be picked. If you had changed the old Markdown, HTML or
   Images setting, the first dropdown reads As before and keeps those choices
@@ -1655,12 +1662,12 @@ Claude sessions); under the first seven lines, Show all N changed lines shows
 the rest and Open file opens it in Editor or Files, just like a file reference
 pill; Copy path and Open file location sit beside it. Enable Show file edit previews in Settings > Chat to open every row to its
 first seven lines by default. Local folder links in desktop chat open your system file explorer; remote
-folder links open in this computer's Code view so you can browse the remote files.
+folder links open in this computer's VS Code view so you can browse the remote files.
 File reference pills in the composer also open with one click using the same
-Code/Files preferences as transcript links. Double-click a composer pill to edit
+VS Code/Files preferences as transcript links. Double-click a composer pill to edit
 its reference text. Every file the chat shows has Copy Path and the location row:
 right-click a file reference, a file edit row, a tool row that names a file, a
-picture or an attachment for Open in Code, Open in Files (every file except
+picture or an attachment for Open in VS Code, Open in Files (every file except
 folders and media), Copy Path, or the location row, and each file in Files and links has
 copy and location buttons. The location row is left out for a remote session's
 files (they are on the other computer) and in Ghostex web; on the phone, hold the
@@ -2168,9 +2175,9 @@ installed Windows agent CLIs without requiring WSL. Switching environments opens
 restart dialog: choose **Restart now** to apply the change or **Later** to keep
 working until the next app restart. Projects and running sessions remain in their
 original environment. Native sessions stay alive when the app closes or gxserver
-restarts. The Code view uses the same environment: native Windows folders in
+restarts. The VS Code view uses the same environment: native Windows folders in
 PowerShell mode and Linux folders in WSL mode. The matching editor downloads the
-first time you open the Code view. Sessions and agents on Windows always run with
+first time you open the VS Code view. Sessions and agents on Windows always run with
 standard user rights, even
 when an administrator account connects over SSH, because Codex refuses to run as
 administrator. For a single command that needs administrator
@@ -2217,7 +2224,7 @@ and in text fields such as the chat composer and dialogs. A configured hotkey
 using the same chord takes precedence. In an agent's terminal prompt, use
 Prompt Editor in the terminal toolbar, Ctrl+G on macOS, or Ctrl+Shift+G on
 Windows and Linux to open the Ghostex prompt editor or your machine default
-editor for long prompts. Remote sessions open it in that computer's Code view.
+editor for long prompts. Remote sessions open it in that computer's VS Code view.
 The agent must be at its prompt and support an external editor; an idle shell
 does not provide that agent prompt-editor action. The Ghostex editor uses the
 same text editing controls as the chat composer, with F1 commands, find/replace,
@@ -2760,10 +2767,10 @@ before.
   sections, and take the usual session menu: park, rename, tag, sleep, and
   close. They open in chat like any Hermes session.
 - **Edit SOUL and Edit config**: two buttons on every bot row that open that
-  bot's own `SOUL.md` and `config.yaml` in the Code view. They always point at
+  bot's own `SOUL.md` and `config.yaml` in the VS Code view. They always point at
   that bot's files and cannot be edited or removed. A bot on another computer
   has neither, and the browser build shows a message instead, since it has no
-  Code view.
+  VS Code view.
 - **Actions and Open in**: Actions you pin to project rows (Settings >
   Actions) show on bot rows too. Right-click a bot for Open in, which opens the
   profile folder in any of your Open In targets (VS Code, Cursor, Finder, and
@@ -3063,8 +3070,8 @@ sessions, so any client can control agents on any machine.
   Open Code from the view panel's + menu to edit the remote project; if prompted,
   install the editor component first. A remote Mac or Windows computer runs the
   editor its own Ghostex has, so if Code says that computer doesn't have it yet,
-  open the Code view on that computer once (or update Ghostex there) and retry.
-  Folder links in remote chats also browse the remote folder in Code.
+  open the VS Code view on that computer once (or update Ghostex there) and retry.
+  Folder links in remote chats also browse the remote folder in VS Code.
   Remote localhost links open in the built-in Browser through that computer,
   even when ordinary web links are set to open in your external browser.
   When a machine cannot connect, its tab's cloud turns red and its list says
@@ -3972,7 +3979,7 @@ session in the menu bar status menu goes to the window already showing that
 session. Opening a session or project of another workspace from anywhere (Search,
 Quick Access, a notification, the menu bar, a chat link, the Issues view,
 `ghostex focus`) brings forward the window showing that workspace, or switches
-this window to it when no window does. The Code view works in every window at once, all on the same
+this window to it when no window does. The VS Code view works in every window at once, all on the same
 editor. The menu bar status icon, notifications, completion sounds and Keep
 Awake are the app's, not each window's: Keep Awake started from any window keeps
 the computer awake and shows as on in every window. The Window menu lists the
