@@ -529,6 +529,23 @@ impl GhostexGpuiApp {
         let agent_name = resolve_sidebar_agent(hud.as_deref(), &normalized)
             .map(|agent| agent.name)
             .unwrap_or_else(|| normalized.clone());
+        let launch_agent_id = remote_launch_agent_id(hud.as_deref(), &normalized);
+        // A custom agent of this computer that names no built-in agent (by Works like or by its
+        // command) has no command on the other computer: say so instead of sending an id it
+        // refuses, since only its id may travel (CDXC:RemoteMachines 2026-06-24-17:19).
+        if launch_agent_id.starts_with("custom-")
+            && resolve_sidebar_agent(hud.as_deref(), &launch_agent_id).is_some()
+        {
+            self.gx_store_create_toast(
+                "warning",
+                "Remote agent unavailable",
+                Some(&format!(
+                    "{agent_name} is a custom command on this computer, so it can't start on another computer. Set its Works like to the agent it runs in Settings > Agents, or use one of the built-in agents."
+                )),
+                cx,
+            );
+            return;
+        }
         let title = agent_session_default_title(Some(&agent_name));
         let title_settings = first_prompt_title_runtime_settings(
             &self.gx_store_title_generation_settings(),
@@ -539,7 +556,7 @@ impl GhostexGpuiApp {
         // The remote machine's own gxserver runs agentbox for a box launch there.
         let params = replacing_empty_sessions(with_run_location(
             remote_agent_launch_params(
-                &remote_launch_agent_id(hud.as_deref(), &normalized),
+                &launch_agent_id,
                 &project.project_id,
                 title_settings,
                 account_id,

@@ -2307,7 +2307,10 @@ you open the page after using Ghostex for a while, it offers once to turn off
 the built-in agents you never used; nothing turns off by itself. Add custom
 agent, at the end of the list, adds your own command or a variant of a built-in
 agent: Works like gives it that agent's logo, chat view, resume hook and
-permission handling. Custom agents can be turned off, or deleted from their
+permission handling. In a remote computer's project, a custom agent starts as
+the built-in agent it works like (or whose command it runs), with that
+computer's own command; a custom command that is no built-in agent runs only on
+this computer. Custom agents can be turned off, or deleted from their
 expanded row; built-in agents are only turned off. Expand an agent row to edit
 its name, command, permission mode and default view, duplicate it as a custom
 agent, install or update its CLI, see its installed version (and the newer one
