@@ -396,8 +396,10 @@ view from the strip.
   marker means its contents have not been confirmed yet. Use Refresh in the Files
   sidebar menu to check for changes immediately. An open file follows changes
   made to it on disk: without unsaved edits it updates in place, with unsaved
-  edits a notice offers Compare, Keep mine, or Take theirs (Save waits until you
-  pick), and a file deleted on disk is marked Deleted until you save it again.
+  edits a notice offers Compare (the file's area then shows the diff from the
+  copy on disk to your edits; Back to editing returns), Keep mine, or Take theirs
+  (Save waits until you pick), and a file deleted on disk is marked Deleted until
+  you save it again.
   Text and code files have a wrap button in the header that turns line wrapping
   on or off for every file, and the choice is remembered. CSV and TSV files
   open as a read-only table: click a column header to sort by it (click again to

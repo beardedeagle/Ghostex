@@ -40,7 +40,10 @@ impl GhostexGpuiApp {
     ) -> AnyElement {
         let header = self.render_native_docs_header(p, layout, cx);
         let notice = self.render_native_docs_disk_notice(p, cx);
-        let body = self.render_native_docs_body(p, window, cx);
+        let body = match self.render_native_docs_disk_compare(cx) {
+            Some(compare) => compare,
+            None => self.render_native_docs_body(p, window, cx),
+        };
         div()
             .flex()
             .flex_col()

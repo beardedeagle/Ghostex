@@ -350,6 +350,8 @@ pub(crate) struct DocsDocument {
     pub(crate) review_session_title: Option<String>,
     /// The file on disk against this document: in step, changed under unsaved edits, or gone.
     pub(crate) disk: DocsDiskState,
+    /// Compare is on: the editor area shows the diff from the file on disk to the unsaved edits.
+    pub(crate) disk_compare: bool,
     /// Newer text from disk for a clean code editor, applied in place by the next draw (the
     /// editor needs a window to take it).
     pub(crate) disk_reload: Option<String>,
@@ -406,6 +408,7 @@ impl DocsDocument {
             embed_revision: 0,
             review_session_title: None,
             disk: DocsDiskState::InSync,
+            disk_compare: false,
             disk_reload: None,
             disk_signature: None,
             saved_flash_until: None,

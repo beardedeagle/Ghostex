@@ -472,3 +472,30 @@ pub(crate) fn build_rows(
     }
     rows
 }
+
+/// Each file's path and its lines as `(marker, old number, new number, text)`, for tests outside
+/// this module that check what the rows would draw.
+#[cfg(test)]
+pub(crate) fn parse_patch_for_tests(
+    patch: &str,
+) -> Vec<(String, Vec<(char, Option<u32>, Option<u32>, String)>)> {
+    parse_patch(patch)
+        .into_iter()
+        .map(|file| {
+            let lines = file
+                .hunks
+                .iter()
+                .flat_map(|hunk| &hunk.lines)
+                .map(|line| {
+                    let marker = match line.kind {
+                        LineKind::Added => '+',
+                        LineKind::Removed => '-',
+                        LineKind::Context => ' ',
+                    };
+                    (marker, line.old, line.new, line.text.clone())
+                })
+                .collect();
+            (file.path, lines)
+        })
+        .collect()
+}

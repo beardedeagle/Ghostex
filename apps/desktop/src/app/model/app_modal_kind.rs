@@ -38,7 +38,6 @@ pub(crate) enum GpuiAppModalKind {
     DeleteWorktree,
     RenameWorktree,
     SidebarSpaceEditor,
-    GitFileDiff,
     MermaidDiagram,
     MarkdownTable,
     /// An agent's published HTML page, floating over the chat (visual_page_modal_lifecycle.rs).
@@ -93,7 +92,6 @@ impl GpuiAppModalKind {
             "deleteWorktree" => Some(Self::DeleteWorktree),
             "renameWorktree" => Some(Self::RenameWorktree),
             "sidebarSpaceEditor" => Some(Self::SidebarSpaceEditor),
-            "gitFileDiff" => Some(Self::GitFileDiff),
             "mermaidDiagram" => Some(Self::MermaidDiagram),
             "markdownTable" => Some(Self::MarkdownTable),
             "visualPage" => Some(Self::VisualPage),
@@ -141,7 +139,6 @@ impl GpuiAppModalKind {
             Self::DeleteWorktree => "deleteWorktree",
             Self::RenameWorktree => "renameWorktree",
             Self::SidebarSpaceEditor => "sidebarSpaceEditor",
-            Self::GitFileDiff => "gitFileDiff",
             Self::MermaidDiagram => "mermaidDiagram",
             Self::MarkdownTable => "markdownTable",
             Self::VisualPage => "visualPage",
@@ -186,7 +183,6 @@ impl GpuiAppModalKind {
             Self::DeleteWorktree => "Ghostex Delete Worktree",
             Self::RenameWorktree => "Ghostex Rename Worktree",
             Self::SidebarSpaceEditor => "Ghostex Space",
-            Self::GitFileDiff => "Ghostex File Diff",
             Self::MermaidDiagram | Self::MarkdownTable | Self::VisualPage => "",
             Self::Extension(_) => "Ghostex Extension",
             Self::UpdateAvailable => "Ghostex Update",
@@ -220,7 +216,6 @@ impl GpuiAppModalKind {
                 | Self::OpenTargets
                 | Self::FindPrompts
                 | Self::AgentsHub
-                | Self::GitFileDiff
         )
     }
 
@@ -307,7 +302,7 @@ impl GpuiAppModalKind {
                 px(APP_MODAL_HOST_SETTINGS_WINDOW_WIDTH),
                 px(APP_MODAL_HOST_SETTINGS_WINDOW_HEIGHT),
             ),
-            Self::AgentsHub | Self::GitFileDiff => size(
+            Self::AgentsHub => size(
                 px(APP_MODAL_HOST_WINDOW_WIDTH),
                 px(APP_MODAL_HOST_WINDOW_HEIGHT),
             ),
@@ -458,7 +453,6 @@ impl GpuiAppModalKind {
                 | Self::Worktree
                 | Self::DeleteWorktree
                 | Self::RenameWorktree
-                | Self::GitFileDiff
         )
     }
 
@@ -535,7 +529,6 @@ impl GpuiAppModalKind {
             | Self::DeleteWorktree
             | Self::RenameWorktree
             | Self::SidebarSpaceEditor
-            | Self::GitFileDiff
             | Self::ExportTranscriptResult
             | Self::MissingProjectFolder => serde_json::json!({
                 "modal": self.modal_id(),

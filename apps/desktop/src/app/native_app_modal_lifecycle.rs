@@ -239,9 +239,6 @@ impl GhostexGpuiApp {
             GpuiAppModalKind::AgentsHub => {
                 self.open_gpui_agents_hub_modal(open_message, cx);
             }
-            GpuiAppModalKind::GitFileDiff => {
-                self.open_gpui_git_file_diff_modal(open_message, cx);
-            }
             // The first run, Tips > Setup and Quick Access > Setup all open the native onboarding (onboarding_modal_lifecycle.rs).
             GpuiAppModalKind::Onboarding => {
                 self.open_gpui_onboarding_modal(open_message, cx);

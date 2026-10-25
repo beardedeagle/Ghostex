@@ -180,7 +180,7 @@ fn line_highlights(
     (display.into(), highlights)
 }
 
-fn code_cell(s: &ChangesStyle, line: &HunkLine, wrap: bool, plain: bool) -> AnyElement {
+pub(crate) fn code_cell(s: &ChangesStyle, line: &HunkLine, wrap: bool, plain: bool) -> AnyElement {
     let (display, highlights) = line_highlights(s, &line.text, &line.changed, line.kind, plain);
     div()
         .flex_1()
@@ -192,7 +192,7 @@ fn code_cell(s: &ChangesStyle, line: &HunkLine, wrap: bool, plain: bool) -> AnyE
         .into_any_element()
 }
 
-fn number_cell(
+pub(crate) fn number_cell(
     _s: &ChangesStyle,
     number: Option<u32>,
     background: Option<Rgba>,
@@ -211,7 +211,7 @@ fn number_cell(
         .into_any_element()
 }
 
-fn marker_cell(s: &ChangesStyle, kind: LineKind) -> AnyElement {
+pub(crate) fn marker_cell(s: &ChangesStyle, kind: LineKind) -> AnyElement {
     let (text, color) = match kind {
         LineKind::Added => ("+", s.plus),
         LineKind::Removed => ("\u{2212}", s.minus),
@@ -227,7 +227,7 @@ fn marker_cell(s: &ChangesStyle, kind: LineKind) -> AnyElement {
         .into_any_element()
 }
 
-fn kind_colors(s: &ChangesStyle, kind: LineKind) -> (Option<Rgba>, Option<Rgba>, Rgba) {
+pub(crate) fn kind_colors(s: &ChangesStyle, kind: LineKind) -> (Option<Rgba>, Option<Rgba>, Rgba) {
     match kind {
         LineKind::Added => (
             Some(s.added_row),
@@ -975,7 +975,7 @@ impl ChangesView {
 }
 
 /// Prose and data files whose words the code colouring would misread as keywords.
-fn is_prose(path: &str) -> bool {
+pub(crate) fn is_prose(path: &str) -> bool {
     let extension = path.rsplit('.').next().unwrap_or("").to_ascii_lowercase();
     matches!(
         extension.as_str(),

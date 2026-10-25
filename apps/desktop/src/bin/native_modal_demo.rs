@@ -55,10 +55,6 @@ mod delayed_send_modal;
 mod delete_worktree_demo;
 #[path = "../app/window/delete_worktree_modal.rs"]
 mod delete_worktree_modal;
-#[path = "native_modal_demo/file_diff.rs"]
-mod file_diff_demo;
-#[path = "../app/window/file_diff_modal/mod.rs"]
-mod file_diff_modal;
 #[path = "native_modal_demo/missing_project_folder.rs"]
 mod missing_project_folder_demo;
 #[path = "../app/window/missing_project_folder_modal.rs"]
@@ -426,7 +422,6 @@ fn main() {
                 "permission-guide" => permission_guide_demo::open(&demo, cx),
                 "install-hooks" => agent_hooks_required_demo::open(&demo, cx),
                 "agents-hub" => agents_hub_demo::open(&demo, cx),
-                "git-file-diff" => file_diff_demo::open_file_diff(&demo, cx),
                 "onboarding" => onboarding_demo::open(&demo, cx),
                 "web-runtime-prompt" => web_runtime_prompt_demo::open(&demo, cx),
                 other => {
