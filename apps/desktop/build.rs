@@ -228,7 +228,7 @@ design. Zig cross-compiles natively and the vendored ghostty build already
 emits the static lib under both names (`lib/ghostty-vt-static.lib` on
 Windows, avoiding the DLL import-lib collision; `lib/libghostty-vt.a`
 elsewhere — see .dependencies/ghostty/build.zig), so this hook invokes zig directly
-instead of the macOS bash script (which exists only to pick a Zig 0.16.x
+instead of the macOS bash script (which exists only to pick a Zig 0.17.x
 binary and redirect the Xcode SDK, both meaningless off macOS).
 Zig resolution: GHOSTEX_ZIG override, else `zig` on PATH; ghostty's
 requireZig rejects mismatched versions with a clear message.
@@ -255,10 +255,10 @@ fn build_libghostty_vt_with_zig(
         (prefix.clone(), prefix.clone())
     };
     let optimize = if is_windows && cargo_target == "aarch64-pc-windows-msvc" {
-        // Zig 0.16's ReleaseSafe Windows ARM64 stack-trace implementation
-        // fails to compile in std.debug.SelfInfo.Windows due to an invalid
-        // pointer-alignment cast. Production ARM64 archives do not need that
-        // debug-only path.
+        // Zig's ReleaseSafe Windows ARM64 stack-trace implementation fails
+        // to compile in std.debug.SelfInfo.Windows due to an invalid
+        // pointer-alignment cast (0.16, and still in 0.17.0). Production
+        // ARM64 archives do not need that debug-only path.
         "ReleaseFast"
     } else {
         "ReleaseSafe"
@@ -356,7 +356,7 @@ fn zig_build_path_without_untrusted_mount_points() -> std::ffi::OsString {
             });
             if untrusted {
                 println!(
-                    "cargo:warning=leaving {} out of zig's PATH: it goes through a junction this process may not traverse (Windows RedirectionGuard), which makes zig 0.16 abort",
+                    "cargo:warning=leaving {} out of zig's PATH: it goes through a junction this process may not traverse (Windows RedirectionGuard), which makes zig abort",
                     entry.display()
                 );
             }

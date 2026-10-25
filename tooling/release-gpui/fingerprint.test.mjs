@@ -257,7 +257,7 @@ describe('fingerprint helpers', () => {
         { digest: '1', entryCount: 1, pathspec: 'apps/desktop/**' },
         { digest: '2', entryCount: 1, pathspec: 'packages/shared/**' },
       ],
-      values: { zig: '0.16.0' },
+      values: { zig: '0.17.0' },
     };
     const baseline = {
       composed: { 'gxserver-linux-x64': 'bb' },

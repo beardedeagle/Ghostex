@@ -119,10 +119,10 @@ async function buildLinuxPackageForArch({ arch, options }) {
         options.zmxZigBin,
         process.env.ZMX_ZIG,
         process.env.ZIG,
-        path.join(os.homedir(), 'apps', `zig-${zigHostArch()}-linux-0.16.0`, 'zig'),
+        path.join(os.homedir(), 'apps', `zig-${zigHostArch()}-linux-0.17.0`, 'zig'),
         'zig',
       ],
-      label: 'Zig 0.16.x for zmx',
+      label: 'Zig 0.17.x for zmx',
       versionMatches: (version) => /^0\.16\./u.test(version),
     });
     const config = {

@@ -201,23 +201,24 @@ zig_version_of() {
 # One Zig toolchain covers both roles now: the zmx cross build and the musl
 # `zig cc`/`zig ar` wrappers that link the static Rust binaries. zmx used to pin
 # 0.15.x while the wrappers needed 0.16+, but the zmx fork was re-ported onto
-# upstream/main (Zig 0.16), so a single 0.16 binary serves everything. Resolve it
-# explicitly instead of trusting PATH order.
+# upstream/main (Zig 0.16, then 0.17 on 2026-10-26), so a single 0.17 binary
+# serves everything. Resolve it explicitly instead of trusting PATH order.
 #
-# CDXC:PromptSearch 2026-08-20: the 0.16 toolchain used to exist for zehn
-# as well. Zehn is Rust now, so 0.16 is here for zmx plus the cc/ar wrappers.
-resolve_zig_016() {
+# CDXC:PromptSearch 2026-08-20: the shared toolchain used to exist for zehn
+# as well. Zehn is Rust now, so it is here for zmx plus the cc/ar wrappers.
+resolve_zig_017() {
 	local candidate
 	for candidate in \
-		"${GHOSTEX_ZIG_016:-}" \
+		"${GHOSTEX_ZIG_017:-}" \
 		"${ZMX_ZIG:-}" \
 		"${ZIG:-}" \
 		/opt/homebrew/bin/zig \
-		"$HOME/.local/share/mise/installs/zig/0.16"*/bin/zig \
+		/opt/homebrew/opt/zig@0.17/bin/zig \
+		"$HOME/.local/share/mise/installs/zig/0.17"*/bin/zig \
 		"$(command -v zig || true)"; do
 		[[ -n "$candidate" && -x "$candidate" ]] || continue
 		case "$(zig_version_of "$candidate")" in
-		0.16.* | 0.17.* | 0.18.*)
+		0.17.*)
 			printf '%s\n' "$candidate"
 			return 0
 			;;
@@ -226,13 +227,13 @@ resolve_zig_016() {
 	return 1
 }
 
-if ! ZIG_016="$(resolve_zig_016)"; then
+if ! ZIG_017="$(resolve_zig_017)"; then
 	cat >&2 <<'EOF'
-Could not find Zig 0.16+ for the zmx build and the musl cc/ar cross-link wrappers.
+Could not find Zig 0.17 for the zmx build and the musl cc/ar cross-link wrappers.
 
-Install it with Homebrew or mise, or point GHOSTEX_ZIG_016 at a Zig 0.16 binary:
+Install it with Homebrew or mise, or point GHOSTEX_ZIG_017 at a Zig 0.17 binary:
   brew install zig
-  mise install zig@0.16.0
+  mise install zig@0.17.0
 EOF
 	exit 1
 fi
@@ -279,7 +280,7 @@ for arg in "\$@"; do
     *) args+=("\$arg") ;;
   esac
 done
-exec "$ZIG_016" cc -target $zig_triple "\${args[@]}"
+exec "$ZIG_017" cc -target $zig_triple "\${args[@]}"
 EOF
 	chmod 755 "$wrapper_path"
 }
@@ -291,11 +292,11 @@ write_cc_wrapper "$WRAPPER_DIR/aarch64-linux-musl-cc" "aarch64-unknown-linux-mus
 
 cat >"$WRAPPER_DIR/zig-ar" <<EOF
 #!/bin/sh
-exec "$ZIG_016" ar "\$@"
+exec "$ZIG_017" ar "\$@"
 EOF
 chmod 755 "$WRAPPER_DIR/zig-ar"
 
-echo "Zig 0.16 (zmx + musl cc/ar): $ZIG_016 ($(zig_version_of "$ZIG_016"))"
+echo "Zig 0.17 (zmx + musl cc/ar): $ZIG_017 ($(zig_version_of "$ZIG_017"))"
 
 build_arch() {
 	local arch="$1"
@@ -321,7 +322,7 @@ build_arch() {
 		"AR_$rust_triple=$WRAPPER_DIR/zig-ar" \
 		"CARGO_TARGET_${env_suffix}_LINKER=$RUST_LLD" \
 		"CARGO_TARGET_${env_suffix}_RUSTFLAGS=-C linker-flavor=ld.lld" \
-		ZMX_ZIG="$ZIG_016" \
+		ZMX_ZIG="$ZIG_017" \
 		node "$REPO_ROOT/server/package-remote-linux.mjs" --arch "$arch" --allow-cross
 
 	if ! status="$(package_status "$arch")"; then

@@ -313,14 +313,14 @@ describe('pinned toolchain values track the workflows', () => {
    * The 7.8.0 Ghostty-sync guard: each vendored Zig source's own
    * minimum_zig_version is the authority for TOOLCHAIN.zig. The standalone check
    * script runs the same assertion pre-dispatch; this test keeps it from rotting.
-   * zmx joined the check once its fork was re-ported onto upstream/main (0.16),
-   * which made TOOLCHAIN.zig the repo's only Zig pin.
+   * zmx joined the check once its fork was re-ported onto upstream/main (0.16;
+   * both moved to 0.17 together), which made TOOLCHAIN.zig the repo's only Zig pin.
    */
   test("the vendored Zig sources' declared minimums are satisfied by the single pin", async () => {
     const { checkGhosttyZigPin, readGhosttyMinimumZig, readZmxMinimumZig } =
       await import('./check-ghostty-zig-pin.mjs');
     expect(() => checkGhosttyZigPin({ minimum: readGhosttyMinimumZig(), pin: TOOLCHAIN.zig })).not.toThrow();
-    expect(() => checkGhosttyZigPin({ minimum: '0.17.0', pin: TOOLCHAIN.zig })).toThrow(/requires Zig 0\.17\.0/u);
+    expect(() => checkGhosttyZigPin({ minimum: '0.18.0', pin: TOOLCHAIN.zig })).toThrow(/requires Zig 0\.18\.0/u);
     expect(() => checkGhosttyZigPin({ minimum: readZmxMinimumZig(), pin: TOOLCHAIN.zig, source: 'zmx' })).not.toThrow();
   });
 

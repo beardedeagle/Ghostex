@@ -86,6 +86,21 @@ then regenerate that patch). After a sync always:
   glslang, SPIRV-Cross) and returns the MSL for Ghostex terminal shaders. The
   result is freed with `ghostty_string_free`.
 
+## Rebased in the 2026-10-26 sync (Zig 0.17)
+
+- Upstream moved to Zig 0.17 (`minimum_zig_version = "0.17.0"`), so the whole
+  repo's Zig pin moved with it.
+- `0001`: upstream replaced the freestanding ABI-manifest
+  `test_lib_vt_schema_step.addError(...)` with Zig 0.17's
+  `_ = b.addFail(...)`; the patch keeps its `else if (native_freestanding)`
+  guard on the new form, so `-Demit-lib-vt-shared=false` still never reaches
+  the failure for ordinary targets.
+- Every other patch applied unchanged (only line offsets moved), and each
+  regenerated patch carries exactly the same added and removed lines as
+  before. Upstream added no new unbounded (`.forever`) mailbox pushes on the
+  teardown paths `0007` bounds, and `0008`'s `renderer/shadertoy.zig` entry
+  points still exist.
+
 ## Rebased in the 2026-09-27 sync
 
 - `0001` — upstream turned the libghostty-vt shared library into an optional

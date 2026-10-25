@@ -9,7 +9,7 @@ set -euo pipefail
 # OUT_DIR and links {prefix}/lib/libghostty-vt.a directly, mirroring how the
 # GhosttyKit archive is linked.
 #
-# The vendored Ghostty build pins Zig 0.16.x (build.zig.zon minimum_zig_version),
+# The vendored Ghostty build pins Zig 0.17.x (build.zig.zon minimum_zig_version),
 # while
 # the machine default `zig` may be newer. Resolve a usable Zig explicitly:
 # GHOSTEX_ZIG override first, then PATH, then mise installs. Do not silently
@@ -40,7 +40,7 @@ PREFIX="$1"
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/../../.." && pwd)"
 GHOSTTY_DIR="$ROOT_DIR/.dependencies/ghostty"
-REQUIRED_ZIG_MINOR="0.16"
+REQUIRED_ZIG_MINOR="0.17"
 
 zig_matches() {
 	local candidate="$1"
@@ -66,7 +66,7 @@ find_zig() {
 		return 0
 	fi
 
-	# Homebrew's zig@0.16 is preferred over the mise tarball install: on
+	# Homebrew's zig@$REQUIRED_ZIG_MINOR is preferred over the mise tarball install: on
 	# macOS 27 (2026-07-11) the mise tarball install intermittently fails
 	# executable links against the Xcode 27 SDK with every libSystem symbol
 	# undefined, while the Homebrew build of the same version links cleanly.
@@ -80,7 +80,7 @@ find_zig() {
 		fi
 	done
 
-	echo "No Zig $REQUIRED_ZIG_MINOR.x found. Install one (e.g. 'mise install zig@0.16.0') or set GHOSTEX_ZIG to a Zig $REQUIRED_ZIG_MINOR.x binary." >&2
+	echo "No Zig $REQUIRED_ZIG_MINOR.x found. Install one (e.g. 'mise install zig@0.17.0') or set GHOSTEX_ZIG to a Zig $REQUIRED_ZIG_MINOR.x binary." >&2
 	return 1
 }
 

@@ -247,7 +247,7 @@ fn build_wasm(release: bool) -> Res {
         let Some(version) = zig_zon_version(&zon) else {
             bail!("No .version in {}", ghostty.join("build.zig.zon").display())
         };
-        let homebrew_zig = Path::new("/opt/homebrew/opt/zig@0.16/bin/zig");
+        let homebrew_zig = Path::new("/opt/homebrew/opt/zig@0.17/bin/zig");
         let zig = env_trimmed("GHOSTEX_ZIG").unwrap_or_else(|| {
             if homebrew_zig.exists() {
                 homebrew_zig.display().to_string()

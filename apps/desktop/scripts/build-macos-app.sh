@@ -369,7 +369,7 @@ validate_ghosttykit_archive() {
 		echo "       SDKROOT=\"\$(DEVELOPER_DIR=\"\$(xcode-select -p)\" xcrun --sdk macosx --show-sdk-path)\" \\" >&2
 		echo "       GHOSTTY_METAL_DEVELOPER_DIR=\"\$(xcode-select -p)\" \\" >&2
 		echo "       \"\$ZIG\" build -Demit-xcframework -Dxcframework-target=universal -Demit-macos-app=false -Doptimize=ReleaseSafe)" >&2
-		echo "Requires Zig 0.16.x (\`mise install zig@0.16.0\` or \`brew install zig\`) and the Metal toolchain." >&2
+		echo "Requires Zig 0.17.x (\`mise install zig@0.17.0\` or \`brew install zig\`) and the Metal toolchain." >&2
 		exit 1
 	fi
 }

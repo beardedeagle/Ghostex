@@ -10,6 +10,7 @@ const gtk = @import("gtk");
 
 const apprt = @import("../../../apprt.zig");
 const build_config = @import("../../../build_config.zig");
+const build_options = @import("build_options");
 const configpkg = @import("../../../config.zig");
 const datastruct = @import("../../../datastruct/main.zig");
 const font = @import("../../../font/main.zig");
@@ -35,12 +36,14 @@ const TitleDialog = @import("title_dialog.zig").TitleDialog;
 const Window = @import("window.zig").Window;
 const InspectorWindow = @import("inspector_window.zig").InspectorWindow;
 const SplitTree = @import("split_tree.zig").SplitTree;
+const SurfaceScrolledWindow = @import("surface_scrolled_window.zig").SurfaceScrolledWindow;
 const RenderSurface = @import("render_surface.zig").RenderSurface;
 const i18n = @import("../../../os/i18n.zig");
 const global = @import("../../../global.zig");
 const gtk_version = @import("../gtk_version.zig");
 const Overrides = @import("Overrides.zig");
 const scale_util = @import("../scale.zig");
+const DesktopNotifications = @import("../desktop_notifications.zig");
 
 const log = std.log.scoped(.gtk_ghostty_surface);
 
@@ -583,6 +586,13 @@ pub const Surface = extern struct {
         /// not the surface itself.
         min_size: ?*Size = null,
 
+        /// The smallest size, in logical pixels, that this surface can be
+        /// resized to within a split: one cell plus the window padding.
+        split_min_size: Size = .{ .width = 1, .height = 1 },
+
+        /// The size of a cell, in pixels, from the last cell_size action.
+        cell_size: ?Size = null,
+
         /// The requested font size. This only applies to initialization
         /// and has no effect later.
         font_size_request: ?*font.face.DesiredSize = null,
@@ -670,6 +680,9 @@ pub const Surface = extern struct {
         // Progress bar
         progress_bar_timer: ?c_uint = null,
 
+        // Desktop notifications and timers owned by this surface.
+        desktop_notifications: DesktopNotifications,
+
         // True while the bell is ringing. This will be set to false (after
         // true) under various scenarios, but can also manually be set to
         // false by a parent widget.
@@ -753,7 +766,7 @@ pub const Surface = extern struct {
         priv.overrides = .{
             .command = if (overrides.command) |c| c.clone(alloc) catch null else null,
             .shell_integration = overrides.shell_integration,
-            .working_directory = if (overrides.working_directory) |wd| alloc.dupeZ(u8, wd) catch null else null,
+            .working_directory = if (overrides.working_directory) |wd| alloc.dupeSentinel(u8, wd, 0) catch null else null,
         };
         return self;
     }
@@ -981,7 +994,7 @@ pub const Surface = extern struct {
         switch (value) {
             .activate => |name| {
                 // Duplicate the name string and push onto stack
-                const duped = try alloc.dupeZ(u8, name);
+                const duped = try alloc.dupeSentinel(u8, name, 0);
                 errdefer alloc.free(duped);
                 try priv.key_tables.append(alloc, duped);
             },
@@ -1071,6 +1084,8 @@ pub const Surface = extern struct {
         switch (value.state) {
             // Remove the progress bar
             .remove => {
+                // Set a value to stop the pulse animation, if there is one.
+                progress_bar.setFraction(0);
                 progress_bar.as(gtk.Widget).setVisible(@intFromBool(false));
                 return;
             },
@@ -1189,14 +1204,12 @@ pub const Surface = extern struct {
             };
             const title = std.mem.span(title_);
             const body = body: {
-                const exit_code = value.exit_code orelse break :body std.fmt.allocPrintSentinel(
-                    alloc,
+                const exit_code = value.exit_code orelse break :body alloc.printSentinel(
                     "Command took {f}.",
                     .{value.duration.round(std.time.ns_per_ms)},
                     0,
                 ) catch break :notify;
-                break :body std.fmt.allocPrintSentinel(
-                    alloc,
+                break :body alloc.printSentinel(
                     "Command took {f} and exited with code {d}.",
                     .{ value.duration.round(std.time.ns_per_ms), exit_code },
                     0,
@@ -1274,15 +1287,7 @@ pub const Surface = extern struct {
             // This can trigger an input method so we need to notify the im context
             // where the cursor is so it can render the dropdowns in the correct
             // place.
-            if (priv.core_surface) |surface| {
-                const ime_point = surface.imePoint();
-                priv.im_context.as(gtk.IMContext).setCursorLocation(&.{
-                    .f_x = @intFromFloat(ime_point.x),
-                    .f_y = @intFromFloat(ime_point.y),
-                    .f_width = 1,
-                    .f_height = 1,
-                });
-            }
+            self.updateImePosition();
 
             // We note that we're in a keypress because we want some logic to
             // depend on this. For example, we don't want to send character events
@@ -1517,20 +1522,12 @@ pub const Surface = extern struct {
         self: *Self,
         data: apprt.surface.Message.ChildExited,
     ) bool {
-        // Even if we don't support the overlay, we still keep our property
-        // up to date for anyone listening.
+        // Keep our property up to date for anyone listening.
         const priv = self.private();
         priv.child_exited = true;
         self.as(gobject.Object).notifyByPspec(
             properties.@"child-exited".impl.param_spec,
         );
-
-        // If we have the noop child exited overlay then we don't do anything
-        // for child exited. The false return will force libghostty to show
-        // the normal text-based message.
-        if (comptime @hasDecl(ChildExited, "noop")) {
-            return false;
-        }
 
         priv.child_exited_overlay.setData(&data);
         return true;
@@ -1543,7 +1540,7 @@ pub const Surface = extern struct {
         const gtk_scale: f32 = scale: {
             const surface_scale = scale_util.widgetSurfaceScale(widget);
             if (surface_scale <= 0) {
-                log.warn("widget surface scale was non-positive: {d}", .{surface_scale});
+                logWarnOnce("widget surface scale was non-positive: {d}", .{surface_scale});
                 break :scale 1.0;
             }
             break :scale @floatCast(surface_scale);
@@ -1555,7 +1552,7 @@ pub const Surface = extern struct {
             // gtk-xft-dpi is font DPI multiplied by 1024. See
             // https://docs.gtk.org/gtk4/property.Settings.gtk-xft-dpi.html
             const gtk_xft_dpi = gsettings.get(.@"gtk-xft-dpi") orelse {
-                log.warn("gtk-xft-dpi was not set, using default value", .{});
+                logWarnOnce("gtk-xft-dpi was not set, using default value", .{});
                 break :xft_scale 1.0;
             };
 
@@ -1567,7 +1564,7 @@ pub const Surface = extern struct {
                 // -1 is a valid value which specifies default scale.
                 // https://docs.gtk.org/gtk4/property.Settings.gtk-xft-dpi.html
                 if (gtk_xft_dpi != -1) {
-                    log.warn("gtk-xft-dpi has invalid value ({}), using default", .{gtk_xft_dpi});
+                    logWarnOnce("gtk-xft-dpi has invalid value ({}), using default", .{gtk_xft_dpi});
                 }
                 break :xft_scale 1.0;
             }
@@ -1759,34 +1756,47 @@ pub const Surface = extern struct {
         const app = Application.default();
         const priv: *Private = self.private();
 
-        const core_surface = priv.core_surface orelse {
+        if (priv.core_surface == null) {
             log.warn("can't send notification because there is no core surface", .{});
             return;
-        };
+        }
 
-        const t = switch (title.len) {
-            0 => "Ghostty",
-            else => title,
-        };
-
-        const notification = gio.Notification.new(t);
-        defer notification.unref();
-        notification.setBody(body);
-
-        const icon = gio.ThemedIcon.new("com.mitchellh.ghostty");
-        defer icon.unref();
-        notification.setIcon(icon.as(gio.Icon));
-
-        const pointer = glib.Variant.newUint64(core_surface.id);
-        notification.setDefaultActionAndTargetValue(
-            "app.present-surface",
-            pointer,
+        priv.desktop_notifications.send(
+            app.allocator(),
+            priv.focused,
+            title,
+            body,
         );
+    }
 
-        // We set the notification ID to the body content. If the content is the
-        // same, this notification may replace a previous notification
-        const gio_app = app.as(gio.Application);
-        gio_app.sendNotification(body, notification);
+    fn clearDesktopNotifications(self: *Self) void {
+        const app = Application.default();
+        self.private().desktop_notifications.clear(app.allocator());
+    }
+
+    pub fn renderDeviceOptions(self: *Self) !renderer.Device.Options {
+        switch (build_config.renderer) {
+            .opengl => {
+                const gtk_native = self.as(gtk.Widget).getNative() orelse return .{};
+                const gdk_surface = gtk_native.getSurface() orelse return .{};
+                const gdk_display = gdk_surface.getDisplay();
+
+                if (comptime build_options.wayland) {
+                    const gdk_wayland = @import("gdk_wayland");
+                    if (gobject.ext.cast(gdk_wayland.WaylandDisplay, gdk_display)) |wl| {
+                        return .{ .display = @ptrCast(wl.getEglDisplay()) };
+                    }
+                }
+                if (comptime build_options.x11) {
+                    const gdk_x11 = @import("gdk_x11");
+                    if (gobject.ext.cast(gdk_x11.X11Display, gdk_display)) |x| {
+                        return .{ .display = @ptrCast(x.getEglDisplay()) };
+                    }
+                }
+                return .{};
+            },
+            .metal => comptime unreachable,
+        }
     }
 
     //---------------------------------------------------------------
@@ -1810,6 +1820,7 @@ pub const Surface = extern struct {
         priv.mapped = false;
         priv.size = .{ .width = 0, .height = 0 };
         priv.vadj_signal_group = null;
+        priv.desktop_notifications = .{};
 
         // If our configuration is null then we get the configuration
         // from the application.
@@ -1847,7 +1858,7 @@ pub const Surface = extern struct {
         );
 
         // Setup properties we can't set from our Blueprint file.
-        self.as(gtk.Widget).setCursorFromName("text");
+        priv.render_surface.as(gtk.Widget).setCursorFromName("text");
         priv.drag_handle.setCursorFromName("grab");
 
         // Initialize our config
@@ -1876,6 +1887,8 @@ pub const Surface = extern struct {
 
     fn dispose(self: *Self) callconv(.c) void {
         const priv = self.private();
+
+        self.clearDesktopNotifications();
 
         if (priv.config) |v| {
             v.unref();
@@ -2003,6 +2016,8 @@ pub const Surface = extern struct {
         priv.key_sequence.deinit(alloc);
         for (priv.key_tables.items) |s| alloc.free(s);
         priv.key_tables.deinit(alloc);
+
+        priv.desktop_notifications.deinit(alloc);
 
         gobject.Object.virtual_methods.finalize.call(
             Class.parent,
@@ -2226,6 +2241,61 @@ pub const Surface = extern struct {
         return ext.StringList.create(alloc, priv.key_tables.items) catch null;
     }
 
+    /// Return the smallest size, in logical pixels, that this surface can
+    /// be resized to within a split.
+    pub fn getSplitMinSize(self: *Self) Size {
+        return self.private().split_min_size;
+    }
+
+    /// Set the size of a cell, in pixels. This determines the smallest size
+    /// that this surface can be resized to within a split, so that a split
+    /// is never so small that none of its terminal is visible.
+    pub fn setCellSize(self: *Self, width: u32, height: u32) void {
+        self.private().cell_size = .{ .width = width, .height = height };
+        self.syncSplitMinSize();
+    }
+
+    /// Update the smallest size that this surface can be resized to within
+    /// a split, from the cell size and the window padding.
+    fn syncSplitMinSize(self: *Self) void {
+        const priv = self.private();
+        const cell_size = priv.cell_size orelse return;
+        const config_obj = priv.config orelse return;
+        const config = config_obj.get();
+
+        // The cell size is in pixels but widget sizes are in logical pixels.
+        const content_scale = self.getContentScale();
+        const width_f32: f32 = @floatFromInt(cell_size.width);
+        const height_f32: f32 = @floatFromInt(cell_size.height);
+        const cell_width: u32 = @intFromFloat(@ceil(width_f32 / content_scale.x));
+        const cell_height: u32 = @intFromFloat(@ceil(height_f32 / content_scale.y));
+
+        // Padding is in points, and is rounded down like scaledPadding in
+        // the core surface.
+        const padding = struct {
+            fn logical(points: u32) u32 {
+                const points_f32: f32 = @floatFromInt(points);
+                return @intFromFloat(@floor(points_f32 * font.face.default_dpi / 72));
+            }
+        }.logical;
+        const padding_x = config.@"window-padding-x";
+        const padding_y = config.@"window-padding-y";
+
+        priv.split_min_size = .{
+            .width = cell_width +
+                padding(padding_x.top_left) +
+                padding(padding_x.bottom_right),
+            .height = cell_height +
+                padding(padding_y.top_left) +
+                padding(padding_y.bottom_right),
+        };
+
+        if (ext.getAncestor(
+            SurfaceScrolledWindow,
+            self.as(gtk.Widget),
+        )) |window| window.syncSplitMinSize();
+    }
+
     /// Return the min size, if set.
     pub fn getMinSize(self: *Self) ?*Size {
         const priv = self.private();
@@ -2343,6 +2413,9 @@ pub const Surface = extern struct {
         const priv = self.private();
         const config = if (priv.config) |c| c.get() else return;
 
+        // window-padding-x, window-padding-y
+        self.syncSplitMinSize();
+
         // resize-overlay-duration
         {
             const ms = config.@"resize-overlay-duration".asMilliseconds();
@@ -2446,7 +2519,7 @@ pub const Surface = extern struct {
 
         // If we're hidden we set it to "none"
         if (priv.mouse_hidden) {
-            self.as(gtk.Widget).setCursorFromName("none");
+            priv.render_surface.as(gtk.Widget).setCursorFromName("none");
             return;
         }
 
@@ -2504,7 +2577,7 @@ pub const Surface = extern struct {
         };
 
         // Set our new cursor.
-        self.as(gtk.Widget).setCursorFromName(name.ptr);
+        priv.render_surface.as(gtk.Widget).setCursorFromName(name.ptr);
     }
 
     fn vadjValueChanged(adj: *gtk.Adjustment, self: *Self) callconv(.c) void {
@@ -2808,13 +2881,21 @@ pub const Surface = extern struct {
         priv.focused = focused;
 
         const ctx = priv.im_context.as(gtk.IMContext);
-        if (focused) ctx.focusIn() else ctx.focusOut();
+        if (focused) {
+            self.updateImePosition();
+            ctx.focusIn();
+        } else {
+            ctx.focusOut();
+        }
 
         _ = glib.idleAddOnce(idleFocus, self.ref());
         self.as(gobject.Object).notifyByPspec(properties.focused.impl.param_spec);
 
-        // Bell stops ringing as soon as we gain focus
-        if (focused) self.setBellRinging(false);
+        // Bell state and desktop notifications clear when we gain focus.
+        if (focused) {
+            self.setBellRinging(false);
+            self.clearDesktopNotifications();
+        }
     }
 
     /// The focus callback must be triggered on an idle loop source because
@@ -3150,6 +3231,33 @@ pub const Surface = extern struct {
         return @intFromBool(glib.SOURCE_REMOVE);
     }
 
+    /// Tell GTK where our cursor is so that the IME can place the candidate
+    /// window at the right position.
+    fn updateImePosition(self: *Self) void {
+        const priv = self.private();
+        const surface = priv.core_surface orelse return;
+
+        // GTK wants widget coordinates, so we divide by the surface scale
+        // only and leave out the font DPI scale (gtk-xft-dpi).
+        const surface_scale: f32 = @floatCast(scale_util.widgetSurfaceScale(
+            priv.render_surface.as(gtk.Widget),
+        ));
+        const ime_point = surface.imePointScaled(.{
+            .x = surface_scale,
+            .y = surface_scale,
+        });
+
+        // Snap outward to whole pixels; an empty rectangle means "unset".
+        const top = @floor(ime_point.y - ime_point.height);
+        const bottom = @ceil(ime_point.y);
+        priv.im_context.as(gtk.IMContext).setCursorLocation(&.{
+            .f_x = @intFromFloat(@floor(ime_point.x)),
+            .f_y = @intFromFloat(top),
+            .f_width = 1,
+            .f_height = @intFromFloat(@max(1, bottom - top)),
+        });
+    }
+
     fn imPreeditStart(
         _: *gtk.IMMulticontext,
         self: *Self,
@@ -3161,6 +3269,8 @@ pub const Surface = extern struct {
         const priv = self.private();
         priv.im_composing = true;
         priv.im_len = 0;
+
+        self.updateImePosition();
     }
 
     fn imPreeditChanged(
@@ -3200,6 +3310,8 @@ pub const Surface = extern struct {
                 .{err},
             );
         };
+
+        self.updateImePosition();
     }
 
     fn imPreeditEnd(
@@ -3505,6 +3617,7 @@ pub const Surface = extern struct {
 
         // Store it!
         priv.core_surface = surface;
+        priv.desktop_notifications = .init(surface.id);
 
         // Give the render surface a pointer to the core surface so it
         // can pull presents from the renderer in its snapshot handler.
@@ -3545,13 +3658,14 @@ pub const Surface = extern struct {
         var buf: [32]u8 = undefined;
         priv.resize_overlay.setLabel(text: {
             const grid_size = surface.size.grid();
-            break :text std.fmt.bufPrintZ(
+            break :text std.mem.printSentinel(
                 &buf,
                 "{d} x {d}",
                 .{
                     grid_size.columns,
                     grid_size.rows,
                 },
+                0,
             ) catch |err| err: {
                 log.warn("unable to format text: {}", .{err});
                 break :err "";
@@ -3700,9 +3814,12 @@ pub const Surface = extern struct {
         x: f64,
         y: f64,
         self: *Self,
-    ) callconv(.c) void {
+    ) callconv(.c) c_int {
+        // Clean up overlay state
+        defer self.setDropOverlayDirection(null);
+
         const dropped_id = v.getUint64();
-        const dropped = self.core().?.app.findSurfaceByID(dropped_id) orelse return;
+        const dropped = self.core().?.app.findSurfaceByID(dropped_id) orelse return 0;
         const from = dropped.rt_surface.gobj();
 
         const st = ext.getAncestor(
@@ -3710,17 +3827,15 @@ pub const Surface = extern struct {
             self.as(gtk.Widget),
         ) orelse {
             log.warn("surface is not placed in a split tree", .{});
-            return;
+            return 0;
         };
 
         const dir = self.calcDropDirection(x, y);
 
         // The only error that could happen here is an OOM,
         // and in that case we're already milliseconds away from crashing, so...
-        st.moveSplit(from, self, dir) catch return;
-
-        // Clean up overlay state
-        self.setDropOverlayDirection(null);
+        st.moveSplit(from, self, dir) catch return 0;
+        return 1;
     }
 
     fn surfaceDropLeave(
@@ -3811,7 +3926,7 @@ pub const Surface = extern struct {
                 class.as(gtk.Widget.Class),
                 comptime gresource.blueprint(.{
                     .major = 1,
-                    .minor = 2,
+                    .minor = 0,
                     .name = "surface",
                 }),
             );
@@ -3944,6 +4059,23 @@ pub const Surface = extern struct {
         );
     };
 };
+
+/// Logs a warning once-ish for the given format string and argument types. It may log duplicates if called from
+/// multiple threads but will eventually stop.
+fn logWarnOnce(comptime format: []const u8, args: anytype) void {
+    const Static = struct {
+        /// key forces the compiler to instantiate this container per (format, argument type) i.e. roughly per call
+        /// site.
+        const key = .{ format, @TypeOf(args) };
+        var flag = false;
+    };
+    if (Static.flag) return else {
+        @branchHint(.unlikely);
+        // Don't care about load/store orders here. A few duplicates aren't critical.
+        Static.flag = true;
+    }
+    log.warn(format, args);
+}
 
 /// The state of the key event while we're doing IM composition.
 /// See gtkKeyPressed for detailed descriptions.
