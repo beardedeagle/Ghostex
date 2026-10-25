@@ -248,8 +248,8 @@ impl GhostexGpuiApp {
 
     /// CDXC:Browser 2026-10-25 WHY:
     /// `ghostex browser open` names the agent's own project, which is often not the one on screen. Such a page goes into that project's parked tab model the way a parked page's popup does: the project on screen keeps its panel, view and tabs, and focus stays put.
-    /// The project's saved view moves to Browser, as the open would have done on screen, a toast says where the page went, and the page is shown and loaded when the project is next on screen (`land_pending_parked_browser_open`).
-    /// It is not created before: a hidden page made now would use the Browser profile of the workspace on screen, not the project's, and it would load for a project the user may not visit.
+    /// The project's saved view moves to Browser, as the open would have done on screen, a toast says where the page went, and the page is shown when the project is next on screen (`land_pending_parked_browser_open`).
+    /// A page the project does not have yet is created then, not now: a hidden page made now would use the Browser profile of the workspace on screen, not the project's, and it would load for a project the user may not visit. A reused tab whose page is already running parked goes to the address at once, as a live one would: that page was made with its project's profile, keeps running while parked, and an agent driving it sees the new address straight away.
     pub(crate) fn open_browser_url_in_parked_project(
         &mut self,
         project_id: &str,
