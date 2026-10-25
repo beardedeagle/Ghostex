@@ -363,9 +363,12 @@ const LOG_RECORD_FULL_LINES_PER_SITE: u64 = 3;
 /// crates stay off: usvg, html5ever, notify and the like warn about routine malformed input.
 /// Info and debug are cut by `log::set_max_level`, so those macros cost one atomic load. A call
 /// site writes its first three records in full, then one line with the count at 10, 100,
-/// 1,000 and so on, so a per-frame error adds a handful of lines, never a flood.
+/// 1,000 and so on, so a per-frame error adds a handful of lines, never a flood. A call site is
+/// its owned (target, file, line): `ResultExt::log_err` (gpui_util), GPUI's main error path,
+/// builds records whose file and module path are not `'static`, so a key on the static ones
+/// lost the file and made `log_err` errors from different files on the same line share a count.
 struct SupportLogRecords {
-    repeats: std::sync::Mutex<std::collections::HashMap<(&'static str, u32), u64>>,
+    repeats: std::sync::Mutex<std::collections::HashMap<(String, String, u32), u64>>,
 }
 
 impl log::Log for SupportLogRecords {
@@ -378,19 +381,16 @@ impl log::Log for SupportLogRecords {
         if !self.enabled(record.metadata()) {
             return;
         }
-        let site = (
-            record
-                .file_static()
-                .or(record.module_path_static())
-                .unwrap_or("unknown"),
-            record.line().unwrap_or(0),
-        );
+        let file = record.file().or(record.module_path()).unwrap_or("unknown");
+        let line = record.line().unwrap_or(0);
         let occurrence = {
             let mut repeats = self
                 .repeats
                 .lock()
                 .unwrap_or_else(|error| error.into_inner());
-            let count = repeats.entry(site).or_insert(0);
+            let count = repeats
+                .entry((record.target().to_owned(), file.to_owned(), line))
+                .or_insert(0);
             *count += 1;
             *count
         };
@@ -413,7 +413,7 @@ impl log::Log for SupportLogRecords {
             &event,
             serde_json::json!({
                 "target": redact_crash_text(record.target(), MAX_SANITIZED_STRING_CHARS),
-                "location": format!("{}:{}", redact_source_location(site.0), site.1),
+                "location": format!("{}:{line}", redact_source_location(file)),
                 "message": redact_crash_text(&record.args().to_string(), MAX_CRASH_MESSAGE_CHARS),
                 "occurrence": occurrence,
             }),
