@@ -232,6 +232,25 @@ impl GhostexGpuiApp {
         }
     }
 
+    /// Shows `mode` the way a launch restores the view on screen: its tab and pane state move, and
+    /// its page keeps sleeping until clicked (CDXC:Browser 2026-09-19), where `activate_mode` would
+    /// wake it. The built-in views are asleep since `sleep_all_modes_for_launch`; a custom view has
+    /// no lifecycle until it is opened and reads as awake without one, so it is recorded asleep, as
+    /// that function does for the view a launch restores.
+    pub(crate) fn show_view_tab_asleep(
+        &mut self,
+        mode: TitlebarMode,
+        cx: &mut gpui::Context<Self>,
+    ) {
+        if matches!(mode, TitlebarMode::Extension(_)) {
+            self.project_editor_shell.mark_mode_sleeping(mode);
+        }
+        self.change_active_mode_with_pane_state(mode, cx);
+        self.seed_terminal_view_for_open(cx);
+        self.update_active_mode_cef_child_visibility(cx);
+        self.persist_shell_layout_state();
+    }
+
     /// CDXC:Workarea 2026-09-22 DECISION:
     /// User: closing the last tab in the side panel goes back to the "Open a view" picker instead of
     /// closing the panel, so the panel stays where it was with the next thing to open in front of

@@ -223,14 +223,26 @@ impl GhostexGpuiApp {
     }
 
     pub(crate) fn current_project_view_state(&self) -> GpuiProjectViewState {
-        let active_mode = self.available_titlebar_mode_or_agents(self.active_mode);
+        let shown_mode = self.available_titlebar_mode_or_agents(self.active_mode);
+        // While a restore waits for this project's scope, the panel is closed only provisionally:
+        // a capture on leaving or a shell state write in that window keeps the saved view. It is
+        // not on screen, so it is not held awake for the way back.
+        let active_mode = match &self.pending_project_view_restore {
+            Some(pending)
+                if self.active_mode == TitlebarMode::Agents
+                    && self.agents_workspace_project_id.as_ref() == Some(&pending.project_id) =>
+            {
+                pending.saved_mode
+            }
+            _ => shown_mode,
+        };
         GpuiProjectViewState {
             active_mode,
             open_views: self.open_views.clone(),
             view_strip_layout: self.view_strip_layout.clone(),
             last_view_mode: self.last_open_view_mode,
             workarea_split_ratio: self.project_editor_shell.workarea_split_ratio,
-            active_view_awake: self.project_editor_shell.is_mode_awake(active_mode),
+            active_view_awake: self.project_editor_shell.is_mode_awake(shown_mode),
             code_windows: self.code_windows.clone(),
         }
     }
@@ -308,10 +320,14 @@ impl GhostexGpuiApp {
             .restore_workarea_split_ratio(state.workarea_split_ratio, workarea_span);
         let target_mode = self.available_titlebar_mode_or_agents(state.active_mode);
         if target_mode != state.active_mode {
-            self.pending_project_view_restore = self
-                .agents_workspace_project_id
-                .clone()
-                .map(|project_id| (project_id, state.active_mode));
+            self.pending_project_view_restore =
+                self.agents_workspace_project_id.clone().map(|project_id| {
+                    PendingProjectViewRestore {
+                        project_id,
+                        saved_mode: state.active_mode,
+                        at_launch: false,
+                    }
+                });
         }
         self.last_open_view_mode = state
             .last_view_mode
