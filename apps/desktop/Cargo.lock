@@ -939,7 +939,7 @@ dependencies = [
 
 [[package]]
 name = "cef"
-version = "154.1.0+154.0.26"
+version = "154.5.0+154.0.34"
 dependencies = [
  "cef-dll-sys",
  "libloading 0.9.0",
@@ -949,7 +949,7 @@ dependencies = [
 
 [[package]]
 name = "cef-dll-sys"
-version = "154.1.0+154.0.26"
+version = "154.5.0+154.0.34"
 dependencies = [
  "anyhow",
  "cc",
