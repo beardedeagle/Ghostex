@@ -282,6 +282,9 @@ impl GhostexGpuiApp {
         );
     }
 
+    /// CDXC:Browser 2026-10-25 WHY:
+    /// An explicit project target that is not on screen gets the page in its own Browser in the background (`open_browser_url_in_parked_project`). Swapping the live tab model to the target, the 2026-07-12 rule this supersedes, showed that project's pages in the panel of the project on screen, and `ghostex browser open` targets the agent's own project by default.
+    /// A switch to the target that is still settling lands first, so a sidebar project header (local or machine-scoped remote) still opens its page on screen. Explicit real-project targets always have the Browser workarea, so the availability gate only applies to untargeted opens.
     pub(crate) fn open_browser_url_from_renderer_command_with_machine(
         &mut self,
         message: GpuiSidebarOpenBrowserUrlMessage,
@@ -295,14 +298,6 @@ impl GhostexGpuiApp {
         by navigating it, otherwise create a new loaded
         tab in the focused pane (the reviewed popup-tab path). The URL goes
         through the same toolbar normalization as typed addresses.
-
-        CDXC:Browser 2026-07-12:
-        A validated explicit project target swaps the browser workarea to that
-        project's tab model synchronously before the open, so sidebar project
-        headers (local and machine-scoped remote) never race the async
-        active-project context round-trip. Explicit real-project targets always
-        have the Browser workarea, so the availability gate only applies to
-        untargeted opens.
         */
         /*
         CDXC:Extensions 2026-08-23:
@@ -330,6 +325,24 @@ impl GhostexGpuiApp {
             return;
         }
         if let Some(project_id) = message.project_id.as_deref() {
+            if self.agents_workspace_project_id.as_deref() != Some(project_id)
+                && self.active_sidebar_project_id().as_deref() == Some(project_id)
+                && !self.project_switch_pending_requests.is_empty()
+            {
+                self.flush_coalesced_project_switch_requests(window, cx);
+            }
+            if self.agents_workspace_project_id.as_deref() != Some(project_id) {
+                if let Some(url) = normalize_address(&message.url) {
+                    self.open_browser_url_in_parked_project(
+                        project_id,
+                        url,
+                        message.reuse,
+                        remote_machine_id,
+                        cx,
+                    );
+                }
+                return;
+            }
             if self.browser_tabs_project_id.as_deref() != Some(project_id) {
                 self.swap_browser_tabs_to_project_id(Some(project_id.to_string()), cx);
             }

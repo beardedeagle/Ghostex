@@ -93,6 +93,7 @@ impl GhostexGpuiApp {
         self.land_quick_automations_active_project_on_automate_mode(window, cx);
         self.land_pending_source_file_open_on_source_mode(window, cx);
         self.gx_store_land_pending_browser_open(window, cx);
+        self.land_pending_parked_browser_open(window, cx);
         self.ensure_project_workarea_runtime_cef_surfaces_for_current_context(cx);
         self.broadcast_extension_context_changes(cx);
         cx.notify();
