@@ -463,7 +463,7 @@ fn outcome_of(answer: Result<Value, String>, kept: Kept) -> Outcome {
                 .to_string();
             if text.is_empty() {
                 Outcome::Nothing(
-                    "No words were heard in the recording. It is kept in Settings > Voice agent > Dictation history."
+                    "No words were heard in the recording. It is kept in Settings > Extensions > Voice agent > Dictation history."
                         .to_string(),
                 )
             } else {

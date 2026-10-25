@@ -318,8 +318,8 @@ async fn start_conversation(
         }
         Err(message) if client_remote => {
             let message = message.replace(
-                "Settings > Voice agent",
-                "Ghostex Settings > Voice agent on that computer",
+                "Settings > Extensions > Voice agent",
+                "Ghostex Settings > Extensions > Voice agent on that computer",
             );
             fail(
                 socket,
@@ -465,12 +465,12 @@ async fn start_conversation(
 pub(super) fn no_key_message(provider: Provider, client_remote: bool) -> String {
     if client_remote {
         format!(
-            "The computer this session runs on has no {} API key for the voice agent. Add it in Ghostex Settings > Voice agent on that computer.",
+            "The computer this session runs on has no {} API key for the voice agent. Add it in Ghostex Settings > Extensions > Voice agent on that computer.",
             provider.label()
         )
     } else {
         format!(
-            "Add your {} API key in Settings > Voice agent.",
+            "Add your {} API key in Settings > Extensions > Voice agent.",
             provider.label()
         )
     }
@@ -479,12 +479,12 @@ pub(super) fn no_key_message(provider: Provider, client_remote: bool) -> String 
 pub(super) fn bad_key_message(provider: Provider, client_remote: bool) -> String {
     if client_remote {
         format!(
-            "The {label} API key on the computer this session runs on was refused by {label}. Check it in Ghostex Settings > Voice agent on that computer.",
+            "The {label} API key on the computer this session runs on was refused by {label}. Check it in Ghostex Settings > Extensions > Voice agent on that computer.",
             label = provider.label()
         )
     } else {
         format!(
-            "{} refused the API key. Check it in Settings > Voice agent.",
+            "{} refused the API key. Check it in Settings > Extensions > Voice agent.",
             provider.label()
         )
     }

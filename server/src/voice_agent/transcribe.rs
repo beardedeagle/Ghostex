@@ -115,7 +115,7 @@ async fn call_once(paths: &crate::paths::GxserverPaths, recording: &Recording) -
         Ok(None) => {
             return Outcome::Final(problem(
                 "noKey",
-                "Dictation uses your xAI API key: add it in Settings > Voice agent, then press Transcribe again.",
+                "Dictation uses your xAI API key: add it in Settings > Extensions > Voice agent, then press Transcribe again.",
             ))
         }
         Err(message) => return Outcome::Final(problem("noKey", message)),
@@ -236,7 +236,7 @@ fn status_problem(status: u16, body: &str) -> Outcome {
     match status {
         401 | 403 => Outcome::Final(problem(
             "badKey",
-            "xAI refused the API key. Check it in Settings > Voice agent, then press Transcribe again.",
+            "xAI refused the API key. Check it in Settings > Extensions > Voice agent, then press Transcribe again.",
         )),
         400 | 413 | 415 | 422 => Outcome::Final(problem("badAudio", said)),
         402 => Outcome::Transient(problem("paymentRequired", said)),

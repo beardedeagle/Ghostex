@@ -1,7 +1,7 @@
 use crate::json::opt;
 use crate::rows::{row, section, Page, Section};
 
-/// Settings › Voice agent: the provider, its voice and its API key for the manager voice agent,
+/// Settings › Extensions › Voice agent: the provider, its voice and its API key for the manager voice agent,
 /// and the xAI key Grok dictation uses.
 ///
 /// CDXC:VoiceMode 2026-10-25 DECISION:

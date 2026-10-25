@@ -36,11 +36,11 @@ impl SettingsTabId {
         SettingsTabId::Agents,
         SettingsTabId::Accounts,
         SettingsTabId::Integrations,
-        SettingsTabId::VoiceAgent,
         SettingsTabId::Remote,
         SettingsTabId::Projects,
         SettingsTabId::Hotkeys,
         SettingsTabId::Extensions,
+        SettingsTabId::VoiceAgent,
         SettingsTabId::Workspaces,
         SettingsTabId::CloudBoxes,
         SettingsTabId::Connectors,
@@ -53,8 +53,12 @@ impl SettingsTabId {
 
     /// CDXC:Settings 2026-10-19 DECISION:
     /// User: "i want to put certain sidebar pages in the settings into a new collapsible area at the bottom called "Extensions"". Q306: the group holds Workspaces, Connectors, Cloud Boxes, Extensions (the store), Actions, Open In, OS Integration and Debugging. Q307: "Collapsed the first time, then remembers" (open or closed is saved in `settingsModalNavigation`). Q308: the store page is "Renamed "Store", first item in the group", so the group header only opens and closes it. A search opens the group and lists only its matching pages; a deep link to one of its pages opens it; while it is collapsed over the open page, its header shows the selected fill. Q313: Connectors, OS Integration and Debugging become built-in extensions with "Switch on top of the gate": each page needs its switch on and its old gate open (CDXC:Extensions 2026-10-19 in official_extensions.rs).
-    pub(crate) const EXTENSIONS_GROUP: [SettingsTabId; 8] = [
+    /// CDXC:VoiceMode 2026-10-25 DECISION:
+    /// User: "voice agent needs to be moved under extensions in the sidebar of the settings of the gpui app too". Voice agent is the group's second page, after the Store, now that the voice agent is a built-in extension (official_extensions.rs). Deep links (`initialTab: "voiceAgent"`, the voice panel's Open Settings, `ghostex settings open --tab voiceAgent`) open the group like any page in it.
+    /// CDXC:VoiceMode 2026-10-25 WHY: unlike the group's other feature pages it stays in the rail while its extension is off, because the trimmed page still holds the xAI key Dictate uses and the Dictation history (the voice agent entry has no `settingsPages`, so `built_in_extension_allows_page` keeps it).
+    pub(crate) const EXTENSIONS_GROUP: [SettingsTabId; 9] = [
         SettingsTabId::Extensions,
+        SettingsTabId::VoiceAgent,
         SettingsTabId::Workspaces,
         SettingsTabId::CloudBoxes,
         SettingsTabId::Connectors,

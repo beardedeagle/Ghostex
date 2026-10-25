@@ -1029,7 +1029,7 @@ Windows and Linux) does the same as the chat box's microphone. What you said goe
 session's terminal) and is never sent by itself. Dictate records first and
 transcribes second: your voice is saved as a recording while you talk, and only
 after you stop is it turned into text with xAI's speech-to-text, so it needs an
-xAI API key in Settings > Voice agent (the key stays on this computer). A
+xAI API key in Settings > Extensions > Voice agent (the key stays on this computer). A
 problem with xAI or the connection never loses what you said: when the
 transcription fails, the chat box says so and offers Transcribe again (hover
 "Transcription failed" to read why, in xAI's own words when it gives any). In
@@ -1040,7 +1040,7 @@ kept: rest the pointer on the microphone (or right-click it) and choose
 Transcribe previous to type the newest recording that has no text yet into the
 chat box. On the terminal bar, press the microphone again while it transcribes
 to cancel, and right-click it for Transcribe previous. Every recording is listed
-in Settings > Voice agent > Dictation history. On an Android phone, Dictate is the microphone right next to Send in
+in Settings > Extensions > Voice agent > Dictation history. On an Android phone, Dictate is the microphone right next to Send in
 the chat box, which stays there even when other buttons move into More actions; it
 uses the key on the computer the chat lives on, keeps the recording on the phone
 until that computer has it, shows Recording, Transcribing and Transcribe again
@@ -2796,7 +2796,7 @@ Realtime keeps a call's voice once it has spoken, so the new voice starts with
 your next conversation (the panel says which). The small speed button right of
 the voice name ("1×") opens a menu of speeds (1×, 1.2×, 1.4×, 1.6×, 1.8×, 2×)
 that make it talk faster without changing its pitch, at once, even
-mid-sentence. Calls come in two modes, chosen in Settings > Voice agent > Call
+mid-sentence. Calls come in two modes, chosen in Settings > Extensions > Voice agent > Call
 mode or with the gear beside the speed button. Regular (the default) is
 hands-free: the agent listens all call and you can talk over it; on Grok you
 pay for the whole time the call is connected, quiet and muted time included
@@ -2835,7 +2835,7 @@ switch your window to it; asking to see it does. If the session is closed
 during the call, the strip says Closed and the call goes on. A call about one
 session doesn't offer or replace the remembered last conversation. For a
 session on another computer you are connected to, the call runs on that
-computer with its own voice key (add one in Settings > Voice agent on that
+computer with its own voice key (add one in Settings > Extensions > Voice agent on that
 computer); the strip says which computer. A call stays on the computer it
 started on, so picking a session of another computer while a call is open asks
 whether to keep the call or hang up and call, on the computer and the phone
@@ -2853,21 +2853,21 @@ sentence where things stood and carries on from there, or press Start fresh (or
 just start talking) to begin a new topic. You can also say "pick up where we
 left off" at any time. Once it continues, the panel shows "Remembering last
 conversation"; click it to read the whole summary. Forget on the card, or the
-Forget button in Settings > Voice agent > Memory, deletes the summary for the
+Forget button in Settings > Extensions > Voice agent > Memory, deletes the summary for the
 desktop and the phone. The summary is written by a small text model of the same
 provider, with the same key, right after a conversation ends.
 
 It needs an API key: pick xAI Grok Voice (the default) or OpenAI GPT Realtime
-in Settings > Voice agent, pick a voice, and paste the provider's key there
+in Settings > Extensions > Voice agent, pick a voice, and paste the provider's key there
 (xAI keys come from console.x.ai, OpenAI keys from platform.openai.com). The
 key is checked with the provider before it is saved, kept encrypted on this
 computer and never shown again. If a saved key can't be read anymore,
-Settings > Voice agent says so on its row: paste it again. The provider bills your account while a
+Settings > Extensions > Voice agent says so on its row: paste it again. The provider bills your account while a
 conversation is open. When the provider refuses a conversation (for example
 xAI answering "payment required" because an X subscription's included usage
 is used up for the moment), the panel shows the provider's own reason.
 
-Settings > Voice agent > Dictation history lists every recording you made with
+Settings > Extensions > Voice agent > Dictation history lists every recording you made with
 Dictate, on the computer or the phone, newest first and grouped by day, with
 its text, "This transcription was dismissed" with Recover for one you
 cancelled, or why it failed with Try again. Hover a row to Play it, Download
@@ -2907,12 +2907,14 @@ speaks. The call mode is also in the phone's Settings > Voice agent. They save t
 with the same voice at the same speed and in the same mode. It shows
 the same "Last conversation" card with Continue, Start fresh and Forget.
 
-The voice agent is a built-in extension, on by default. Turn it off on
-Settings > Extensions (Voice agent) and the headset and its arrow leave the top
+The voice agent is a built-in extension, on by default, and its settings page,
+Voice agent, sits in the Extensions group of the Settings sidebar, right under
+Store. Turn it off with its switch on Settings > Extensions > Store (the Voice
+agent card) and the headset and its arrow leave the top
 of the window, the voice agent hotkeys stop working and leave Settings >
 Hotkeys, a call that is running ends, and the phone app hides its headset,
 Voice call about this chat and Voice Call for that computer. Dictate keeps
-working: Settings > Voice agent then shows only the xAI key Dictate uses and
+working: Settings > Extensions > Voice agent then shows only the xAI key Dictate uses and
 the Dictation history. Turn it back on and everything returns, with your voice
 settings as you left them.
 
