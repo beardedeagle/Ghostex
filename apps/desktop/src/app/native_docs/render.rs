@@ -138,6 +138,12 @@ impl GhostexGpuiApp {
         .size_full();
 
         let document = self.render_native_docs_document(&p, layout, window, cx);
+        // The open file tabs sit over the document column only, as an editor's tabs do, never
+        // over the files list (`open_file_tabs.rs`).
+        let document = crate::app::render::view_instance_tabs::with_view_instance_tab_row(
+            self.render_native_docs_tab_row(cx),
+            document,
+        );
         let docked_frame = self.native_docs_sample_docked_motion(layout, window, cx);
         let docked_files = (layout.docked || docked_frame.animating).then(|| {
             let list = self.render_native_docs_files_list(&p, layout, false, window, cx);

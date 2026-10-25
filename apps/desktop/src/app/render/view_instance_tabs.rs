@@ -3,8 +3,8 @@
 //! (`native_docs/open_file_tabs.rs`). The view hands the row its tabs; the row draws them, scrolls
 //! them sideways and turns clicks into the view's own select, close, menu and `+` actions.
 //!
-//! CDXC:Workarea 2026-10-25 DECISION:
-//! User (panel tabs decisions K1, K6): a view that holds several things shows them in its own row under the side panel's strip, and every such view uses this one row, so its size, close control and scrolling are the same everywhere; the strip keeps one tab per view. The row only draws: the list stays in the view's own model (Code's windows, Files' open files), so moving the panel to a session later changes nothing here.
+//! CDXC:Workarea 2026-10-25 WHY:
+//! A view that holds several things shows them in its own row under the side panel's strip, and every such view uses this one row, drawn like the strip's own tabs, so its size, close control and scrolling are the same everywhere; the strip keeps one tab per view. The row only draws: the list stays in the view's own model (Code's windows, Files' open files), so moving the panel to a session later changes nothing here.
 
 use gpui::AnyElement;
 use gpui::ElementId;
@@ -31,10 +31,6 @@ use crate::app::model::*;
 use crate::app::render::view_tab_strip::view_tab_strip_tooltip_text;
 use crate::*;
 
-const VIEW_INSTANCE_TAB_ROW_HEIGHT: f32 = 30.0;
-const VIEW_INSTANCE_TAB_HEIGHT: f32 = 22.0;
-/// Room for "New Window" and the close control; below it the row scrolls instead.
-const VIEW_INSTANCE_TAB_MIN_WIDTH: f32 = 132.0;
 const VIEW_INSTANCE_TAB_GROUP: &str = "ghostex-gpui-view-instance-tab";
 
 /// The view a row belongs to, which decides what its `+` does.
@@ -54,7 +50,7 @@ impl ViewInstanceRow {
 
     fn add_tooltip(self) -> &'static str {
         match self {
-            Self::CodeWindows => "New Code Window",
+            Self::CodeWindows => "New VS Code Window",
             Self::OpenFiles => "Open File",
         }
     }
@@ -126,9 +122,9 @@ impl GhostexGpuiApp {
             .id(row.element_id())
             .flex_shrink_0()
             .w_full()
-            .h(px(VIEW_INSTANCE_TAB_ROW_HEIGHT))
+            .h(px(WORKAREA_VIEW_TAB_STRIP_HEIGHT))
             .items_center()
-            .gap(px(4.0))
+            .gap(px(WORKAREA_VIEW_TAB_GAP))
             .px(px(6.0))
             .bg(glass_clear(project_editor_shell_background_color()))
             .border_b_1()
@@ -142,7 +138,7 @@ impl GhostexGpuiApp {
                     .min_w_0()
                     .h_full()
                     .items_center()
-                    .gap(px(4.0))
+                    .gap(px(WORKAREA_VIEW_TAB_GAP))
                     .overflow_x_scroll()
                     .track_scroll(scroll)
                     .children(
@@ -154,11 +150,11 @@ impl GhostexGpuiApp {
             .into_any_element()
     }
 
-    /// One tab: equal widths down to `VIEW_INSTANCE_TAB_MIN_WIDTH`, its label in the middle, its
-    /// tooltip beside it, and the close control at its left edge.
+    /// One tab, drawn as the view tab strip draws its tabs: its label, its tooltip beside it, and
+    /// the close control after the label.
     ///
     /// CDXC:CodeEditor 2026-10-25 WHY:
-    /// With every tab free to shrink, 16 windows turned each label into an unreadable "…" (measured in Ghostex-3). The tabs stop at a minimum width and the row scrolls sideways, as the view tab strip does, keeping the shown tab in view (the view scrolls its handle to it when the shown one changes).
+    /// The tabs keep the strip's one width (CDXC:Workarea 2026-09-21 DECISION on `WORKAREA_VIEW_TAB_WIDTH`) instead of shrinking, which turned 16 windows' labels into an unreadable "…", and the row scrolls sideways, keeping the shown tab in view (the view scrolls its handle to it when the shown one changes).
     fn render_view_instance_tab(
         &self,
         row: ViewInstanceRow,
@@ -177,18 +173,18 @@ impl GhostexGpuiApp {
         div()
             .id(instance.element_id())
             .group(VIEW_INSTANCE_TAB_GROUP)
-            .relative()
             .flex()
-            .flex_1()
-            .min_w(px(VIEW_INSTANCE_TAB_MIN_WIDTH))
-            .h(px(VIEW_INSTANCE_TAB_HEIGHT))
+            .flex_shrink_0()
+            .w(px(WORKAREA_VIEW_TAB_WIDTH))
+            .h(px(WORKAREA_VIEW_TAB_HEIGHT))
             .items_center()
-            .justify_center()
-            .px(px(22.0))
-            .rounded(px(5.0))
+            .gap(px(6.0))
+            .px(px(WORKAREA_VIEW_TAB_HORIZONTAL_PADDING))
+            .rounded(px(WORKAREA_VIEW_TAB_RADIUS))
             .border_1()
             .border_color(titlebar_split_button_border_color())
-            .text_size(px(12.0))
+            .text_size(px(WORKAREA_HEADER_TITLE_TEXT_SIZE))
+            .line_height(px(WORKAREA_VIEW_TAB_HEIGHT))
             .cursor_default()
             .when(showing, |this| {
                 this.bg(titlebar_active_segment_color())
@@ -227,6 +223,15 @@ impl GhostexGpuiApp {
                     }),
                 )
             })
+            .child(
+                div()
+                    .flex_1()
+                    .min_w_0()
+                    .overflow_hidden()
+                    .whitespace_nowrap()
+                    .text_ellipsis()
+                    .child(label),
+            )
             .when(closable, |this| {
                 let middle = instance.clone();
                 this.on_mouse_up(
@@ -239,19 +244,11 @@ impl GhostexGpuiApp {
                 )
                 .child(self.render_view_instance_tab_close_button(instance, showing, unsaved, cx))
             })
-            .child(
-                div()
-                    .min_w_0()
-                    .overflow_hidden()
-                    .whitespace_nowrap()
-                    .text_ellipsis()
-                    .child(label),
-            )
             .into_any_element()
     }
 
-    /// At the tab's left edge, as macOS draws it: on the shown tab and the hovered one. An unsaved
-    /// tab shows a dot there instead, which turns into the close control on hover.
+    /// After the label, as the view tab strip draws it: on the shown tab and the hovered one. An
+    /// unsaved tab shows a dot there instead, which turns into the close control on hover.
     fn render_view_instance_tab_close_button(
         &self,
         instance: ViewInstance,
@@ -261,9 +258,9 @@ impl GhostexGpuiApp {
     ) -> impl IntoElement {
         div()
             .id("close")
-            .absolute()
-            .left(px(4.0))
+            .relative()
             .flex()
+            .flex_shrink_0()
             .size(px(WORKAREA_VIEW_TAB_CLOSE_SIZE))
             .items_center()
             .justify_center()
@@ -290,7 +287,7 @@ impl GhostexGpuiApp {
                     })
                     .child(titlebar_svg_icon(
                         TITLEBAR_ICON_X,
-                        10.0,
+                        11.0,
                         titlebar_icon_color(),
                     )),
             )
@@ -315,10 +312,10 @@ impl GhostexGpuiApp {
             .id("ghostex-gpui-view-instance-tab-add")
             .flex()
             .flex_shrink_0()
-            .size(px(VIEW_INSTANCE_TAB_HEIGHT))
+            .size(px(WORKAREA_VIEW_TAB_HEIGHT))
             .items_center()
             .justify_center()
-            .rounded(px(5.0))
+            .rounded(px(WORKAREA_VIEW_TAB_RADIUS))
             .cursor_default()
             .hover(|this| this.bg(titlebar_button_hover_color()))
             .on_mouse_down(
@@ -337,7 +334,7 @@ impl GhostexGpuiApp {
             })
             .child(titlebar_svg_icon(
                 TITLEBAR_ICON_PLUS,
-                13.0,
+                14.0,
                 titlebar_icon_color(),
             ))
     }

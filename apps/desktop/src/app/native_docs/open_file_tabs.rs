@@ -1,13 +1,15 @@
 //! The open files as a tab row above the Files view (`docsOpenFilesAsTabs`), drawn by the side
 //! panel's shared view row (`render/view_instance_tabs.rs`).
 
-use gpui::{AnyElement, Context, Pixels, Point, Window};
+use gpui::{
+    AnyElement, Context, InteractiveElement as _, IntoElement as _, ParentElement as _, Pixels,
+    Point, Styled as _, Window, div,
+};
 use serde_json::json;
 
 use super::actions::action;
 use crate::GhostexGpuiApp;
 use crate::app::context_menu::GpuiContextMenu;
-use crate::app::model::TitlebarMode;
 use crate::app::render::view_instance_tabs::{ViewInstance, ViewInstanceRow, ViewInstanceTab};
 
 impl GhostexGpuiApp {
@@ -15,8 +17,8 @@ impl GhostexGpuiApp {
     /// unsaved file's dot, and the file's path as its tooltip. With no file open the row is just
     /// its `+` (Open File).
     ///
-    /// CDXC:Docs 2026-10-25 DECISION:
-    /// User asked for the Files view's open files as tabs, as the panel tabs decisions K2–K4 set out: a setting, off by default (`docsOpenFilesAsTabs`), shows them as a row above the document using the same row as Code's windows, and while it is on the files sidebar hides its Open Files section and keeps Project Docs. Every file Files opens (from the list, Quick Access or a chat link) is a tab, so opening another file adds a tab instead of replacing the one on screen, and each file keeps its own draft, unsaved mark and notes as before. Supersedes, while the setting is on, the 2026-09-15 vertical Open Files list in files_list.rs.
+    /// CDXC:Docs 2026-10-25 WHY:
+    /// The Files view's open files can show as tabs: a setting, off by default (`docsOpenFilesAsTabs`), shows them as a row above the document using the same row as VS Code's windows, and while it is on the files sidebar hides its Open Files section and keeps Project Docs. Every file Files opens (from the list, Quick Access or a chat link) is a tab, so opening another file adds a tab instead of replacing the one on screen, and each file keeps its own draft, unsaved mark and notes as before. Supersedes, while the setting is on, the 2026-09-15 vertical Open Files list in files_list.rs.
     pub(crate) fn render_native_docs_tab_row(
         &mut self,
         cx: &mut Context<Self>,
@@ -47,6 +49,16 @@ impl GhostexGpuiApp {
             &state.tab_scroll,
             cx,
         );
+        // The keys the Open Files list answers (`native_docs_open_files_key_down`): arrows step
+        // between the files, Delete closes the shown one, Enter goes to the document.
+        let keys = self.native_docs_open_files_focus_handle(cx);
+        let row = div()
+            .id("native-docs-open-file-tab-keys")
+            .flex_shrink_0()
+            .track_focus(&keys)
+            .on_key_down(cx.listener(Self::native_docs_open_files_key_down))
+            .child(row)
+            .into_any_element();
         // Scroll to the shown file when it changes or its tab moves (a file before it closed); the
         // row applies the request when it lays out, and otherwise keeps a scroll made by hand.
         let state = &mut self.native_docs;
@@ -64,16 +76,17 @@ impl GhostexGpuiApp {
         Some(row)
     }
 
-    /// A click on a file's tab shows it and gives Files the keyboard, as a click on the document
-    /// does.
+    /// A click on a file's tab shows it and gives the row the keyboard, as a click on an Open Files
+    /// row does, so the arrows step on from there.
     pub(crate) fn native_docs_select_tab(
         &mut self,
         path: &str,
         window: &mut Window,
         cx: &mut Context<Self>,
     ) {
+        self.native_docs_open_files_focus_handle(cx)
+            .focus(window, cx);
         self.native_docs_select(path, cx);
-        self.focus_project_editor_surface(TitlebarMode::Manage, window, cx);
     }
 
     /// A file tab's right-click menu: Close, and Close All, which the hidden Open Files list

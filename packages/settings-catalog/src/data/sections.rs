@@ -516,6 +516,7 @@ pub const MAIN_SETTINGS_SCROLL_TARGET_SETTING_KEYS: &[(&str, &[&str])] = &[
             "videoFileOpenTarget",
             "audioFileOpenTarget",
             "fileChangesOpenTarget",
+            "docsOpenFilesAsTabs",
         ],
     ),
     (
@@ -644,6 +645,7 @@ pub const MAIN_SETTINGS_SCROLL_TARGET_SETTING_KEYS: &[(&str, &[&str])] = &[
             "videoFileOpenTarget",
             "audioFileOpenTarget",
             "fileChangesOpenTarget",
+            "docsOpenFilesAsTabs",
         ],
     ),
     ("browser", &["webLinkOpenTarget", "sessionLinkOpenTarget"]),
@@ -869,6 +871,7 @@ pub const MAIN_SETTINGS_SECTION_SETTING_KEYS: &[(&str, &[&str])] = &[
             "videoFileOpenTarget",
             "audioFileOpenTarget",
             "fileChangesOpenTarget",
+            "docsOpenFilesAsTabs",
         ],
     ),
     (

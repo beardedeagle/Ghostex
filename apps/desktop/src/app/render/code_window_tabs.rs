@@ -10,11 +10,11 @@ use crate::app::model::*;
 use crate::app::render::view_instance_tabs::{ViewInstance, ViewInstanceRow, ViewInstanceTab};
 use crate::*;
 
-const CODE_WINDOW_TAB_GROUP: &str = "ghostex-gpui-code-window-tab";
-
 impl GhostexGpuiApp {
-    /// The row, whenever VS Code windows as tabs is on: with only the project's own window it is that
-    /// tab and the `+`.
+    /// The row, whenever VS Code windows as tabs is on: with only the project's own window it is
+    /// that tab and the `+`. The project's own window has no close control; it closes with the
+    /// VS Code tab. Each extra window shows its folder or workspace, with VS Code's window title as its
+    /// tooltip.
     ///
     /// CDXC:CodeEditor 2026-10-24 WHY:
     /// With the row hidden until a second window existed, and no VS Code Window row in the side panel's `+` menu, there was no visible way to open one. The row stays while the setting is on, so its `+` is always there; this replaces the same day's macOS-style rule that showed it only with two windows or more.
@@ -32,186 +32,32 @@ impl GhostexGpuiApp {
             .filter(|name| !name.trim().is_empty())
             .unwrap_or_else(|| TitlebarMode::Source.tab_label())
             .into();
-        let mut tabs =
-            vec![self.render_code_window_tab(None, project_label.clone(), project_label, cx)];
-        for code_window in &self.code_windows.windows {
-            let label = code_window.label();
-            let tooltip = code_window.title.clone().unwrap_or_else(|| label.clone());
-            tabs.push(self.render_code_window_tab(Some(code_window.id), label, tooltip, cx));
-        }
-        Some(
-            h_flex()
-                .id("ghostex-gpui-code-window-tabs")
-                .flex_shrink_0()
-                .w_full()
-                .h(px(WORKAREA_VIEW_TAB_STRIP_HEIGHT))
-                .items_center()
-                .gap(px(WORKAREA_VIEW_TAB_GAP))
-                .px(px(6.0))
-                .bg(glass_clear(project_editor_shell_background_color()))
-                .border_b_1()
-                .border_color(titlebar_split_button_border_color())
-                .text_color(titlebar_text_color())
-                .font_family(crate::ui_fonts::UI_FONT)
-                .child(
-                    h_flex()
-                        .id("ghostex-gpui-code-window-tabs-scroll")
-                        .flex_1()
-                        .min_w_0()
-                        .h_full()
-                        .items_center()
-                        .gap(px(WORKAREA_VIEW_TAB_GAP))
-                        .overflow_x_scroll()
-                        .track_scroll(&self.code_window_tab_scroll_handle)
-                        .children(tabs),
-                )
-                .child(self.render_code_window_tab_add_button(cx))
-                .into_any_element(),
-        )
-    }
-
-    /// One window's tab, drawn as the view tab strip draws its tabs: its folder or workspace,
-    /// VS Code's window title as its tooltip, and a close control after the label on the extra
-    /// windows only (the project's own window closes with the VS Code tab).
-    ///
-    /// CDXC:CodeEditor 2026-10-25 WHY:
-    /// The tabs keep the strip's one width (CDXC:Workarea 2026-09-21 DECISION on `WORKAREA_VIEW_TAB_WIDTH`) instead of shrinking, which turned 16 windows' labels into an unreadable "…", and the row scrolls sideways, keeping the shown window's tab in view (`reveal_shown_code_window_tab`).
-    fn render_code_window_tab(
-        &self,
-        id: Option<CodeWindowId>,
-        label: SharedString,
-        tooltip: SharedString,
-        cx: &mut gpui::Context<Self>,
-    ) -> AnyElement {
-        let is_showing = self.code_windows.active == id;
-        let element_id = id.map_or(0, |id| id.0);
-        div()
-            .id(format!("ghostex-gpui-code-window-tab-{element_id}"))
-            .group(CODE_WINDOW_TAB_GROUP)
-            .flex()
-            .flex_shrink_0()
-            .w(px(WORKAREA_VIEW_TAB_WIDTH))
-            .h(px(WORKAREA_VIEW_TAB_HEIGHT))
-            .items_center()
-            .gap(px(6.0))
-            .px(px(WORKAREA_VIEW_TAB_HORIZONTAL_PADDING))
-            .rounded(px(WORKAREA_VIEW_TAB_RADIUS))
-            .border_1()
-            .border_color(titlebar_split_button_border_color())
-            .text_size(px(WORKAREA_HEADER_TITLE_TEXT_SIZE))
-            .line_height(px(WORKAREA_VIEW_TAB_HEIGHT))
-            .cursor_default()
-            .when(is_showing, |this| {
-                this.bg(titlebar_active_segment_color())
-                    .text_color(titlebar_active_text_color())
-            })
-            .when(!is_showing, |this| {
-                this.text_color(titlebar_inactive_text_color())
-                    .hover(|this| {
-                        this.bg(titlebar_button_hover_color())
-                            .text_color(titlebar_active_text_color())
-                    })
-            })
-            // Beside the tab, as the strip's tooltips are: below it would sit behind the page.
-            .managed_tooltip_with_placement(
-                ManagedTooltipPlacement::WiderSide,
-                move |window, cx| {
-                    titlebar_tooltip(view_tab_strip_tooltip_text(&tooltip), window, cx)
-                },
-            )
-            .on_mouse_down(
-                MouseButton::Left,
-                cx.listener(move |this, _event: &MouseDownEvent, window, cx| {
-                    window.prevent_default();
-                    cx.stop_propagation();
-                    this.select_code_window(id, window, cx);
-                }),
-            )
-            .child(
-                div()
-                    .flex_1()
-                    .min_w_0()
-                    .overflow_hidden()
-                    .whitespace_nowrap()
-                    .text_ellipsis()
-                    .child(label),
-            )
-            .when_some(id, |this, id| {
-                this.on_mouse_up(
-                    MouseButton::Middle,
-                    cx.listener(move |this, _event: &MouseUpEvent, window, cx| {
-                        window.prevent_default();
-                        cx.stop_propagation();
-                        this.close_code_window(id, window, cx);
-                    }),
-                )
-                .child(self.render_code_window_tab_close_button(id, is_showing, cx))
-            })
-            .into_any_element()
-    }
-
-    /// After the label, as the view tab strip draws it: on the showing tab and the hovered one.
-    fn render_code_window_tab_close_button(
-        &self,
-        id: CodeWindowId,
-        is_showing: bool,
-        cx: &mut gpui::Context<Self>,
-    ) -> impl IntoElement {
-        div()
-            .id(format!("ghostex-gpui-code-window-tab-close-{}", id.0))
-            .flex()
-            .flex_shrink_0()
-            .size(px(WORKAREA_VIEW_TAB_CLOSE_SIZE))
-            .items_center()
-            .justify_center()
-            .rounded(px(4.0))
-            .cursor_default()
-            .when(!is_showing, |this| {
-                this.opacity(0.0)
-                    .group_hover(CODE_WINDOW_TAB_GROUP, |this| this.opacity(1.0))
-            })
-            .hover(|this| this.bg(titlebar_button_hover_color()))
-            .on_mouse_down(
-                MouseButton::Left,
-                cx.listener(move |this, _event: &MouseDownEvent, window, cx| {
-                    window.prevent_default();
-                    cx.stop_propagation();
-                    this.close_code_window(id, window, cx);
-                }),
-            )
-            .child(titlebar_svg_icon(
-                TITLEBAR_ICON_X,
-                11.0,
-                titlebar_icon_color(),
-            ))
-    }
-
-    fn render_code_window_tab_add_button(&self, cx: &mut gpui::Context<Self>) -> impl IntoElement {
-        div()
-            .id("ghostex-gpui-code-window-tab-add")
-            .flex()
-            .flex_shrink_0()
-            .size(px(WORKAREA_VIEW_TAB_HEIGHT))
-            .items_center()
-            .justify_center()
-            .rounded(px(WORKAREA_VIEW_TAB_RADIUS))
-            .cursor_default()
-            .hover(|this| this.bg(titlebar_button_hover_color()))
-            .on_mouse_down(
-                MouseButton::Left,
-                cx.listener(|this, _event: &MouseDownEvent, window, cx| {
-                    window.prevent_default();
-                    cx.stop_propagation();
-                    this.open_new_code_window(window, cx);
-                }),
-            )
-            .managed_tooltip_with_placement(ManagedTooltipPlacement::Left, |window, cx| {
-                titlebar_tooltip("New VS Code Window", window, cx)
-            })
-            .child(titlebar_svg_icon(
-                TITLEBAR_ICON_PLUS,
-                14.0,
-                titlebar_icon_color(),
-            ))
+        let active = self.code_windows.active;
+        let own = ViewInstanceTab {
+            instance: ViewInstance::CodeWindow(None),
+            tooltip: project_label.clone(),
+            label: project_label,
+            showing: active.is_none(),
+            closable: false,
+            unsaved: false,
+        };
+        let tabs =
+            std::iter::once(own).chain(self.code_windows.windows.iter().map(|code_window| {
+                let label = code_window.label();
+                ViewInstanceTab {
+                    instance: ViewInstance::CodeWindow(Some(code_window.id)),
+                    tooltip: code_window.title.clone().unwrap_or_else(|| label.clone()),
+                    label,
+                    showing: active == Some(code_window.id),
+                    closable: true,
+                    unsaved: false,
+                }
+            }));
+        Some(self.render_view_instance_tab_row(
+            ViewInstanceRow::CodeWindows,
+            tabs,
+            &self.code_window_tab_scroll_handle,
+            cx,
+        ))
     }
 }

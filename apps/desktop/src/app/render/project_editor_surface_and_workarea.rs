@@ -298,7 +298,7 @@ impl GhostexGpuiApp {
         cx: &mut gpui::Context<Self>,
     ) -> AnyElement {
         if let Some(docs) = self.render_native_docs(window, cx) {
-            return with_view_instance_tab_row(self.render_native_docs_tab_row(cx), docs);
+            return docs;
         }
         /*
         CDXC:Workarea 2026-06-24-10:12:

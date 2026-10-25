@@ -447,7 +447,9 @@ view from the strip.
   as tabs (Settings > General > Tools > File opening) to show them as a row of
   tabs above the document instead: click a tab to show its file, close it with
   its × (a dot marks unsaved changes) or a middle click, right-click a tab for
-  Close All, and use the + after the tabs to open another file. When the Files
+  Close All, and use the + after the tabs to open another file. After clicking a
+  tab, the arrow keys step between the files, Delete closes the shown one and
+  Enter goes back to the document. When the Files
   view is narrower than 800px the list opens as a
   temporary drawer over the document and closes when you open a file, press
   Escape, or click outside it. Cmd+F, or Ctrl+F on Windows and Linux, opens the
