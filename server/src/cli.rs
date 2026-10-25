@@ -824,7 +824,7 @@ mod macos_app_launchd_job {
     use std::path::{Path, PathBuf};
     use std::process::Command;
 
-    use anyhow::{anyhow, Result};
+    use anyhow::Result;
 
     /// The job's label when it was kickstarted, `None` when there is no such job to use.
     pub(super) fn kickstart_if_it_runs(binary: &Path) -> Result<Option<String>> {
