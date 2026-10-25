@@ -1,27 +1,13 @@
-//! The Code view's window tabs: one row above the Code page with a tab per VS Code window (the
-//! project's own first, then its extra windows) and a `+` for a new one, the way VS Code shows its
-//! windows as tabs on macOS (`window.nativeTabs`). See `app/workarea/code_windows.rs`.
+//! The Code view's window tabs: a tab per VS Code window (the project's own first, then its extra
+//! windows) and a `+` for a new one, the way VS Code shows its windows as tabs on macOS
+//! (`window.nativeTabs`), drawn by the shared row (`view_instance_tabs.rs`). See
+//! `app/workarea/code_windows.rs`.
 
 use gpui::AnyElement;
-use gpui::InteractiveElement as _;
-use gpui::IntoElement;
-use gpui::MouseButton;
-use gpui::MouseDownEvent;
-use gpui::MouseUpEvent;
-use gpui::ParentElement as _;
 use gpui::SharedString;
-use gpui::Styled as _;
-use gpui::div;
-use gpui::prelude::FluentBuilder as _;
-use gpui::px;
-use gpui_component::h_flex;
-use gpui_component::tooltip::ManagedTooltipExt as _;
-use gpui_component::tooltip::ManagedTooltipPlacement;
 
-use crate::app::consts::*;
-use crate::app::helpers::*;
 use crate::app::model::*;
-use crate::app::render::view_tab_strip::view_tab_strip_tooltip_text;
+use crate::app::render::view_instance_tabs::{ViewInstance, ViewInstanceRow, ViewInstanceTab};
 use crate::*;
 
 const CODE_WINDOW_TAB_GROUP: &str = "ghostex-gpui-code-window-tab";

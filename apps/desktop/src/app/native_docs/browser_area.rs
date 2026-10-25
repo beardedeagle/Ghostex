@@ -44,7 +44,7 @@ impl GhostexGpuiApp {
                 base.value,
                 &[
                     ("embed", "1".to_string()),
-                    ("path", document.path.clone()),
+                    ("path", document.path.to_string()),
                     // Where its sibling stylesheets, scripts and media load from.
                     (
                         "resourcePath",

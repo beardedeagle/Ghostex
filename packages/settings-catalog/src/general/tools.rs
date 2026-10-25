@@ -17,6 +17,7 @@ pub(crate) fn file_opening() -> Section {
             row("videoFileOpenTarget", "Videos", "Choose whether videos linked in agent chat or the terminal play in Files or open in the system app. Formats Files cannot play, such as .mp4 and .mov, always open in the system app.").options(MEDIA_FILE_OPEN_TARGET_OPTIONS),
             row("fileChangesOpenTarget", "Open file changes in", "Choose where Review all on an agent's file changes and Session details' Changes card open: the Changes view or the VS Code view. If the chosen view is turned off, the other one opens.").options(FILE_CHANGES_OPEN_TARGET_OPTIONS),
             row("audioFileOpenTarget", "Audio", "Choose whether audio files linked in agent chat or the terminal play in Files or open in the system app. Formats Files cannot play, such as .m4a, always open in the system app.").options(MEDIA_FILE_OPEN_TARGET_OPTIONS),
+            row("docsOpenFilesAsTabs", "Show open files as tabs", "Show the files open in the Files view as a row of tabs above the document, instead of the Open Files list in the files sidebar. Every file you open, from the files list, Quick Access or a chat link, gets a tab, and each keeps its own unsaved changes and notes."),
         ],
     )
 }

@@ -85,7 +85,7 @@ impl GhostexGpuiApp {
                 .into_any_element();
         };
         let now = Instant::now();
-        let title: SharedString = document.display_path.clone().into();
+        let title = document.display_path.clone();
         let dirty = document.dirty;
         let copied = document.title_copied_until.is_some_and(|until| until > now);
         let saved = document.saved_flash_until.is_some_and(|until| until > now);
@@ -111,9 +111,9 @@ impl GhostexGpuiApp {
             // A published page has no file; its title copies the page's address.
             page_url
         } else {
-            let file = std::path::Path::new(&path);
+            let file = std::path::Path::new(path.as_str());
             if file.is_absolute() {
-                path.clone()
+                path.to_string()
             } else {
                 self.native_docs
                     .project
@@ -125,7 +125,7 @@ impl GhostexGpuiApp {
                             .to_string_lossy()
                             .into_owned()
                     })
-                    .unwrap_or_else(|| path.clone())
+                    .unwrap_or_else(|| path.to_string())
             }
         }
         .into();
@@ -594,14 +594,14 @@ impl GhostexGpuiApp {
                     .into_any_element();
             }
             DocsDocumentLoad::Unsupported(reason) => {
-                let (path, reason) = (document.path.clone(), reason.clone());
+                let (path, reason) = (document.path.to_string(), reason.clone());
                 return open_externally(path, reason, cx);
             }
             DocsDocumentLoad::Ready => {}
         }
         match document.kind {
             DocsFileKind::SystemApp => {
-                let path = document.path.clone();
+                let path = document.path.to_string();
                 return open_externally(path, "This file opens in its own app.".to_string(), cx);
             }
             DocsFileKind::Image if document.svg_source => {}
@@ -630,7 +630,7 @@ impl GhostexGpuiApp {
                         "This file"
                     },
                 ) {
-                    let path = (!published_page).then(|| document.path.clone());
+                    let path = (!published_page).then(|| document.path.to_string());
                     return self.render_web_runtime_prompt_card(
                         "native-docs-web-runtime-prompt",
                         prompt,

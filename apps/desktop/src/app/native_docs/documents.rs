@@ -1,6 +1,6 @@
 //! Open documents: reading a file into its editor, tracking unsaved changes, saving and closing.
 
-use gpui::{AppContext as _, Context, Window};
+use gpui::{AppContext as _, Context, SharedString, Window};
 use gpui_component::input::{EditorState, InputEvent};
 use serde_json::json;
 
@@ -219,7 +219,7 @@ impl GhostexGpuiApp {
             document.disk_reload = None;
             document.size = file["size"].as_u64();
             if let Some(display_path) = file["displayPath"].as_str() {
-                document.display_path = display_path.to_string();
+                document.display_path = display_path.into();
             }
             document.saved_text = text.clone();
             document.pending_text = Some(text);
@@ -253,11 +253,14 @@ impl GhostexGpuiApp {
                 state.set_scroll_offset(scroll, cx);
             });
         }
-        let waiting: Vec<(String, String)> = self
+        let waiting: Vec<(SharedString, String)> = self
             .native_docs
             .documents
             .iter_mut()
-            .filter_map(|document| Some((document.path.clone(), document.pending_text.take()?)))
+            .filter_map(|document| {
+                let text = document.pending_text.take()?;
+                Some((document.path.clone(), text))
+            })
             .collect();
         for (path, text) in waiting {
             let draft = self.native_docs_stored_draft(&path, &text);
@@ -490,7 +493,7 @@ impl GhostexGpuiApp {
                 .native_docs
                 .documents
                 .get(next)
-                .map(|document| document.path.clone());
+                .map(|document| document.path.to_string());
         }
         self.native_docs_persist_open_files(cx);
         self.native_docs_notify(cx);

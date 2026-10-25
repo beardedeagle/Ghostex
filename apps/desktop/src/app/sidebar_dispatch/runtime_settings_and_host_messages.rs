@@ -136,6 +136,11 @@ impl GhostexGpuiApp {
             self.code_windows_setting_on = code_windows_on;
             self.apply_code_windows_setting(code_windows_on, cx);
         }
+        let docs_tabs_on = settings.docs_open_files_as_tabs();
+        if self.docs_open_files_as_tabs != docs_tabs_on {
+            self.docs_open_files_as_tabs = docs_tabs_on;
+            cx.notify();
+        }
         let next_snapshot = sidebar_runtime_settings_snapshot_from_shared_settings(settings);
         let Some(next_snapshot) = changed_sidebar_runtime_settings_snapshot(
             &self.sidebar_runtime_settings_snapshot,

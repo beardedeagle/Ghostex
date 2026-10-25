@@ -148,7 +148,12 @@ impl GhostexGpuiApp {
         } else {
             let header = self.render_native_docs_files_header(p, layout, cx);
             let search = self.render_native_docs_search_row(p, window, cx);
-            let open_files = self.render_native_docs_open_files(p, cx);
+            // With the open files as tabs, the row above the view lists them (open_file_tabs.rs).
+            let open_files = if self.docs_open_files_as_tabs {
+                None
+            } else {
+                self.render_native_docs_open_files(p, cx)
+            };
             let tree = self.render_native_docs_tree(p, window, cx);
             [header, search]
                 .into_iter()
@@ -529,7 +534,7 @@ impl GhostexGpuiApp {
                 } else {
                     "Close file"
                 };
-                let display_path: SharedString = document.display_path.clone().into();
+                let display_path = document.display_path.clone();
                 let hover_bg = p.row_hover;
                 let strong = p.row_text_strong;
                 div()

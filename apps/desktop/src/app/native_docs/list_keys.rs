@@ -174,7 +174,7 @@ impl GhostexGpuiApp {
                     .native_docs
                     .documents
                     .iter()
-                    .map(|document| document.path.clone())
+                    .map(|document| document.path.to_string())
                     .collect();
                 if let Some(index) = paths.iter().position(|candidate| *candidate == path) {
                     let next = if event.keystroke.key == "down" {

@@ -57,7 +57,7 @@ impl super::picture_zoom::DocsPictureHost for GhostexGpuiApp {
         if document.kind != super::state::DocsFileKind::Image || document.svg_source {
             return None;
         }
-        Some((document.path.clone(), document.image.clone()?))
+        Some((document.path.to_string(), document.image.clone()?))
     }
 
     fn docs_picture_view(

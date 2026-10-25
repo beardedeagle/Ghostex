@@ -441,7 +441,14 @@ view from the strip.
   Quick Access or a link opens in the VS Code view, which shows its cells; opened from
   the files list it shows its JSON, with an Open in VS Code view button. The button at the sidebar's
   window edge hides the files list; the same button in the corner brings it
-  back, and hovering that button peeks the list without pinning it. Hidden or pinned is remembered. When the Files view is narrower than 800px the list opens as a
+  back, and hovering that button peeks the list without pinning it. Hidden or pinned is remembered.
+  Every file you open stays open, with its own unsaved changes and notes, and is
+  listed under Open Files, above the Project Docs tree. Turn on Show open files
+  as tabs (Settings > General > Tools > File opening) to show them as a row of
+  tabs above the document instead: click a tab to show its file, close it with
+  its × (a dot marks unsaved changes) or a middle click, right-click a tab for
+  Close All, and use the + after the tabs to open another file. When the Files
+  view is narrower than 800px the list opens as a
   temporary drawer over the document and closes when you open a file, press
   Escape, or click outside it. Cmd+F, or Ctrl+F on Windows and Linux, opens the
   search: inside a Markdown, code or text file it shows Find and Replace with the
@@ -530,7 +537,7 @@ view from the strip.
 
 Related settings: `terminalViewWidthMode`, `webLinkOpenTarget`,
 `documentFileOpenTarget`, `otherFileOpenTarget`, `videoFileOpenTarget`,
-`audioFileOpenTarget`, the Auto Sleep rows
+`audioFileOpenTarget`, `docsOpenFilesAsTabs`, the Auto Sleep rows
 (`autoSleep*IdleMinutes`), the Search in Files hotkey (`searchProjectFiles`), and
 Settings > Extensions > Store.
 

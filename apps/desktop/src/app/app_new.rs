@@ -271,6 +271,7 @@ impl GhostexGpuiApp {
                 next_code_window_id: 1,
                 code_window_handoff: None,
                 next_code_window_handoff_generation: 0,
+                docs_open_files_as_tabs: shared_settings_snapshot.docs_open_files_as_tabs(),
                 last_open_view_mode: shell_layout_state.last_open_view_mode,
                 view_pane_layouts: shell_layout_state.view_pane_layouts,
                 sidebar_visibility_memory,

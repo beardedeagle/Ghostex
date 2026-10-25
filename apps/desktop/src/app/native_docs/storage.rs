@@ -246,7 +246,7 @@ impl GhostexGpuiApp {
             .native_docs
             .documents
             .iter()
-            .map(|document| document.path.clone())
+            .map(|document| document.path.to_string())
             .filter(|path| {
                 !path.starts_with(".ghostex-review") && !super::published_page::is_page_path(path)
             })
