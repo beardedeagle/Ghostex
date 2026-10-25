@@ -458,17 +458,24 @@ impl GpuiAgentsHubModalWindow {
     }
 
     fn after_catalog_change(&mut self, window: &mut Window, cx: &mut Context<Self>) {
-        // A Hub opened on one skill lands on that skill's first file.
+        // A Hub opened on one skill lands on that skill: its first file selected, its row open
+        // and scrolled to the top of the list, so a skill far down a long list is not left
+        // folded out of sight.
         if let Some(skill) = self.pending_skill.take()
             && let Some(slot) = AgentsHubTab::Skills.file_slot()
-            && let Some(file) = self
+            && let Some((index, group_id, file_id)) = self
                 .groups(slot)
                 .iter()
-                .find(|group| group.name == skill)
-                .and_then(|group| group.files.first())
+                .enumerate()
+                .find(|(_, group)| group.name == skill)
+                .and_then(|(index, group)| {
+                    Some((index, group.id.clone(), group.files.first()?.id.clone()))
+                })
         {
-            self.selected_file_ids[slot] = file.id.clone();
+            self.selected_file_ids[slot] = file_id;
+            self.expanded_ids.insert(group_id);
             self.active_tab = AgentsHubTab::Skills;
+            self.list_scroll.scroll_to_top_of_item(index);
         }
         for slot in 0..4 {
             let groups = self.groups(slot);

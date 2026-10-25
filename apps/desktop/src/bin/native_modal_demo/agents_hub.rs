@@ -395,7 +395,8 @@ pub(super) fn open(demo: &super::DemoEnv, cx: &mut App) {
     let config = AgentsHubModalConfig {
         palette: demo.palette,
         initial_tab,
-        initial_skill: None,
+        // `skill:<name>` opens the Hub on that skill, as the Session details panel's skill rows do.
+        initial_skill: state.strip_prefix("skill:").map(str::to_string),
         word_wrap: state == "wrap",
     };
     let (window, view) = super::open_large_modal_window(

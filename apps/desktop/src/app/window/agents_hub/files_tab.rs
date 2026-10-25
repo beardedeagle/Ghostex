@@ -45,7 +45,25 @@ impl GpuiAgentsHubModalWindow {
     ) -> AnyElement {
         let hp = self.hp;
         let slot = self.active_tab.file_slot().unwrap_or(0);
-        let list = self.render_group_list(&hp, slot, self.groups(slot), cx);
+        let rows = self.render_group_rows(&hp, slot, self.groups(slot), cx);
+        // The group rows are the scroll area's own children, so `list_scroll` can bring one of
+        // them into view (a Hub opened on one skill).
+        let list = div()
+            .id("agents-hub-list")
+            .size_full()
+            .overflow_y_scroll()
+            .track_scroll(&self.list_scroll);
+        let list = match rows {
+            Some(rows) => list.px(px(8.0)).pb(px(10.0)).children(rows),
+            None => list.child(empty_note(
+                &hp,
+                if self.catalog.is_none() {
+                    "Loading agent files..."
+                } else {
+                    "No matching files."
+                },
+            )),
+        };
         let search = div()
             .flex_shrink_0()
             .w_full()
@@ -65,14 +83,7 @@ impl GpuiAgentsHubModalWindow {
                     .flex_1()
                     .min_h_0()
                     .w_full()
-                    .child(
-                        div()
-                            .id("agents-hub-list")
-                            .size_full()
-                            .overflow_y_scroll()
-                            .track_scroll(&self.list_scroll)
-                            .child(list),
-                    )
+                    .child(list)
                     .child(Scrollbar::vertical(&self.list_scroll)),
             );
         let right = self.render_file_pane(&hp, cx);
@@ -82,36 +93,26 @@ impl GpuiAgentsHubModalWindow {
             .into_any_element()
     }
 
-    fn render_group_list(
+    /// One row per group that matches the search, or `None` when none does.
+    fn render_group_rows(
         &self,
         hp: &HubPalette,
         slot: usize,
         groups: &[AgentsHubGroup],
         cx: &mut Context<Self>,
-    ) -> AnyElement {
+    ) -> Option<Vec<AnyElement>> {
         let filtered = filtered_groups(groups, &self.query);
         if filtered.is_empty() {
-            return empty_note(
-                hp,
-                if self.catalog.is_none() {
-                    "Loading agent files..."
-                } else {
-                    "No matching files."
-                },
-            );
+            return None;
         }
         let active_file_id = self.selected_file_ids[slot].clone();
-        let rows = filtered
-            .into_iter()
-            .enumerate()
-            .map(|(index, group)| self.render_group(hp, index, group, &active_file_id, cx));
-        v_flex()
-            .w_full()
-            .min_w_0()
-            .px(px(8.0))
-            .pb(px(10.0))
-            .children(rows)
-            .into_any_element()
+        Some(
+            filtered
+                .into_iter()
+                .enumerate()
+                .map(|(index, group)| self.render_group(hp, index, group, &active_file_id, cx))
+                .collect(),
+        )
     }
 
     /*
