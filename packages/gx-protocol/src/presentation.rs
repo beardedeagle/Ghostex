@@ -694,10 +694,10 @@ pub struct PresentationSessionLink {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub title: Option<String>,
     /// A PR's `open`, `draft`, `merged` or `closed`; an issue's `open` or `closed`; a Linear
-    /// ticket's state type. Absent until it was read.
+    /// ticket's state type, or `notFound` when Linear has no such ticket. Absent until it was read.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub state: Option<String>,
-    /// A Linear ticket's state as its team names it ("In Review").
+    /// A Linear ticket's state as its team names it ("In Review"), or "Not found".
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub state_name: Option<String>,
     /// A PR's `passing`, `failing` or `pending`.
@@ -714,7 +714,7 @@ pub struct PresentationSessionLink {
     pub source: String,
     #[serde(default, deserialize_with = "crate::de::null_as_default")]
     pub source_label: String,
-    /// Merged, closed, done or canceled.
+    /// Merged, closed, done or canceled, or a Linear ticket Linear has no record of (`notFound`).
     #[serde(
         default,
         deserialize_with = "crate::de::null_as_default",
