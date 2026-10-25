@@ -396,6 +396,12 @@ pub(super) async fn route_sessions_http(
                 crate::agents::kill_draft_session_provider(&session);
                 let project_id = value_text(&session, "projectId")?;
                 let session_id = value_text(&session, "sessionId")?;
+                crate::session_chat_queue::forget_session_chat_queue(
+                    db,
+                    &project_id,
+                    Some(&session_id),
+                )?;
+                crate::session_chat_queue_attachments::sweep(&state.paths, db);
                 schedule_presentation_session_delta(
                     &state,
                     db,
