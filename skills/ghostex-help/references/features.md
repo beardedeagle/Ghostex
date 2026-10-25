@@ -509,8 +509,9 @@ project's own list) manage them, and `move-session-to-group <session> --group-id
 <id>` and `remove-session-from-group <session>` move a session. `create-agent`
 and `create-session --start` take `--group-id <id>` to start the new session in
 a group, and `create-session --cwd <folder>` starts a terminal in another folder
-while it stays in its project. These edits are made by the Ghostex app, so it has to be
-running on that computer.
+while it stays in its project. These commands need a Ghostex release that includes
+them. These edits are made by the Ghostex app, so it has to be running on that
+computer.
 Close Project parks the project in Recent Projects (a remote machine's project
 goes to that machine's Recent Projects, which Quick Access lists); when it held
 the active session, Ghostex stays in the current Space and switches to an awake
