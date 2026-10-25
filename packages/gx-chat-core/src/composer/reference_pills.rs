@@ -53,6 +53,8 @@ pub enum ReferenceKind {
     Url,
     /// The Side chat pill: the `/btw ` prefix at the start of the chat box (side_chat.rs).
     SideChat,
+    /// A Changes view review comment (`review_comments.rs`).
+    Comment,
 }
 
 impl ReferenceKind {
@@ -65,6 +67,7 @@ impl ReferenceKind {
             Self::Skill => "skill",
             Self::Url => "url",
             Self::SideChat => "sideChat",
+            Self::Comment => "comment",
         }
     }
 }
@@ -255,7 +258,10 @@ fn is_slash_command_label(label: &str) -> bool {
 pub fn reference_path_label(label: &str, path: &str, kind: ReferenceKind) -> Option<String> {
     if matches!(
         kind,
-        ReferenceKind::Skill | ReferenceKind::Url | ReferenceKind::SideChat
+        ReferenceKind::Skill
+            | ReferenceKind::Url
+            | ReferenceKind::SideChat
+            | ReferenceKind::Comment
     ) {
         return None;
     }
@@ -297,7 +303,7 @@ pub fn reference_path_label(label: &str, path: &str, kind: ReferenceKind) -> Opt
 ///
 /// A path label past the cap drops its parent folder, then its start, so the file name stays.
 pub fn reference_display_label(label: &str, path: &str, kind: ReferenceKind) -> String {
-    if kind == ReferenceKind::Skill {
+    if kind == ReferenceKind::Skill || kind == ReferenceKind::Comment {
         return label.to_string();
     }
     let path_label = reference_path_label(label, path, kind);
@@ -406,6 +412,9 @@ fn has_file_extension(basename: &str) -> bool {
 pub fn reference_kind(label: &str, path: &str) -> ReferenceKind {
     // `explicitReferenceKind(label.trim())`: `String.prototype.trim` strips U+FEFF and leaves
     // U+0085, and Rust's `str::trim` does the exact opposite.
+    if crate::composer::review_comments::is_review_comment_href(path) {
+        return ReferenceKind::Comment;
+    }
     let explicit = explicit_reference_kind(crate::transcript::jsstr::js_trim(label));
     if let Some(kind) = explicit {
         if kind != ReferenceKind::Skill || is_skill_file(path) {
@@ -667,7 +676,10 @@ pub fn composer_references(text: &str) -> Vec<ComposerReference> {
             continue;
         }
         let bare = path_without_coordinates(&destination.path);
-        if destination.path.starts_with('#') || (has_uri_scheme(bare) && !is_openable_scheme(bare))
+        if destination.path.starts_with('#')
+            || (has_uri_scheme(bare)
+                && !is_openable_scheme(bare)
+                && !crate::composer::review_comments::is_review_comment_href(bare))
         {
             continue;
         }

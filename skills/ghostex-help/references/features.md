@@ -175,9 +175,11 @@ the file, and tick **Viewed** to fold it until it changes again. The toolbar
 switches between Unified and Split, wraps long lines and hides whitespace-only
 changes. To comment for the agent, hover a line and click **+**, or drag across
 lines and click **Comment**; write the comment and press Cmd+Enter (**Add to
-chat**). The file, the lines and your comment go into the chat composer of the
-session you last clicked in the sidebar (or are pasted into its terminal), ready
-to send, and the comment stays on its lines as **Sent** until those lines change
+chat**). Each comment joins the chat box of the session you last clicked in the
+sidebar as a pill, after whatever is already there; when you send, the agent gets
+the file, the lines and your comment, and the sent message shows the same pills.
+A session showing its terminal gets the comment pasted as text instead. The
+comment stays on its lines as **Sent** until those lines change
 or you click **Resolve** (**Show resolved comments** brings old ones back). Drag
 across lines and click **Copy** (or Cmd+C) to copy them without line numbers.
 Hover a hunk for **Revert**, or right-click a file's header for Copy Path, Open in

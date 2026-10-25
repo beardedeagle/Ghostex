@@ -2,6 +2,7 @@
 //! the Sent markers that stay on their lines until those lines change.
 
 use super::model::{ChangedFile, ChangesData, ChangesScope, HunkLine, LineAnchor, LineKind};
+use ghostex_gx_chat_core::composer::review_comments::ReviewComment;
 
 /// The lines a comment is about, captured when the editor opens so a refresh under it cannot
 /// move them.
@@ -100,29 +101,23 @@ impl ChangesComment {
     }
 }
 
-/// The text added to the composer: where, the lines as a diff, then what the user wrote.
-pub(crate) fn composer_text(range: &CommentRange, text: &str, scope: ChangesScope) -> String {
-    let fence_len = range
-        .excerpt
-        .iter()
-        .flat_map(|line| line.split(|ch| ch != '`'))
-        .map(str::len)
-        .max()
-        .unwrap_or(0)
-        .max(2)
-        + 1;
-    let fence = "`".repeat(fence_len);
-    let scope = match scope {
-        ChangesScope::AgainstMain => "the branch's changes",
-        ChangesScope::Uncommitted => "the uncommitted changes",
-    };
-    format!(
-        "Review comment on `{}` {} ({scope}):\n{fence}diff\n{}\n{fence}\n{}\n",
-        range.file,
-        range.label,
-        range.excerpt.join("\n"),
-        text.trim()
-    )
+/// The comment as the chat core carries it: a pill in the chat box, the block the agent reads.
+pub(crate) fn review_comment(
+    range: &CommentRange,
+    text: &str,
+    scope: ChangesScope,
+) -> ReviewComment {
+    ReviewComment {
+        file: range.file.clone(),
+        lines: range.label.clone(),
+        scope: match scope {
+            ChangesScope::AgainstMain => "the branch's changes",
+            ChangesScope::Uncommitted => "the uncommitted changes",
+        }
+        .to_string(),
+        excerpt: range.excerpt.clone(),
+        text: text.trim().to_string(),
+    }
 }
 
 /// A Sent comment resolves itself once any of its lines is gone or reads differently.

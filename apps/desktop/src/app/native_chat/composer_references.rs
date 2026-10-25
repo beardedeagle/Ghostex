@@ -101,6 +101,13 @@ pub(super) fn replacements(
                     .tooltip(if reference.kind == "sideChat" {
                         "Side chat: sent to the agent as a side question (/btw). Click to remove."
                             .to_string()
+                    } else if reference.kind == "comment" {
+                        // A review comment's destination is its encoded payload, not a place.
+                        ghostex_gx_chat_core::composer::review_comments::ReviewComment::from_href(
+                            &reference.path,
+                        )
+                        .map(|comment| comment.tooltip())
+                        .unwrap_or_default()
                     } else {
                         reference.path.clone()
                     }),
@@ -185,6 +192,10 @@ impl NativeChatView {
         if reference.kind == "sideChat" {
             let draft = self.draft.clone();
             self.invoke(json!({"type":"toggleSideChat","text":draft}), cx);
+            return true;
+        }
+        // A review comment pill has nothing to open; it goes to the agent when the message is sent.
+        if reference.kind == "comment" {
             return true;
         }
         if event.click_count >= 2 {

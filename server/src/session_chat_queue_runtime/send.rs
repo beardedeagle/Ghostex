@@ -172,6 +172,9 @@ pub(crate) async fn send_session_chat_message_with_draft(
             &db, project_id, session_id, text, version,
         )?;
     }
+    // CDXC:Changes 2026-10-25 WHY: a Changes view review comment sits in the chat box as a pill; the agent reads it as the full block (file, comment, lines as a diff). It is expanded here, after the draft check, because gxserver sends only the exact text of the saved draft revision (the pills), and here every send and queued prompt passes on its way to the agent.
+    let expanded = ghostex_gx_chat_core::composer::review_comments::expand_review_comments(text);
+    let text = expanded.as_str();
     let mut params = Map::new();
     params.insert("projectId".to_string(), json!(project_id));
     params.insert("sessionId".to_string(), json!(session_id));

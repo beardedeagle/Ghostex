@@ -694,6 +694,14 @@ impl NativeChatView {
         self.replace_draft(content, false, false, cx);
     }
 
+    /// Adds `content` after what is already in the chat box (a review comment pill, an
+    /// annotation), so a second one joins the first instead of replacing it.
+    pub(crate) fn append_prompt(&mut self, content: &str, cx: &mut Context<Self>) {
+        let next =
+            ghostex_gx_chat_core::composer::review_comments::append_to_draft(&self.draft, content);
+        self.replace_draft(&next, false, false, cx);
+    }
+
     fn replace_draft(
         &mut self,
         content: &str,

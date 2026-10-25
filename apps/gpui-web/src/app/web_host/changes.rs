@@ -107,7 +107,7 @@ impl GhostexGpuiApp {
                 agent_id,
                 file_paths,
             } => self.changes_merge_into_main(&project_key, message, agent_id, file_paths, cx),
-            ChangesRequest::Comment { text, done } => {
+            ChangesRequest::Comment { text, pill, done } => {
                 let chat = self
                     .open_session
                     .as_ref()
@@ -115,7 +115,7 @@ impl GhostexGpuiApp {
                     .map(|(_, view)| view.clone());
                 match chat {
                     Some(view) => {
-                        view.update(cx, |view, cx| view.insert_prompt(&text, cx));
+                        view.update(cx, |view, cx| view.append_prompt(&pill, cx));
                         done("the open chat".to_string(), cx);
                     }
                     None => {

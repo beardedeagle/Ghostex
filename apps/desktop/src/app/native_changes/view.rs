@@ -18,7 +18,7 @@ use gpui_component::input::{InputEvent, TextareaState};
 use serde_json::json;
 
 use super::comments::{
-    ChangesComment, CommentRange, CommentState, auto_resolve, composer_text, now_ms,
+    ChangesComment, CommentRange, CommentState, auto_resolve, now_ms, review_comment,
 };
 use super::model::{ChangesData, ChangesScope, HunkLine, LineAnchor, LineKind, Row, build_rows};
 use super::style::ChangesStyle;
@@ -111,10 +111,11 @@ pub(crate) enum ChangesRequest {
         agent_id: Option<String>,
         file_paths: Option<Vec<String>>,
     },
-    /// Adds `text` to the composer of the session that owns the project, or pastes it into its
-    /// terminal; `done` gets where it went ("Claude's chat").
+    /// Adds `pill` after what is in the chat box of the session that owns the project, or pastes
+    /// `text` (the full block) into its terminal; `done` gets where it went ("Claude's chat").
     Comment {
         text: String,
+        pill: String,
         done: Box<dyn FnOnce(String, &mut App)>,
     },
     OpenInFiles {
@@ -828,7 +829,7 @@ impl ChangesView {
         };
         let id = self.next_comment_id;
         self.next_comment_id += 1;
-        let composer = composer_text(&editor.range, &text, self.scope);
+        let comment = review_comment(&editor.range, &text, self.scope);
         self.comments.push(ChangesComment {
             id,
             range: editor.range,
@@ -842,7 +843,8 @@ impl ChangesView {
         let view = cx.weak_entity();
         (self.host)(
             ChangesRequest::Comment {
-                text: composer,
+                text: comment.block(),
+                pill: comment.reference(),
                 // The host may answer before this update returns (the page inserts at once).
                 done: Box::new(move |target, cx| {
                     cx.defer(move |cx| {

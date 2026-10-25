@@ -307,6 +307,37 @@ impl GhostexGpuiApp {
         view.update(cx, |view, cx| view.insert_prompt(content, cx));
         true
     }
+
+    /// Adds `content` after what is in the session's chat box; before the chat box is ready it
+    /// joins whatever is already waiting to go in.
+    pub(crate) fn append_to_session_chat_composer(
+        &mut self,
+        session_id: TerminalSessionId,
+        content: &str,
+        cx: &mut gpui::Context<Self>,
+    ) {
+        let view = self
+            .native_chat_views
+            .get(&session_id)
+            .filter(|view| view.read(cx).composer_ready)
+            .cloned();
+        if let Some(view) = view
+            && self
+                .session_chat_composer_ready_sessions
+                .contains(&session_id)
+        {
+            view.update(cx, |view, cx| view.append_prompt(content, cx));
+            return;
+        }
+        let waiting = self
+            .pending_session_chat_composer_insert
+            .remove(&session_id)
+            .unwrap_or_default();
+        self.pending_session_chat_composer_insert.insert(
+            session_id,
+            ghostex_gx_chat_core::composer::review_comments::append_to_draft(&waiting, content),
+        );
+    }
 }
 
 /*

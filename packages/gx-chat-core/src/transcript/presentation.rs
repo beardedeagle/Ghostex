@@ -131,8 +131,11 @@ pub fn project_message(
         Some((_, rest)) if !rest.is_empty() => rest.as_str(),
         _ => body.as_str(),
     };
-    let displayed_body = if is_user {
-        normalize_user_message_markdown(user_words)
+    let user_markdown = is_user.then(|| normalize_user_message_markdown(user_words));
+    // Review comment blocks show as the pills they were sent from (`review_comments.rs`); copying
+    // the message still gives the full blocks.
+    let displayed_body = if let Some(markdown) = &user_markdown {
+        crate::composer::review_comments::collapse_review_comments(markdown)
     } else if message.role == ChatRole::Assistant {
         // Q-tags become links to the question that asked them (`open_questions.rs`).
         link_question_tags(&agent_line_breaks(&body, line_breaks), question_tags)
@@ -151,7 +154,7 @@ pub fn project_message(
             .copied()
             .filter(|block| matches!(block, ChatBlock::ImageRef { .. }))
             .collect();
-        user_turn_copy_markdown(&displayed_body, &blocks)
+        user_turn_copy_markdown(user_markdown.as_deref().unwrap_or(&displayed_body), &blocks)
     } else {
         body.clone()
     };

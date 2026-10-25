@@ -190,21 +190,27 @@ impl GhostexGpuiApp {
                 agent_id,
                 file_paths,
             } => self.changes_merge_into_main(&project_key, message, agent_id, file_paths, cx),
-            ChangesRequest::Comment { text, done } => {
+            ChangesRequest::Comment { text, pill, done } => {
                 // The comment goes where Files annotations go: the session last clicked in the
                 // sidebar for this project, its chat composer or its terminal, else the clipboard.
                 let target = self.docs_annotation_feedback_target();
-                self.deliver_docs_annotation_feedback(text, None, cx, move |_, delivery, cx| {
-                    let label = match (delivery, target) {
-                        (Ok("chat"), Some(target)) => format!("{}'s chat", target.agent_label),
-                        (Ok("terminal"), Some(target)) => {
-                            format!("{}'s terminal", target.agent_label)
-                        }
-                        (Ok(_), _) => "the clipboard".to_string(),
-                        (Err(_), _) => String::new(),
-                    };
-                    done(label, cx);
-                });
+                self.deliver_docs_annotation_feedback_as(
+                    text,
+                    Some(pill),
+                    None,
+                    cx,
+                    move |_, delivery, cx| {
+                        let label = match (delivery, target) {
+                            (Ok("chat"), Some(target)) => format!("{}'s chat", target.agent_label),
+                            (Ok("terminal"), Some(target)) => {
+                                format!("{}'s terminal", target.agent_label)
+                            }
+                            (Ok(_), _) => "the clipboard".to_string(),
+                            (Err(_), _) => String::new(),
+                        };
+                        done(label, cx);
+                    },
+                );
             }
             ChangesRequest::OpenInFiles {
                 project_key,
