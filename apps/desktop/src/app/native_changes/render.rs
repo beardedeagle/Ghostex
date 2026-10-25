@@ -72,7 +72,10 @@ impl Render for ChangesView {
             .child(
                 canvas(
                     move |bounds, _, cx| {
-                        view.update(cx, |this, _| this.view_origin = bounds.origin);
+                        view.update(cx, |this, _| {
+                            this.view_origin = bounds.origin;
+                            this.view_width = bounds.size.width;
+                        });
                     },
                     |_, _, _, _| {},
                 )
@@ -94,23 +97,20 @@ impl ChangesView {
         let refs = data.map(|data| {
             let branch = data.branch.clone().unwrap_or_else(|| "HEAD".to_string());
             match self.scope {
-                ChangesScope::AgainstMain if data.on_default_branch => {
-                    format!("{branch} (uncommitted)")
-                }
+                // CDXC:Changes 2026-10-25 DECISION: User: "remove '(uncommitted)' which comes after the main branch name there"; on the default branch the toolbar names just the branch.
+                ChangesScope::AgainstMain if data.on_default_branch => branch,
                 ChangesScope::AgainstMain => format!("{branch} \u{2192} {}", data.base_label),
                 ChangesScope::Uncommitted => branch,
             }
         });
         let file_count = data.map_or(0, |data| data.files.len());
-        let (additions, deletions) =
-            data.map_or((0, 0), |data| (data.additions(), data.deletions()));
         let scope_button =
             |scope: ChangesScope, label: &'static str, id: &'static str, cx: &mut Context<Self>| {
                 let on = self.scope == scope;
                 div()
                     .id(id)
                     .h_full()
-                    .px(px(12.0))
+                    .px(px(10.0))
                     .flex()
                     .items_center()
                     .text_size(px(UI_SIZE))
@@ -145,15 +145,15 @@ impl ChangesView {
                 ))
         };
         let all_collapsed = self.all_collapsed();
-        // A narrow panel wraps the switches onto a second row rather than clipping them.
+        // CDXC:Changes 2026-10-25 DECISION: User: "please make the files dropdown on the 1st row"; the toolbar is one row, and the branch name gives way first when the panel is narrow.
         h_flex()
             .flex_none()
-            .flex_wrap()
             .w_full()
+            .overflow_hidden()
             .min_h(px(CONTROL_HEIGHT + 12.0))
             .px(px(8.0))
             .py(px(6.0))
-            .gap(px(6.0))
+            .gap(px(4.0))
             .border_b_1()
             .border_color(hsla(s.hairline))
             .whitespace_nowrap()
@@ -199,8 +199,49 @@ impl ChangesView {
                         ),
                 )
             })
+            // CDXC:Changes 2026-10-25 DECISION: User: "please remove the files list at the top here no need it's duplicate of the stuff below". The file headers in the stream carry the checkboxes and counts; the file count opens a menu that jumps to a file.
             .when(file_count > 0, |this| {
-                this.child(stat(s, additions, deletions))
+                let anchor = cx.entity().downgrade();
+                this.child(
+                    h_flex()
+                        .id("changes-jump-toggle")
+                        .relative()
+                        .flex_none()
+                        .h(px(CONTROL_HEIGHT))
+                        .px(px(10.0))
+                        .gap(px(5.0))
+                        .rounded(px(6.0))
+                        .cursor_pointer()
+                        .text_size(px(UI_SIZE))
+                        .text_color(hsla(s.muted))
+                        .when(self.jump_open, |this| this.bg(hsla(s.selected)))
+                        .hover(|this| this.bg(hsla(s.hover)))
+                        .tooltip(|window, cx| {
+                            gpui_component::tooltip::Tooltip::new("Jump to a file")
+                                .build(window, cx)
+                        })
+                        .on_mouse_down(MouseButton::Left, |_, _, cx| cx.stop_propagation())
+                        .on_click(cx.listener(|this, _, _, cx| {
+                            this.jump_open = !this.jump_open;
+                            this.file_menu = None;
+                            cx.notify();
+                        }))
+                        .child(
+                            canvas(
+                                move |bounds, _, cx| {
+                                    let _ = anchor.update(cx, |this, _| this.jump_anchor = bounds);
+                                },
+                                |_, _, _, _| {},
+                            )
+                            .absolute()
+                            .size_full(),
+                        )
+                        .child(format!(
+                            "{file_count} {}",
+                            if file_count == 1 { "file" } else { "files" }
+                        ))
+                        .child(modal_icon(ICON_CHEVRON_DOWN, ICON_SIZE - 2.0, s.muted)),
+                )
             })
             .child(div().flex_1().min_w(px(0.0)))
             .when(self.loading, |this| {
@@ -272,50 +313,6 @@ impl ChangesView {
                 toggle("changes-refresh", ICON_REFRESH, false, "Refresh")
                     .on_click(cx.listener(|this, _, _, cx| this.load(false, cx))),
             )
-            // CDXC:Changes 2026-10-25 DECISION: User: "please remove the files list at the top here no need it's duplicate of the stuff below". The file headers in the stream carry the checkboxes and counts; the file count opens a menu that jumps to a file.
-            .when(file_count > 0, |this| {
-                let anchor = cx.entity().downgrade();
-                this.child(
-                    h_flex()
-                        .id("changes-jump-toggle")
-                        .relative()
-                        .flex_none()
-                        .h(px(CONTROL_HEIGHT))
-                        .px(px(10.0))
-                        .gap(px(5.0))
-                        .rounded(px(6.0))
-                        .cursor_pointer()
-                        .text_size(px(UI_SIZE))
-                        .text_color(hsla(s.muted))
-                        .when(self.jump_open, |this| this.bg(hsla(s.selected)))
-                        .hover(|this| this.bg(hsla(s.hover)))
-                        .tooltip(|window, cx| {
-                            gpui_component::tooltip::Tooltip::new("Jump to a file")
-                                .build(window, cx)
-                        })
-                        .on_mouse_down(MouseButton::Left, |_, _, cx| cx.stop_propagation())
-                        .on_click(cx.listener(|this, _, _, cx| {
-                            this.jump_open = !this.jump_open;
-                            this.file_menu = None;
-                            cx.notify();
-                        }))
-                        .child(
-                            canvas(
-                                move |bounds, _, cx| {
-                                    let _ = anchor.update(cx, |this, _| this.jump_anchor = bounds);
-                                },
-                                |_, _, _, _| {},
-                            )
-                            .absolute()
-                            .size_full(),
-                        )
-                        .child(format!(
-                            "{file_count} {}",
-                            if file_count == 1 { "file" } else { "files" }
-                        ))
-                        .child(modal_icon(ICON_CHEVRON_DOWN, ICON_SIZE - 2.0, s.muted)),
-                )
-            })
             .into_any_element()
     }
 
@@ -380,7 +377,29 @@ impl ChangesView {
         let data = self.data.as_ref()?;
         let current = self.current_file();
         let width = px(360.0);
-        let left = (self.jump_anchor.right() - self.view_origin.x - width).max(px(8.0));
+        let left = (self.jump_anchor.left() - self.view_origin.x)
+            .min(self.view_width - width - px(8.0))
+            .max(px(8.0));
+        // The diff's totals, which the one-row toolbar has no room for.
+        let totals = h_flex()
+            .flex_none()
+            .w_full()
+            .h(px(FILE_HEADER_HEIGHT - 10.0))
+            .px(px(8.0))
+            .gap(px(8.0))
+            .text_size(px(SMALL_SIZE))
+            .text_color(hsla(s.muted))
+            .child(format!(
+                "{} {} changed",
+                data.files.len(),
+                if data.files.len() == 1 {
+                    "file"
+                } else {
+                    "files"
+                }
+            ))
+            .child(div().flex_1())
+            .child(stat(s, data.additions(), data.deletions()));
         let top = self.jump_anchor.bottom() - self.view_origin.y + px(4.0);
         let rows: Vec<_> = data
             .files
@@ -440,10 +459,13 @@ impl ChangesView {
                 .p(px(4.0))
                 .rounded(px(8.0))
                 .border_1()
-                .border_color(hsla(s.p.menu_border))
-                .bg(hsla(s.p.menu_background))
+                .border_color(s.menu_bubble().1)
+                .bg(s.menu_bubble().0)
                 .shadow_lg()
+                // A menu takes the pointer, so scrolling it never scrolls the diff behind it.
+                .occlude()
                 .on_mouse_down(MouseButton::Left, |_, _, cx| cx.stop_propagation())
+                .child(totals)
                 .children(rows)
                 .into_any_element(),
         )
@@ -565,9 +587,11 @@ impl ChangesView {
                 .p(px(4.0))
                 .rounded(px(8.0))
                 .border_1()
-                .border_color(hsla(s.p.menu_border))
-                .bg(hsla(s.p.menu_background))
+                .border_color(s.menu_bubble().1)
+                .bg(s.menu_bubble().0)
                 .shadow_lg()
+                // A menu takes the pointer, so scrolling it never scrolls the diff behind it.
+                .occlude()
                 .on_mouse_down(MouseButton::Left, |_, _, cx| cx.stop_propagation())
                 .child(
                     item("changes-menu-copy", "Copy Path", false).on_click(cx.listener(

@@ -208,8 +208,13 @@ pub(crate) struct ChangesView {
     pub(crate) file_menu: Option<(String, gpui::Point<gpui::Pixels>)>,
     /// The row the keyboard is on (a hunk header).
     pub(crate) cursor: Option<usize>,
+    /// The file the user last moved into with J, K, ] or [; its header keeps its buttons showing.
+    /// Only a key sets it, never a load, a scroll or a jump.
+    pub(crate) key_file: Option<String>,
     pub(crate) focus: FocusHandle,
     pub(crate) view_origin: gpui::Point<gpui::Pixels>,
+    /// The view's width, so a menu opened near its right edge stays inside it.
+    pub(crate) view_width: gpui::Pixels,
     /// The file an entry point asked to show, until the diff that has it arrives.
     pending_reveal: Option<String>,
     memory: HashMap<String, ProjectMemory>,
@@ -246,6 +251,7 @@ impl ChangesView {
             wrap: true,
             hide_whitespace: false,
             jump_open: false,
+            key_file: None,
             jump_anchor: gpui::Bounds::default(),
             data: None,
             loading: false,
@@ -272,6 +278,7 @@ impl ChangesView {
             cursor: None,
             focus: cx.focus_handle(),
             view_origin: gpui::Point::default(),
+            view_width: gpui::Pixels::default(),
             pending_reveal: None,
             memory: HashMap::new(),
             last_render_ms: 0,
@@ -301,7 +308,12 @@ impl ChangesView {
             self.style = Some(ChangesStyle::resolve(info.palette));
             changed = true;
         }
-        if self.agent_id.is_none() {
+        // A pick that is no longer offered (a cloud agent, a removed one) falls back to the default.
+        if self
+            .agent_id
+            .as_ref()
+            .is_none_or(|id| !info.agents.iter().any(|agent| &agent.0 == id))
+        {
             self.agent_id = info
                 .default_agent_id
                 .clone()
@@ -1073,6 +1085,7 @@ impl ChangesView {
         };
         if let Some(row) = found {
             self.cursor = Some(row);
+            self.key_file = self.current_file();
             self.list.scroll_to(ListOffset {
                 item_ix: row,
                 offset_in_item: px(0.0),

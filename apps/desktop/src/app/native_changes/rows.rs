@@ -318,10 +318,9 @@ impl ChangesView {
         let open_path = path.clone();
         let viewed_path = path.clone();
         let revert_path = path.clone();
-        // CDXC:Changes 2026-10-25 DECISION: User: "please hide these buttons until i hover on a file". Copy path, Open in Files and Viewed show while the pointer is over the file's header or the keyboard is in that file; Viewed stays visible on a file already marked viewed so its state still reads.
+        // CDXC:Changes 2026-10-25 DECISION: User: "please hide these buttons until i hover on a file". Copy path, Open in Files and Viewed show while the pointer is over the file's header or the user moved into that file with the keys (never by default: a stale cursor left the last file's buttons up); Viewed stays visible on a file already marked viewed so its state still reads.
         let group: SharedString = format!("changes-file-group-{sticky}-{path}").into();
-        let focused =
-            self.cursor.is_some() && self.current_file().as_deref() == Some(path.as_str());
+        let focused = self.key_file.as_deref() == Some(path.as_str());
         let on_hover = move |this: gpui::Stateful<gpui::Div>, group: &SharedString| {
             this.when(!focused, |this| {
                 this.opacity(0.0)
@@ -773,32 +772,50 @@ impl ChangesView {
                         .child(modal_icon(ICON_PLUS, CODE_SIZE, gpui::rgb(0xffffff))),
                 )
             })
+            // CDXC:Changes 2026-10-25 DECISION: User: "make the copy button and comment button both have same bg and both have less height so they fit within that row and they should just be icon buttons. don't make their bg fully transparent make it have frosting so they're visible". Both are icon buttons of one size on the sidebar tooltip bubble's in-window fill, inside the row's height.
             .when(selection_end, |this| {
+                let (fill, border) = s.menu_bubble();
+                let button = |id: &'static str, icon: &'static str, tip: &'static str| {
+                    div()
+                        .id(id)
+                        .flex_none()
+                        .size(px(ROW_HEIGHT - 4.0))
+                        .rounded(px(5.0))
+                        .flex()
+                        .items_center()
+                        .justify_center()
+                        .border_1()
+                        .border_color(border)
+                        .bg(fill)
+                        .cursor_pointer()
+                        .hover(|this| this.bg(fill.blend(hsla(s.hover))))
+                        // A button inside a diff row must not start a line selection under it.
+                        .on_mouse_down(MouseButton::Left, |_, _, cx| cx.stop_propagation())
+                        .tooltip(move |window, cx| {
+                            gpui_component::tooltip::Tooltip::new(tip).build(window, cx)
+                        })
+                        .child(modal_icon(icon, ICON_SIZE - 2.0, s.text))
+                };
                 this.child(
                     h_flex()
                         .absolute()
                         .right(px(8.0))
-                        .top(px(1.0))
+                        .top(px(2.0))
                         .gap(px(4.0))
-                        .font_family(crate::app::window::native_modal_kit::MODAL_UI_FONT)
-                        .child(small_button(
-                            s,
-                            "changes-selection-copy",
-                            "Copy",
-                            false,
-                            cx.listener(|this, _, window, cx| {
-                                this.copy_selection(window, cx);
-                            }),
-                        ))
-                        .child(small_button(
-                            s,
-                            "changes-selection-comment",
-                            "Comment",
-                            true,
-                            cx.listener(|this, _, window, cx| {
-                                this.open_editor(window, cx);
-                            }),
-                        )),
+                        .child(
+                            button("changes-selection-copy", ICON_COPY, "Copy").on_click(
+                                cx.listener(|this, _, window, cx| {
+                                    this.copy_selection(window, cx);
+                                }),
+                            ),
+                        )
+                        .child(
+                            button("changes-selection-comment", ICON_MESSAGE, "Comment").on_click(
+                                cx.listener(|this, _, window, cx| {
+                                    this.open_editor(window, cx);
+                                }),
+                            ),
+                        ),
                 )
             })
             .into_any_element()

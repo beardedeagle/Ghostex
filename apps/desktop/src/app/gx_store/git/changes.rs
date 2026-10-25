@@ -74,6 +74,10 @@ impl GhostexGpuiApp {
                         };
                         text("command")?;
                         let id = text("agentId")?;
+                        // CDXC:Changes 2026-10-25 DECISION: User: "remove Claude (cloud) from agents who can be used for this (or any cloud agent)". The commit message is written on this computer, so only local agents are offered.
+                        if ghostex_gx_core::is_claude_cloud_agent(&id) {
+                            return None;
+                        }
                         let name = text("name").unwrap_or_else(|| id.clone());
                         Some((id, name))
                     })

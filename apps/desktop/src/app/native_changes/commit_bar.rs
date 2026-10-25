@@ -239,9 +239,11 @@ impl ChangesView {
             .p(px(4.0))
             .rounded(px(8.0))
             .border_1()
-            .border_color(hsla(s.p.menu_border))
-            .bg(hsla(s.p.menu_background))
+            .border_color(s.menu_bubble().1)
+            .bg(s.menu_bubble().0)
             .shadow_lg()
+            // A menu takes the pointer, so scrolling it never scrolls the diff behind it.
+            .occlude()
             .on_mouse_down(MouseButton::Left, |_, _, cx| cx.stop_propagation())
             .child(action_row("changes-action-commit", CommitAction::Commit, "Commit the picked files here.", cx))
             .child(action_row("changes-action-push", CommitAction::CommitPush, "Commit, then push the branch.", cx))
@@ -301,9 +303,11 @@ impl ChangesView {
             .p(px(4.0))
             .rounded(px(8.0))
             .border_1()
-            .border_color(hsla(s.p.menu_border))
-            .bg(hsla(s.p.menu_background))
+            .border_color(s.menu_bubble().1)
+            .bg(s.menu_bubble().0)
             .shadow_lg()
+            // A menu takes the pointer, so scrolling it never scrolls the diff behind it.
+            .occlude()
             .on_mouse_down(MouseButton::Left, |_, _, cx| cx.stop_propagation())
             .children(agents.into_iter().map(|(id, name)| {
                 let checked = current.as_deref() == Some(id.as_str());

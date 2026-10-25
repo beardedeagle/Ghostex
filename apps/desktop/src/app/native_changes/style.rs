@@ -66,6 +66,16 @@ pub(crate) struct ChangesStyle {
 }
 
 impl ChangesStyle {
+    /// A menu floating over the diff (jump to file, a file's menu, the commit and agent menus):
+    /// the sidebar tooltip's bubble, `(fill, border)`, never the plain menu fill.
+    ///
+    /// CDXC:Tooltips 2026-10-25 SEE-ALSO: the rule and its DECISION are on `in_window_bubble` in
+    /// apps/desktop/src/app/native_sidebar/tooltips.rs.
+    pub(crate) fn menu_bubble(&self) -> (gpui::Hsla, gpui::Hsla) {
+        let bubble = crate::app::native_sidebar::link_chips::in_window_bubble(self.p.glass);
+        (bubble.fill, bubble.border)
+    }
+
     pub(crate) fn resolve(p: ModalPalette) -> Self {
         let ink = if p.light { 0x000000 } else { 0xffffff };
         let pick = |dark: u32, light: u32| rgb(if p.light { light } else { dark });
@@ -74,12 +84,15 @@ impl ChangesStyle {
         } else {
             css_mix(rgb(ink), 0.02, p.solid_surface)
         };
-        // CDXC:Changes 2026-10-25 WHY: under window glass every header fill is a thin ink wash,
-        // so the pinned file header let the scrolling diff show through and its text overlapped
-        // the code. Floating rows mix the same ink into the surface and drop its alpha instead.
+        // CDXC:Changes 2026-10-25 DECISION: under window glass every header fill is a thin ink wash, so the pinned file header let the scrolling diff show through and its text overlapped the code; then its opaque fill came out near-black, and the user asked "please make the bg here lighter not black like this". Floating rows mix a stronger ink into the surface under glass, so they read like the header rows on the glass, and stay fully opaque so text behind them never shows.
         let opaque = |amount: f32| Rgba {
             a: 1.0,
             ..css_mix(rgb(ink), amount, p.solid_surface)
+        };
+        let (sticky, sticky_hover) = match (p.glass, p.light) {
+            (true, false) => (0.16, 0.2),
+            (true, true) => (0.06, 0.1),
+            (false, _) => (0.04, 0.09),
         };
         Self {
             p,
@@ -94,8 +107,8 @@ impl ChangesStyle {
             } else {
                 css_mix(rgb(ink), 0.04, p.solid_surface)
             },
-            sticky_bg: opaque(if p.glass { 0.08 } else { 0.04 }),
-            sticky_hover: opaque(if p.glass { 0.12 } else { 0.09 }),
+            sticky_bg: opaque(sticky),
+            sticky_hover: opaque(sticky_hover),
             hover: modal_rgba(ink, 0.05),
             selected: modal_rgba(ink, 0.09),
             accent: pick(0x9bbce0, 0x315d88),
