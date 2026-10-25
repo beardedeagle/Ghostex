@@ -66,6 +66,8 @@ impl GhostexGpuiApp {
                 .is_some()
                 .then_some(ExportTranscriptMode::Handoff),
             handoff_target,
+            computers: self.git_export_handoff_computers(),
+            restore: self.git_export_take_restore(),
         };
         let host = self.native_app_modal_host(cx, move |app, command, cx| {
             app.handle_gpui_export_transcript_modal_command(&request_id, command, cx);
@@ -94,7 +96,8 @@ impl GhostexGpuiApp {
         let mut message = serde_json::Map::new();
         message.insert("requestId".to_string(), serde_json::json!(request_id));
         match command {
-            ExportTranscriptModalCommand::RunExport(include) => {
+            ExportTranscriptModalCommand::RunExport { include, carry } => {
+                message.insert("includeMarkdown".to_string(), serde_json::json!(carry));
                 message.insert(
                     "includeCommands".to_string(),
                     serde_json::json!(include.commands),
@@ -113,8 +116,18 @@ impl GhostexGpuiApp {
                     cx,
                 );
             }
-            ExportTranscriptModalCommand::StartConversation { agent_id } => {
+            ExportTranscriptModalCommand::StartConversation { agent_id, target } => {
                 message.insert("agentId".to_string(), serde_json::json!(agent_id));
+                if let Some(target) = target {
+                    message.insert(
+                        "targetMachineId".to_string(),
+                        serde_json::json!(target.machine_id),
+                    );
+                    message.insert(
+                        "targetProjectId".to_string(),
+                        serde_json::json!(target.project_id),
+                    );
+                }
                 self.forward_gpui_export_transcript_modal_command_to_sidebar(
                     "startExportedTranscriptConversation",
                     &message,
@@ -138,6 +151,15 @@ impl GhostexGpuiApp {
                 self.release_native_app_modal_window(kind, cx);
             }
             ExportTranscriptModalCommand::PathCopied => gpui_copy_feedback(cx),
+            ExportTranscriptModalCommand::TargetChanged(target) => {
+                self.git_export_read_branches(target, cx);
+            }
+            ExportTranscriptModalCommand::AddProjectOn { machine_id, picks } => {
+                // The dialog closed itself without cancelling: the export request stays parked
+                // for the reopen once Add Project closes.
+                self.release_native_app_modal_window(kind, cx);
+                self.git_export_add_project_on(&machine_id, picks, cx);
+            }
         }
     }
 
@@ -192,13 +214,30 @@ impl GhostexGpuiApp {
                     name: field("name")?,
                     // The chat core's own mapping, so the dialog and the model picker agree on
                     // which agent a picked model belongs to.
-                    family: ghostex_gx_chat_core::menus::picker::model_picker::model_picker_provider(
-                        field("icon").as_deref(),
-                    )
-                    .map(|family| family.as_str().to_string()),
+                    family:
+                        ghostex_gx_chat_core::menus::picker::model_picker::model_picker_provider(
+                            field("icon").as_deref(),
+                        )
+                        .map(|family| family.as_str().to_string()),
                 })
             })
             .collect()
+    }
+
+    /// Handoff to Remote's branch notice for `target` (gx_store/git/export_handoff_remote.rs).
+    pub(crate) fn push_gpui_export_transcript_branch_notice(
+        &mut self,
+        target: ExportTranscriptRemoteTarget,
+        line: Option<String>,
+        cx: &mut gpui::Context<Self>,
+    ) {
+        self.update_native_app_modal(
+            GpuiAppModalKind::ExportTranscriptResult,
+            cx,
+            |modal: &mut GpuiExportTranscriptModalWindow, _window, cx| {
+                modal.set_branch_notice(target, line, cx);
+            },
+        );
     }
 
     /// Pushes a refreshed HUD agent list into the open dialog.

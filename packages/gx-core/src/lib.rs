@@ -25,6 +25,7 @@ mod core;
 mod doc_sync;
 mod focus;
 pub mod git_menu;
+pub mod handoff_target;
 pub mod hud;
 pub mod indicators;
 mod keys;

@@ -1020,6 +1020,22 @@ when you open it.
   on the same computer; sleeping sessions are excluded. Ghostex waits until the
   selected agent has remained idle for 10 seconds and restarts that wait if it
   resumes work. Close After Done closes a pane once its command exits.
+- Handoff / Export (the chat's ⋯ menu, a session's right-click menu, or picking
+  another agent's model in the model picker) writes the conversation to a
+  Markdown file and offers three choices. **Handoff to an agent** starts a new
+  session in the same project with a link to that file typed into its chat box,
+  unsent, so you write the first message. **Handoff to Remote** does the same on
+  another connected computer: pick the agent, the Computer and the Project there.
+  The project with the same Git repository is picked for you, and every other
+  project there is listed too. If that computer doesn't have the repository yet,
+  Clone it there opens Add Project on that computer with the repository already
+  filled in, so you only pick the folder; once it is cloned, Handoff / Export
+  comes back with the new project picked. When the two checkouts are on
+  different branches, the dialog says so: only the conversation moves, the
+  branch over there is not switched. It works in every direction, from this
+  computer to a remote one, back, and between two remote ones; the old session
+  keeps running. **Export to Markdown** only saves the file and copies its path.
+  Commands & output, File changes and Reasoning choose what the file includes.
 
 Related settings: `autoSleep*`, `clickToWakeSleepingSessions`,
 `dimSleepingSessions`, `wakeSleepingSessionsOnSelect`,

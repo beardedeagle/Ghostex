@@ -263,10 +263,40 @@ fn deliver_export_result(
     });
 }
 
+/// Two connected computers: one with the repository, one without it.
+fn demo_handoff_computers() -> Vec<ExportTranscriptComputer> {
+    let project = |id: &str, title: &str, path: &str, same_repo: bool| ExportTranscriptProject {
+        project_id: id.to_string(),
+        title: title.to_string(),
+        path: Some(path.to_string()),
+        same_repo,
+    };
+    vec![
+        ExportTranscriptComputer {
+            machine_id: "machine-studio".to_string(),
+            label: "studio-mac".to_string(),
+            projects: vec![
+                project("p-ghostex", "Ghostex", "~/dev/Ghostex", true),
+                project("p-site", "website", "~/sites/website", false),
+            ],
+            preferred_project_id: Some("p-ghostex".to_string()),
+            missing_repository: None,
+        },
+        ExportTranscriptComputer {
+            machine_id: "machine-linux".to_string(),
+            label: "linux-box".to_string(),
+            projects: vec![project("p-notes", "notes", "~/notes", false)],
+            preferred_project_id: None,
+            missing_repository: Some("ghostex".to_string()),
+        },
+    ]
+}
+
 fn open_export_transcript(demo: &DemoEnv, cx: &mut App) {
     let initial_mode = match env("GHOSTEX_EXPORT_MODAL_DEMO_MODE").as_str() {
         "export" => Some(ExportTranscriptMode::Export),
         "handoff" => Some(ExportTranscriptMode::Handoff),
+        "remote" => Some(ExportTranscriptMode::HandoffRemote),
         _ => None,
     };
     let agents = if demo.state == "noagents" {
@@ -290,9 +320,9 @@ fn open_export_transcript(demo: &DemoEnv, cx: &mut App) {
     let host_slot = slot.clone();
     let fail = demo.state == "failed";
     let host: ExportTranscriptModalHost = Rc::new(move |command, cx: &mut App| match command {
-        ExportTranscriptModalCommand::RunExport(include) => {
+        ExportTranscriptModalCommand::RunExport { include, carry } => {
             eprintln!(
-                "run export: commands={} patches={} reasoning={}",
+                "run export: commands={} patches={} reasoning={} carry={carry}",
                 include.commands, include.patches, include.reasoning
             );
             let slot = host_slot.clone();
@@ -305,8 +335,30 @@ fn open_export_transcript(demo: &DemoEnv, cx: &mut App) {
             })
             .detach();
         }
-        ExportTranscriptModalCommand::StartConversation { agent_id } => {
-            eprintln!("handoff to {agent_id}");
+        ExportTranscriptModalCommand::StartConversation { agent_id, target } => {
+            eprintln!("handoff to {agent_id} at {target:?}");
+            cx.quit();
+        }
+        ExportTranscriptModalCommand::TargetChanged(target) => {
+            eprintln!("target {target:?}");
+            let slot = host_slot.clone();
+            cx.defer(move |cx| {
+                let open = slot.borrow().clone();
+                if let Some((window, view)) = open {
+                    let _ = window.update(cx, |_, _window, cx| {
+                        view.update(cx, |modal, cx| {
+                            let line = (target.machine_id == "machine-studio").then(|| {
+                                "This session is on feature-x; the project on studio-mac is on main."
+                                    .to_string()
+                            });
+                            modal.set_branch_notice(target, line, cx);
+                        });
+                    });
+                }
+            });
+        }
+        ExportTranscriptModalCommand::AddProjectOn { machine_id, picks } => {
+            eprintln!("add project on {machine_id}, reopen with {picks:?}");
             cx.quit();
         }
         ExportTranscriptModalCommand::Cancel => {
@@ -326,6 +378,8 @@ fn open_export_transcript(demo: &DemoEnv, cx: &mut App) {
         palette: demo.palette,
         prefs_path: None,
         initial_mode,
+        computers: demo_handoff_computers(),
+        restore: None,
     };
     let (window, view) = open_modal_window(
         EXPORT_TRANSCRIPT_MODAL_WIDTH,

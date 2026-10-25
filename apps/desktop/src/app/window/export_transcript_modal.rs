@@ -29,15 +29,26 @@ const ICON_CHECK_BUTTON: &str = "modals/export-transcript/check-button.svg";
 const ICON_COPY: &str = "modals/export-transcript/copy.svg";
 const ICON_FOLDER_SEARCH: &str = "modals/export-transcript/folder-search.svg";
 const ICON_CIRCLE_CHECK: &str = "modals/export-transcript/circle-check-filled.svg";
+const ICON_SERVER: &str = "modals/add-project/server.svg";
 
 const TITLE: &str = "Handoff / Export";
 const DESCRIPTION: &str = "Ghostex writes this conversation to a Markdown file. Pick what to do with it and what to include.";
 const HANDOFF_CARD_TITLE: &str = "Handoff to an agent";
 const HANDOFF_CARD_DESCRIPTION: &str = "Start a new conversation with the handover attached.";
+const REMOTE_CARD_TITLE: &str = "Handoff to Remote";
+const REMOTE_CARD_DESCRIPTION: &str = "Continue on another computer, in a project there.";
 const EXPORT_CARD_TITLE: &str = "Export to Markdown";
 const EXPORT_CARD_DESCRIPTION: &str = "Save the conversation as a file and copy its path.";
 const CONTINUE_WITH: &str = "Continue with";
 const SELECT_AGENT_PLACEHOLDER: &str = "Select agent";
+const COMPUTER: &str = "Computer";
+const SELECT_COMPUTER_PLACEHOLDER: &str = "Select computer";
+const PROJECT: &str = "Project";
+const SELECT_PROJECT_PLACEHOLDER: &str = "Select project";
+const NO_COMPUTER_HINT: &str = "No other computer is connected. Connect one from the sidebar's computer tabs to hand off to it.";
+const BRANCH_NOTICE_TITLE: &str = "Please note the difference in branches";
+const BRANCH_NOTICE_SUBTITLE: &str =
+    "We're just handing off the session, not switching the branch on the remote machine";
 const EXPORT_HINT: &str = "The file is saved in the Ghostex exports folder.";
 const INCLUDE: &str = "Include";
 const SAVED_AS_MARKDOWN: &str = "Saved as Markdown";
@@ -48,7 +59,16 @@ const EXPORT_FAILED: &str = "The transcript export failed.";
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub(crate) enum ExportTranscriptMode {
     Handoff,
+    /// CDXC:TranscriptExport 2026-10-25 DECISION:
+    /// User (Q542): "a 3rd radio card added 2nd there after handoff to agent, call it 'Handoff to Remote'; we should have those extra dropdowns to pick machine and project there only in that case". The Computer and Project selects exist only in this mode, beside the same agent choice Handoff to an agent has; the new session starts on that computer, in that project, with the transcript carried there. Every direction is offered (Q547): this computer to a remote, a remote to this computer, and remote to remote; the session's own computer is not a choice here, since Handoff to an agent already covers it.
+    HandoffRemote,
     Export,
+}
+
+impl ExportTranscriptMode {
+    fn is_handoff(self) -> bool {
+        matches!(self, Self::Handoff | Self::HandoffRemote)
+    }
 }
 
 /// The include-toggles; user and agent messages are never optional, so only
@@ -97,6 +117,7 @@ pub(crate) fn load_export_transcript_modal_prefs(path: &Path) -> ExportTranscrip
         mode: match value.get("mode").and_then(serde_json::Value::as_str) {
             Some("export") => Some(ExportTranscriptMode::Export),
             Some("handoff") => Some(ExportTranscriptMode::Handoff),
+            Some("handoffRemote") => Some(ExportTranscriptMode::HandoffRemote),
             _ => None,
         },
         include: ExportTranscriptIncludeOptions {
@@ -117,6 +138,7 @@ pub(crate) fn persist_export_transcript_modal_prefs(
     let payload = serde_json::json!({
         "mode": match prefs.mode {
             Some(ExportTranscriptMode::Export) => "export",
+            Some(ExportTranscriptMode::HandoffRemote) => "handoffRemote",
             _ => "handoff",
         },
         "includeCommands": prefs.include.commands,
@@ -141,6 +163,87 @@ pub(crate) struct ExportTranscriptAgent {
 pub(crate) struct ExportTranscriptHandoffTarget {
     pub(crate) family: String,
     pub(crate) model: String,
+}
+
+/// A computer Handoff to Remote can start the new session on, with its projects ranked for this
+/// session (`ghostex_gx_core::handoff_target`).
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub(crate) struct ExportTranscriptComputer {
+    /// `local` for this computer, else the remote machine id.
+    pub(crate) machine_id: String,
+    pub(crate) label: String,
+    pub(crate) projects: Vec<ExportTranscriptProject>,
+    pub(crate) preferred_project_id: Option<String>,
+    /// The repository's name when this session's project has a git remote that no project on
+    /// this computer matches: the dialog then offers to clone it there.
+    pub(crate) missing_repository: Option<String>,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub(crate) struct ExportTranscriptProject {
+    pub(crate) project_id: String,
+    pub(crate) title: String,
+    pub(crate) path: Option<String>,
+    pub(crate) same_repo: bool,
+}
+
+/// Where Handoff to Remote starts the new session.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub(crate) struct ExportTranscriptRemoteTarget {
+    pub(crate) machine_id: String,
+    pub(crate) project_id: String,
+}
+
+/// The dialog's picks, handed to the host when it closes for a clone and given back when it
+/// reopens, so the user returns to the dialog as they left it.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub(crate) struct ExportTranscriptPicks {
+    pub(crate) mode: ExportTranscriptMode,
+    pub(crate) include: ExportTranscriptIncludeOptions,
+    pub(crate) agent_id: Option<String>,
+    pub(crate) machine_id: Option<String>,
+    pub(crate) project_id: Option<String>,
+}
+
+/// The computer Handoff to Remote goes to: the picked one while it is still offered, else the
+/// first.
+pub(crate) fn handoff_computer<'a>(
+    computers: &'a [ExportTranscriptComputer],
+    selected_machine_id: Option<&str>,
+) -> Option<&'a ExportTranscriptComputer> {
+    selected_machine_id
+        .and_then(|id| computers.iter().find(|computer| computer.machine_id == id))
+        .or_else(|| computers.first())
+}
+
+/// The project on that computer: the pick when it is one of its projects, else the one with the
+/// session's repository, else none (the user must pick one).
+pub(crate) fn handoff_project<'a>(
+    computer: &'a ExportTranscriptComputer,
+    selected_project_id: Option<&str>,
+) -> Option<&'a ExportTranscriptProject> {
+    let find = |id: &str| {
+        computer
+            .projects
+            .iter()
+            .find(|project| project.project_id == id)
+    };
+    selected_project_id
+        .and_then(find)
+        .or_else(|| computer.preferred_project_id.as_deref().and_then(find))
+}
+
+/// A Project select row: the title, the same-repository mark, and the folder.
+fn project_label(project: &ExportTranscriptProject) -> String {
+    let mut label = project.title.clone();
+    if project.same_repo {
+        label.push_str(" (same repo)");
+    }
+    if let Some(path) = project.path.as_deref().filter(|path| !path.is_empty()) {
+        label.push_str(" · ");
+        label.push_str(path);
+    }
+    label
 }
 
 /// The agent a model picker handoff goes to: the first agent of the picked family in the list the
@@ -186,9 +289,24 @@ pub(crate) enum ExportTranscriptStage {
 /// What the dialog asks its host to do. The dialog removes its own window
 /// before sending any command other than `RunExport`.
 pub(crate) enum ExportTranscriptModalCommand {
-    RunExport(ExportTranscriptIncludeOptions),
+    /// `carry` asks for the file's text too, which Handoff to Remote takes to the other computer.
+    RunExport {
+        include: ExportTranscriptIncludeOptions,
+        carry: bool,
+    },
     StartConversation {
         agent_id: String,
+        /// `None` starts it beside the session (Handoff to an agent).
+        target: Option<ExportTranscriptRemoteTarget>,
+    },
+    /// The Computer or Project select changed: the host reads both checkouts' branches and
+    /// answers with [`GpuiExportTranscriptModalWindow::set_branch_notice`].
+    TargetChanged(ExportTranscriptRemoteTarget),
+    /// Clone the session's repository on `machine_id` (or add a project there when it has no
+    /// remote). The dialog has removed its window; the host reopens it with `picks` afterwards.
+    AddProjectOn {
+        machine_id: String,
+        picks: ExportTranscriptPicks,
     },
     Cancel,
     Reveal,
@@ -208,6 +326,10 @@ pub(crate) struct ExportTranscriptModalConfig {
     pub(crate) prefs_path: Option<PathBuf>,
     /// Overrides the remembered mode on open; the demo uses it to show one branch.
     pub(crate) initial_mode: Option<ExportTranscriptMode>,
+    /// The computers Handoff to Remote offers; the session's own computer is never one of them.
+    pub(crate) computers: Vec<ExportTranscriptComputer>,
+    /// The picks to reopen with after a clone (`AddProjectOn`), over the remembered prefs.
+    pub(crate) restore: Option<ExportTranscriptPicks>,
 }
 
 pub(crate) struct GpuiExportTranscriptModalWindow {
@@ -226,6 +348,15 @@ pub(crate) struct GpuiExportTranscriptModalWindow {
     copied: bool,
     copied_generation: u64,
     agent_select: ModalSelect,
+    computers: Vec<ExportTranscriptComputer>,
+    selected_machine_id: Option<String>,
+    selected_project_id: Option<String>,
+    computer_select: ModalSelect,
+    project_select: ModalSelect,
+    /// The branch notice's first line, for the target it was read for.
+    branch_notice: Option<(ExportTranscriptRemoteTarget, String)>,
+    /// The target the host was last asked about, so a repeat pick asks nothing.
+    announced_target: Option<ExportTranscriptRemoteTarget>,
     fit: ModalFit,
     focus_handle: FocusHandle,
     _click_away: Vec<gpui::Subscription>,
@@ -245,27 +376,128 @@ impl GpuiExportTranscriptModalWindow {
             .unwrap_or_default();
         let focus_handle = cx.focus_handle();
         focus_handle.focus(window, cx);
-        Self {
+        let restore = config.restore;
+        let mut this = Self {
             host,
             palette: config.palette,
             prefs_path: config.prefs_path,
             agents: config.agents,
             default_agent_id: config.default_agent_id,
             handoff_target: config.handoff_target,
-            mode: config
-                .initial_mode
+            mode: restore
+                .as_ref()
+                .map(|picks| picks.mode)
+                .or(config.initial_mode)
                 .or(prefs.mode)
                 .unwrap_or(ExportTranscriptMode::Handoff),
-            include: prefs.include,
-            selected_agent_id: None,
+            include: restore
+                .as_ref()
+                .map(|picks| picks.include)
+                .unwrap_or(prefs.include),
+            selected_agent_id: restore.as_ref().and_then(|picks| picks.agent_id.clone()),
             stage: ExportTranscriptStage::Options,
             handoff_requested: false,
             copied: false,
             copied_generation: 0,
             agent_select: ModalSelect::new(),
+            computers: config.computers,
+            selected_machine_id: restore.as_ref().and_then(|picks| picks.machine_id.clone()),
+            selected_project_id: restore.as_ref().and_then(|picks| picks.project_id.clone()),
+            computer_select: ModalSelect::new(),
+            project_select: ModalSelect::new(),
+            branch_notice: None,
+            announced_target: None,
             fit: ModalFit::new(),
             focus_handle,
             _click_away: super::popup_dismissal::close_app_modal_on_click_away(window, cx),
+        };
+        this.announce_target(cx);
+        this
+    }
+
+    /// The host's answer to `TargetChanged`: the notice's first line, or `None` when both
+    /// checkouts are on one branch (or either is unknown).
+    pub(crate) fn set_branch_notice(
+        &mut self,
+        target: ExportTranscriptRemoteTarget,
+        line: Option<String>,
+        cx: &mut Context<Self>,
+    ) {
+        if self.remote_target().as_ref() != Some(&target) {
+            return;
+        }
+        self.branch_notice = line.map(|line| (target, line));
+        self.fit.refit();
+        cx.notify();
+    }
+
+    /// The computer Handoff to Remote goes to: the pick, else the first one offered.
+    fn effective_computer(&self) -> Option<&ExportTranscriptComputer> {
+        handoff_computer(&self.computers, self.selected_machine_id.as_deref())
+    }
+
+    fn effective_computer_index(&self) -> Option<usize> {
+        let computer = self.effective_computer()?;
+        self.computers
+            .iter()
+            .position(|candidate| candidate.machine_id == computer.machine_id)
+    }
+
+    /// The project on that computer: the pick when it is one of its projects, else the one with
+    /// this session's repository.
+    fn effective_project(&self) -> Option<&ExportTranscriptProject> {
+        handoff_project(
+            self.effective_computer()?,
+            self.selected_project_id.as_deref(),
+        )
+    }
+
+    fn effective_project_index(&self) -> Option<usize> {
+        let computer = self.effective_computer()?;
+        let project = self.effective_project()?;
+        computer
+            .projects
+            .iter()
+            .position(|candidate| candidate.project_id == project.project_id)
+    }
+
+    fn remote_target(&self) -> Option<ExportTranscriptRemoteTarget> {
+        Some(ExportTranscriptRemoteTarget {
+            machine_id: self.effective_computer()?.machine_id.clone(),
+            project_id: self.effective_project()?.project_id.clone(),
+        })
+    }
+
+    /// Tells the host which checkout Handoff to Remote now points at, once per change.
+    fn announce_target(&mut self, cx: &mut Context<Self>) {
+        let target = (self.mode == ExportTranscriptMode::HandoffRemote)
+            .then(|| self.remote_target())
+            .flatten();
+        if target == self.announced_target {
+            return;
+        }
+        self.announced_target = target.clone();
+        if self
+            .branch_notice
+            .as_ref()
+            .is_some_and(|(notice_target, _)| Some(notice_target) != target.as_ref())
+        {
+            self.branch_notice = None;
+        }
+        if let Some(target) = target {
+            (self.host)(ExportTranscriptModalCommand::TargetChanged(target), cx);
+        }
+    }
+
+    fn picks(&self) -> ExportTranscriptPicks {
+        ExportTranscriptPicks {
+            mode: self.mode,
+            include: self.include,
+            agent_id: self.selected_agent_id.clone(),
+            machine_id: self
+                .effective_computer()
+                .map(|computer| computer.machine_id.clone()),
+            project_id: self.selected_project_id.clone(),
         }
     }
 
@@ -305,12 +537,16 @@ impl GpuiExportTranscriptModalWindow {
                     path,
                 };
                 if handoff_requested
-                    && self.effective_mode() == ExportTranscriptMode::Handoff
+                    && self.effective_mode().is_handoff()
                     && let Some(agent) = self.effective_agent()
                 {
                     let agent_id = agent.agent_id.clone();
+                    let target = match self.effective_mode() {
+                        ExportTranscriptMode::HandoffRemote => self.remote_target(),
+                        _ => None,
+                    };
                     self.close_window_and_send(
-                        ExportTranscriptModalCommand::StartConversation { agent_id },
+                        ExportTranscriptModalCommand::StartConversation { agent_id, target },
                         window,
                         cx,
                     );
@@ -364,7 +600,7 @@ impl GpuiExportTranscriptModalWindow {
     fn target_unavailable_hint(&self) -> Option<String> {
         let target = self.handoff_target.as_ref()?;
         if self.agents.is_empty()
-            || self.effective_mode() != ExportTranscriptMode::Handoff
+            || !self.effective_mode().is_handoff()
             || self.effective_agent().is_some()
         {
             return None;
@@ -394,8 +630,7 @@ impl GpuiExportTranscriptModalWindow {
     }
 
     fn busy(&self) -> bool {
-        self.is_exporting()
-            || (self.is_done() && self.effective_mode() == ExportTranscriptMode::Handoff)
+        self.is_exporting() || (self.is_done() && self.effective_mode().is_handoff())
     }
 
     fn controls_disabled(&self) -> bool {
@@ -405,15 +640,20 @@ impl GpuiExportTranscriptModalWindow {
     fn can_run(&self) -> bool {
         !self.is_done()
             && !self.is_exporting()
-            && (self.effective_mode() == ExportTranscriptMode::Export
-                || self.effective_agent().is_some())
+            && match self.effective_mode() {
+                ExportTranscriptMode::Export => true,
+                ExportTranscriptMode::Handoff => self.effective_agent().is_some(),
+                ExportTranscriptMode::HandoffRemote => {
+                    self.effective_agent().is_some() && self.remote_target().is_some()
+                }
+            }
     }
 
     fn primary_label(&self) -> String {
         if self.is_exporting() {
             return "Exporting…".to_string();
         }
-        if self.is_done() && self.effective_mode() == ExportTranscriptMode::Handoff {
+        if self.is_done() && self.effective_mode().is_handoff() {
             return "Starting…".to_string();
         }
         if matches!(self.stage, ExportTranscriptStage::Failed { .. }) {
@@ -424,6 +664,14 @@ impl GpuiExportTranscriptModalWindow {
                 Some(agent) => format!("Handoff to {}", agent.name),
                 None => "Handoff".to_string(),
             },
+            ExportTranscriptMode::HandoffRemote => {
+                match (self.effective_agent(), self.effective_computer()) {
+                    (Some(agent), Some(computer)) => {
+                        format!("Handoff to {} on {}", agent.name, computer.label)
+                    }
+                    _ => "Handoff".to_string(),
+                }
+            }
             ExportTranscriptMode::Export => "Export".to_string(),
         }
     }
@@ -445,9 +693,17 @@ impl GpuiExportTranscriptModalWindow {
             return;
         }
         self.mode = mode;
-        self.agent_select.close();
+        self.close_menus();
         self.persist_prefs();
+        self.fit.refit();
+        self.announce_target(cx);
         cx.notify();
+    }
+
+    fn close_menus(&mut self) {
+        self.agent_select.close();
+        self.computer_select.close();
+        self.project_select.close();
     }
 
     fn toggle_include(&mut self, index: usize, cx: &mut Context<Self>) {
@@ -467,11 +723,17 @@ impl GpuiExportTranscriptModalWindow {
         if !self.can_run() {
             return;
         }
-        self.agent_select.close();
-        self.handoff_requested = self.effective_mode() == ExportTranscriptMode::Handoff;
+        self.close_menus();
+        self.handoff_requested = self.effective_mode().is_handoff();
         self.stage = ExportTranscriptStage::Exporting;
         cx.notify();
-        (self.host)(ExportTranscriptModalCommand::RunExport(self.include), cx);
+        (self.host)(
+            ExportTranscriptModalCommand::RunExport {
+                include: self.include,
+                carry: self.effective_mode() == ExportTranscriptMode::HandoffRemote,
+            },
+            cx,
+        );
     }
 
     fn copy_path(&mut self, cx: &mut Context<Self>) {
@@ -521,8 +783,80 @@ impl GpuiExportTranscriptModalWindow {
             return;
         }
         let selected = self.effective_agent_index();
+        self.computer_select.close();
+        self.project_select.close();
         self.agent_select.toggle(selected);
         cx.notify();
+    }
+
+    fn toggle_computer_menu(&mut self, cx: &mut Context<Self>) {
+        if self.controls_disabled() || self.computers.is_empty() {
+            return;
+        }
+        let selected = self.effective_computer_index();
+        self.agent_select.close();
+        self.project_select.close();
+        self.computer_select.toggle(selected);
+        cx.notify();
+    }
+
+    fn choose_computer(&mut self, index: usize, cx: &mut Context<Self>) {
+        if let Some(computer) = self.computers.get(index) {
+            if self.selected_machine_id.as_deref() != Some(computer.machine_id.as_str()) {
+                self.selected_project_id = None;
+            }
+            self.selected_machine_id = Some(computer.machine_id.clone());
+        }
+        self.computer_select.close();
+        self.fit.refit();
+        self.announce_target(cx);
+        cx.notify();
+    }
+
+    fn project_count(&self) -> usize {
+        self.effective_computer()
+            .map(|computer| computer.projects.len())
+            .unwrap_or(0)
+    }
+
+    fn toggle_project_menu(&mut self, cx: &mut Context<Self>) {
+        if self.controls_disabled() || self.project_count() == 0 {
+            return;
+        }
+        let selected = self.effective_project_index();
+        self.agent_select.close();
+        self.computer_select.close();
+        self.project_select.toggle(selected);
+        cx.notify();
+    }
+
+    fn choose_project(&mut self, index: usize, cx: &mut Context<Self>) {
+        if let Some(project) = self
+            .effective_computer()
+            .and_then(|computer| computer.projects.get(index))
+        {
+            self.selected_project_id = Some(project.project_id.clone());
+        }
+        self.project_select.close();
+        self.fit.refit();
+        self.announce_target(cx);
+        cx.notify();
+    }
+
+    /// Q544: the Add Project clone flow on that computer, prefilled with this session's repository.
+    fn add_project_on_computer(&mut self, window: &mut Window, cx: &mut Context<Self>) {
+        let Some(machine_id) = self
+            .effective_computer()
+            .map(|computer| computer.machine_id.clone())
+        else {
+            return;
+        };
+        let picks = self.picks();
+        self.close_window_and_send(
+            ExportTranscriptModalCommand::AddProjectOn { machine_id, picks },
+            window,
+            cx,
+        );
     }
 
     fn choose_agent(&mut self, index: usize, cx: &mut Context<Self>) {
@@ -543,6 +877,33 @@ impl GpuiExportTranscriptModalWindow {
             }
             ModalSelectKey::Choose(index) => {
                 self.choose_agent(index, cx);
+                cx.stop_propagation();
+                return;
+            }
+            ModalSelectKey::Ignored => {}
+        }
+        match self.computer_select.handle_key(key, self.computers.len()) {
+            ModalSelectKey::Consumed => {
+                cx.notify();
+                cx.stop_propagation();
+                return;
+            }
+            ModalSelectKey::Choose(index) => {
+                self.choose_computer(index, cx);
+                cx.stop_propagation();
+                return;
+            }
+            ModalSelectKey::Ignored => {}
+        }
+        let project_count = self.project_count();
+        match self.project_select.handle_key(key, project_count) {
+            ModalSelectKey::Consumed => {
+                cx.notify();
+                cx.stop_propagation();
+                return;
+            }
+            ModalSelectKey::Choose(index) => {
+                self.choose_project(index, cx);
                 cx.stop_propagation();
                 return;
             }
@@ -669,14 +1030,23 @@ impl GpuiExportTranscriptModalWindow {
         // CSS grid stretches both cards to the taller one; gpui-component's row helper centers items.
         let mut grid = h_flex().w_full().items_stretch().gap(px(8.0));
         if !self.agents.is_empty() {
-            grid = grid.child(self.render_mode_card(
-                0,
-                ExportTranscriptMode::Handoff,
-                ICON_USER_SHARE,
-                HANDOFF_CARD_TITLE,
-                HANDOFF_CARD_DESCRIPTION,
-                cx,
-            ));
+            grid = grid
+                .child(self.render_mode_card(
+                    0,
+                    ExportTranscriptMode::Handoff,
+                    ICON_USER_SHARE,
+                    HANDOFF_CARD_TITLE,
+                    HANDOFF_CARD_DESCRIPTION,
+                    cx,
+                ))
+                .child(self.render_mode_card(
+                    2,
+                    ExportTranscriptMode::HandoffRemote,
+                    ICON_SERVER,
+                    REMOTE_CARD_TITLE,
+                    REMOTE_CARD_DESCRIPTION,
+                    cx,
+                ));
         }
         grid.child(self.render_mode_card(
             1,
@@ -700,7 +1070,13 @@ impl GpuiExportTranscriptModalWindow {
                 .into_any_element();
         }
         let value = self.effective_agent().map(|agent| agent.name.clone());
-        h_flex()
+        let remote = self.effective_mode() == ExportTranscriptMode::HandoffRemote;
+        // In Handoff to Remote the three labels share one width so the selects line up.
+        let label = |text: &'static str| {
+            let title = modal_section_title(&p, text).flex_shrink_0();
+            if remote { title.w(px(96.0)) } else { title }
+        };
+        let agent_row = h_flex()
             .min_h(px(MODAL_CONTROL_HEIGHT))
             .items_center()
             .gap(px(10.0))
@@ -708,7 +1084,7 @@ impl GpuiExportTranscriptModalWindow {
                 self.agent_select.trigger_bounds.clone(),
                 1,
             ))
-            .child(modal_section_title(&p, CONTINUE_WITH).flex_shrink_0())
+            .child(label(CONTINUE_WITH))
             .child(modal_select_trigger(
                 &p,
                 &self.agent_select,
@@ -718,7 +1094,120 @@ impl GpuiExportTranscriptModalWindow {
                 self.controls_disabled(),
                 |this, _window, cx| this.toggle_agent_menu(cx),
                 cx,
+            ));
+        if !remote {
+            return agent_row.into_any_element();
+        }
+        let computer = self.effective_computer();
+        let project_value = self.effective_project().map(project_label);
+        let computer_row = h_flex()
+            .min_h(px(MODAL_CONTROL_HEIGHT))
+            .items_center()
+            .gap(px(10.0))
+            .on_children_prepainted(capture_child_bounds(
+                self.computer_select.trigger_bounds.clone(),
+                1,
             ))
+            .child(label(COMPUTER))
+            .child(modal_select_trigger(
+                &p,
+                &self.computer_select,
+                "export-transcript-computer-select",
+                computer.map(|computer| computer.label.clone()),
+                SELECT_COMPUTER_PLACEHOLDER,
+                self.controls_disabled() || self.computers.is_empty(),
+                |this, _window, cx| this.toggle_computer_menu(cx),
+                cx,
+            ));
+        let project_row = h_flex()
+            .min_h(px(MODAL_CONTROL_HEIGHT))
+            .items_center()
+            .gap(px(10.0))
+            .on_children_prepainted(capture_child_bounds(
+                self.project_select.trigger_bounds.clone(),
+                1,
+            ))
+            .child(label(PROJECT))
+            .child(modal_select_trigger(
+                &p,
+                &self.project_select,
+                "export-transcript-project-select",
+                project_value,
+                SELECT_PROJECT_PLACEHOLDER,
+                self.controls_disabled() || self.project_count() == 0,
+                |this, _window, cx| this.toggle_project_menu(cx),
+                cx,
+            ));
+        let mut rows = v_flex()
+            .w_full()
+            .gap(px(10.0))
+            .child(agent_row)
+            .child(computer_row)
+            .child(project_row);
+        if self.computers.is_empty() {
+            rows = rows.child(modal_hint(&p, NO_COMPUTER_HINT));
+        } else if let Some(computer) = computer
+            && computer.projects.iter().all(|project| !project.same_repo)
+        {
+            rows = rows.child(self.render_missing_project(computer, cx));
+        }
+        if let Some((_, line)) = &self.branch_notice {
+            rows = rows.child(self.render_branch_notice(line.clone()));
+        }
+        rows.into_any_element()
+    }
+
+    /// Q544: the other computer has no project with this repository (or no project at all).
+    fn render_missing_project(
+        &self,
+        computer: &ExportTranscriptComputer,
+        cx: &mut Context<Self>,
+    ) -> AnyElement {
+        let p = self.palette;
+        let (text, button) = match &computer.missing_repository {
+            Some(repository) => (
+                format!("{} doesn't have {repository} yet.", computer.label),
+                "Clone it there…",
+            ),
+            None if computer.projects.is_empty() => (
+                format!("{} has no projects yet.", computer.label),
+                "Add a project there…",
+            ),
+            None => return div().into_any_element(),
+        };
+        h_flex()
+            .w_full()
+            .items_center()
+            .gap(px(10.0))
+            .child(modal_hint(&p, text).flex_1().min_w_0())
+            .child(modal_action_button(
+                &p,
+                "export-transcript-add-project",
+                button,
+                None,
+                ModalButtonTone::Neutral,
+                self.controls_disabled(),
+                |this, window, cx| this.add_project_on_computer(window, cx),
+                cx,
+            ))
+            .into_any_element()
+    }
+
+    fn render_branch_notice(&self, line: String) -> AnyElement {
+        let p = self.palette;
+        modal_panel(&p)
+            .gap(px(2.0))
+            .px(px(12.0))
+            .py(px(10.0))
+            .child(
+                div()
+                    .text_size(px(13.0))
+                    .line_height(px(18.0))
+                    .font_weight(FontWeight::MEDIUM)
+                    .child(BRANCH_NOTICE_TITLE),
+            )
+            .child(modal_hint(&p, line))
+            .child(modal_hint(&p, BRANCH_NOTICE_SUBTITLE))
             .into_any_element()
     }
 
@@ -834,7 +1323,7 @@ impl GpuiExportTranscriptModalWindow {
     }
 
     /// CDXC:TranscriptExport 2026-09-15 DECISION:
-    /// User: Handoff / Export is one page, not an options page followed by a result page, and "Handoff to an agent" and "Export to Markdown" are two explicit choices on it. The mode cards sit above the include-toggles; Handoff writes the file and starts the follow-up conversation in one click, while Export swaps the toggles for the saved path with Copy and Reveal. Starting a conversation never sends a prompt for the user: the mention is typed into the new agent's input and left unsubmitted. Reveal is omitted, not disabled, when the file lives on another machine.
+    /// User: Handoff / Export is one page, not an options page followed by a result page, and "Handoff to an agent" and "Export to Markdown" are explicit choices on it ("Handoff to Remote" joined them between the two on 2026-10-25, see `ExportTranscriptMode::HandoffRemote`). The mode cards sit above the include-toggles; Handoff writes the file and starts the follow-up conversation in one click, while Export swaps the toggles for the saved path with Copy and Reveal. Starting a conversation never sends a prompt for the user: the mention is typed into the new agent's input and left unsubmitted. Reveal is omitted, not disabled, when the file lives on another machine.
     fn render_body(&self, cx: &mut Context<Self>) -> AnyElement {
         let mut body = v_flex()
             .w_full()
@@ -904,7 +1393,7 @@ impl Render for GpuiExportTranscriptModalWindow {
     fn render(&mut self, window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
         let p = self.palette;
         let names: Vec<String> = self.agents.iter().map(|agent| agent.name.clone()).collect();
-        let menu = modal_select_menu(
+        let agent_menu = modal_select_menu(
             &p,
             &self.agent_select,
             "export-transcript-agent-menu",
@@ -918,6 +1407,44 @@ impl Render for GpuiExportTranscriptModalWindow {
             window,
             cx,
         );
+        let computer_names: Vec<String> = self
+            .computers
+            .iter()
+            .map(|computer| computer.label.clone())
+            .collect();
+        let computer_menu = modal_select_menu(
+            &p,
+            &self.computer_select,
+            "export-transcript-computer-menu",
+            &computer_names,
+            self.effective_computer_index(),
+            |this, index, _window, cx| this.choose_computer(index, cx),
+            |this, _window, cx| {
+                this.computer_select.close();
+                cx.notify();
+            },
+            window,
+            cx,
+        );
+        let project_names: Vec<String> = self
+            .effective_computer()
+            .map(|computer| computer.projects.iter().map(project_label).collect())
+            .unwrap_or_default();
+        let project_menu = modal_select_menu(
+            &p,
+            &self.project_select,
+            "export-transcript-project-menu",
+            &project_names,
+            self.effective_project_index(),
+            |this, index, _window, cx| this.choose_project(index, cx),
+            |this, _window, cx| {
+                this.project_select.close();
+                cx.notify();
+            },
+            window,
+            cx,
+        );
+        let menu = agent_menu.or(computer_menu).or(project_menu);
         let content = vec![
             modal_header(&p, TITLE, Some(DESCRIPTION)),
             self.render_body(cx),
@@ -974,6 +1501,82 @@ mod tests {
             handoff_target_agent(&agents, "codex").map(|agent| agent.agent_id.as_str()),
             Some("codex")
         );
+    }
+
+    fn computer(
+        machine_id: &str,
+        projects: &[&str],
+        preferred: Option<&str>,
+    ) -> ExportTranscriptComputer {
+        ExportTranscriptComputer {
+            machine_id: machine_id.to_string(),
+            label: machine_id.to_string(),
+            projects: projects
+                .iter()
+                .map(|id| ExportTranscriptProject {
+                    project_id: id.to_string(),
+                    title: id.to_string(),
+                    path: None,
+                    same_repo: Some(*id) == preferred,
+                })
+                .collect(),
+            preferred_project_id: preferred.map(str::to_string),
+            missing_repository: None,
+        }
+    }
+
+    #[test]
+    fn remote_target_defaults_to_the_first_computer_and_its_matching_project() {
+        let computers = [
+            computer("studio", &["site", "ghostex"], Some("ghostex")),
+            computer("linux", &["notes"], None),
+        ];
+        let first = handoff_computer(&computers, None).unwrap();
+        assert_eq!(first.machine_id, "studio");
+        assert_eq!(handoff_project(first, None).unwrap().project_id, "ghostex");
+        // A computer that went away falls back to the first one offered.
+        assert_eq!(
+            handoff_computer(&computers, Some("gone"))
+                .unwrap()
+                .machine_id,
+            "studio"
+        );
+    }
+
+    #[test]
+    fn remote_target_keeps_a_pick_and_never_guesses_without_a_match() {
+        let computers = [
+            computer("studio", &["site", "ghostex"], Some("ghostex")),
+            computer("linux", &["notes"], None),
+        ];
+        let studio = handoff_computer(&computers, Some("studio")).unwrap();
+        assert_eq!(
+            handoff_project(studio, Some("site")).unwrap().project_id,
+            "site"
+        );
+        // A project id from the other computer is not one of this computer's.
+        assert_eq!(
+            handoff_project(studio, Some("notes")).unwrap().project_id,
+            "ghostex"
+        );
+        let linux = handoff_computer(&computers, Some("linux")).unwrap();
+        assert_eq!(handoff_project(linux, None), None);
+    }
+
+    #[test]
+    fn handoff_remote_mode_round_trips_through_the_prefs_file() {
+        let dir = std::env::temp_dir().join(format!("gx-export-prefs-{}", std::process::id()));
+        let path = dir.join("prefs.json");
+        persist_export_transcript_modal_prefs(
+            &path,
+            ExportTranscriptModalPrefs {
+                mode: Some(ExportTranscriptMode::HandoffRemote),
+                include: ExportTranscriptIncludeOptions::default(),
+            },
+        );
+        let loaded = load_export_transcript_modal_prefs(&path);
+        let _ = std::fs::remove_dir_all(&dir);
+        assert_eq!(loaded.mode, Some(ExportTranscriptMode::HandoffRemote));
     }
 
     #[test]

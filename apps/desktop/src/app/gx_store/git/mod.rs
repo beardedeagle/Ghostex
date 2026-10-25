@@ -7,7 +7,7 @@
 //! the header's Git button or a Git hotkey does; `review.rs` the commit review dialog and its
 //! confirm; `merge.rs` the review's direct merge into main; `prompt_agent.rs` starts the agent a
 //! Git workflow hands its work to; the `worktree_*.rs` files are the Add, Delete and Rename
-//! Worktree dialogs; `export_transcript.rs` is Handoff / Export.
+//! Worktree dialogs; `export_transcript.rs` is Handoff / Export and `export_handoff_remote.rs` its Handoff to Remote.
 //!
 //! CDXC:Git 2026-09-25 WHY:
 //! These used to run in the desktop's QuickJS app runtime (`gxserver-runtime/git/`,
@@ -20,6 +20,7 @@
 mod actions;
 pub(crate) mod calls;
 mod changes;
+mod export_handoff_remote;
 mod export_transcript;
 mod hud;
 mod merge;
