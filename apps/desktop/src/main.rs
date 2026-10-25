@@ -326,17 +326,23 @@ fn main() {
                 "cmd+r",
                 ReloadFocusedBrowser,
                 Some(BROWSER_KEY_CONTEXT),
+                cx,
             ),
-            gpui_key_binding_from_shared_hotkey("cmd+v", PasteIntoFocusedTerminal, None),
+            gpui_key_binding_from_shared_hotkey("cmd+v", PasteIntoFocusedTerminal, None, cx),
             KeyBinding::new(
                 "shift-insert",
                 PasteIntoFocusedTerminal,
                 Some(terminal_element::TERMINAL_KEY_CONTEXT),
             ),
-            gpui_key_binding_from_shared_hotkey("cmd+f", FindInFocusedTerminal, None),
-            gpui_key_binding_from_shared_hotkey("cmd+g", FindNextInFocusedBrowser, None),
-            gpui_key_binding_from_shared_hotkey("cmd+shift+g", FindPreviousInFocusedBrowser, None),
-            gpui_key_binding_from_shared_hotkey("cmd+=", ZoomInFocusedSurface, None),
+            gpui_key_binding_from_shared_hotkey("cmd+f", FindInFocusedTerminal, None, cx),
+            gpui_key_binding_from_shared_hotkey("cmd+g", FindNextInFocusedBrowser, None, cx),
+            gpui_key_binding_from_shared_hotkey(
+                "cmd+shift+g",
+                FindPreviousInFocusedBrowser,
+                None,
+                cx,
+            ),
+            gpui_key_binding_from_shared_hotkey("cmd+=", ZoomInFocusedSurface, None, cx),
             KeyBinding::new(
                 if cfg!(target_os = "macos") {
                     "cmd-+"
@@ -346,8 +352,8 @@ fn main() {
                 ZoomInFocusedSurface,
                 None,
             ),
-            gpui_key_binding_from_shared_hotkey("cmd+-", ZoomOutFocusedSurface, None),
-            gpui_key_binding_from_shared_hotkey("cmd+0", ResetFocusedSurfaceZoom, None),
+            gpui_key_binding_from_shared_hotkey("cmd+-", ZoomOutFocusedSurface, None, cx),
+            gpui_key_binding_from_shared_hotkey("cmd+0", ResetFocusedSurfaceZoom, None, cx),
             KeyBinding::new(
                 "escape",
                 TitlebarDropdownCancel,
@@ -364,25 +370,26 @@ fn main() {
                 gpui::NoAction {},
                 Some(terminal_element::TERMINAL_KEY_CONTEXT),
             ),
-            gpui_key_binding_from_shared_hotkey("cmd+w", CloseFocusedSurface, None),
-            gpui_key_binding_from_shared_hotkey("cmd+b", ToggleGpuiSidebarCollapsed, None),
-            gpui_key_binding_from_shared_hotkey("cmd+alt+b", ToggleViewPanel, None),
+            gpui_key_binding_from_shared_hotkey("cmd+w", CloseFocusedSurface, None, cx),
+            gpui_key_binding_from_shared_hotkey("cmd+b", ToggleGpuiSidebarCollapsed, None, cx),
+            gpui_key_binding_from_shared_hotkey("cmd+alt+b", ToggleViewPanel, None, cx),
             KeyBinding::new(SLEEP_FOCUSED_SESSION_DEFAULT_KEY, SleepFocusedSession, None),
-            gpui_key_binding_from_shared_hotkey("cmd+shift+t", NewTerminalTab, None),
-            gpui_key_binding_from_shared_hotkey("cmd+shift+n", NewGhostexGpuiWindow, None),
-            gpui_key_binding_from_shared_hotkey("cmd+d", SplitFocusedTerminalRight, None),
-            gpui_key_binding_from_shared_hotkey("cmd+shift+d", SplitFocusedTerminalDown, None),
-            gpui_key_binding_from_shared_hotkey("cmd+t", NewBrowserTab, None),
-            gpui_key_binding_from_shared_hotkey("cmd+ctrl+f", ToggleAgentsFocusMode, None),
+            gpui_key_binding_from_shared_hotkey("cmd+shift+t", NewTerminalTab, None, cx),
+            gpui_key_binding_from_shared_hotkey("cmd+shift+n", NewGhostexGpuiWindow, None, cx),
+            gpui_key_binding_from_shared_hotkey("cmd+d", SplitFocusedTerminalRight, None, cx),
+            gpui_key_binding_from_shared_hotkey("cmd+shift+d", SplitFocusedTerminalDown, None, cx),
+            gpui_key_binding_from_shared_hotkey("cmd+t", NewBrowserTab, None, cx),
+            gpui_key_binding_from_shared_hotkey("cmd+ctrl+f", ToggleAgentsFocusMode, None, cx),
             gpui_key_binding_from_shared_hotkey(
                 gpui_platform_hotkey_for_action("mergeAllTabs", "ctrl+shift+m"),
                 MergeAllTabs,
                 None,
+                cx,
             ),
-            gpui_key_binding_from_shared_hotkey("cmd+alt+left", FocusWorkspaceLeft, None),
-            gpui_key_binding_from_shared_hotkey("cmd+alt+right", FocusWorkspaceRight, None),
-            gpui_key_binding_from_shared_hotkey("cmd+alt+up", FocusWorkspaceUp, None),
-            gpui_key_binding_from_shared_hotkey("cmd+alt+down", FocusWorkspaceDown, None),
+            gpui_key_binding_from_shared_hotkey("cmd+alt+left", FocusWorkspaceLeft, None, cx),
+            gpui_key_binding_from_shared_hotkey("cmd+alt+right", FocusWorkspaceRight, None, cx),
+            gpui_key_binding_from_shared_hotkey("cmd+alt+up", FocusWorkspaceUp, None, cx),
+            gpui_key_binding_from_shared_hotkey("cmd+alt+down", FocusWorkspaceDown, None, cx),
         ];
         #[cfg(target_os = "macos")]
         let shell_key_bindings = {
@@ -408,7 +415,8 @@ fn main() {
         // The user's configured hotkey table binds after the base defaults so
         // configured chords win conflicts. Ids dispatch through the shared
         // runGhostexHotkeyAction route regardless of which surface has focus.
-        cx.bind_keys(gpui_configured_hotkey_key_bindings_from_settings());
+        let configured_hotkeys = gpui_configured_hotkey_key_bindings_from_settings(cx);
+        cx.bind_keys(configured_hotkeys);
         gpui_prewarm_ghostex_editor_daemon();
         crate::app::helpers::note_main_window_background(window_glass_background_appearance());
         cx.on_action(|_: &NewGhostexGpuiWindow, cx| {

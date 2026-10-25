@@ -6,8 +6,8 @@ use crate::app::hotkeys::{
 use gpui::prelude::FluentBuilder as _;
 use gpui::{
     AnyElement, App, Context, EntityInputHandler as _, Focusable as _, FontWeight,
-    InteractiveElement, IntoElement, KeyBinding, ParentElement, StatefulInteractiveElement, Styled,
-    Window, div, px,
+    InteractiveElement, IntoElement, ParentElement, StatefulInteractiveElement, Styled, Window,
+    div, px,
 };
 use gpui_component::tooltip::ManagedTooltipPlacement;
 use serde::Deserialize;
@@ -160,15 +160,17 @@ pub(super) fn register(cx: &mut App) {
     {
         // Bound in the focused field's context too, the way search and zoom are: a binding on
         // `NativeChat` alone loses by depth to any binding of the same chord on the chat box.
-        cx.bind_keys(["NativeChat", "NativeChat > Input"].map(|context| {
-            KeyBinding::new(
+        let bindings = ["NativeChat", "NativeChat > Input"].map(|context| {
+            crate::app::hotkeys::gpui_runtime_key_binding(
                 &shortcut,
                 ScrollChatToBottom {
                     shortcut: shortcut.clone(),
                 },
                 Some(context),
+                cx,
             )
-        }));
+        });
+        cx.bind_keys(bindings);
     }
 }
 
@@ -230,11 +232,7 @@ impl NativeChatView {
     /// bottom: the transcript follows its tail again. Called from the transcript's capture-phase
     /// wheel listener, before the list applies the same event, which keeps following on a downward
     /// scroll.
-    pub(super) fn follow_tail_if_wheel_reaches_end(
-        &self,
-        event: &gpui::ScrollWheelEvent,
-        scale: f32,
-    ) {
+    pub(super) fn follow_tail_if_wheel_reaches_end(&self, event: &gpui::ScrollEvent, scale: f32) {
         if self.list.is_following_tail() || self.disclosure_motion.borrow().follow_paused {
             return;
         }

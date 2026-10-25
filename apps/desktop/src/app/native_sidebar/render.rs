@@ -205,7 +205,7 @@ impl GhostexGpuiApp {
                             .min_h_0()
                             .overflow_y_scroll()
                             .track_scroll(&self.native_sidebar.scroll)
-                            .on_scroll_wheel(cx.listener(|app, _, _, cx| {
+                            .on_scroll(cx.listener(|app, _, _, cx| {
                                 app.native_sidebar.scroll_animation = None;
                                 app.native_sidebar_scroll_wheel_moved(cx);
                             }))
@@ -346,7 +346,7 @@ impl GhostexGpuiApp {
                         header_hover.track(header_view, window);
                         let view = wheel_view.clone();
                         window.on_mouse_event(
-                            move |event: &gpui::ScrollWheelEvent, phase, window, cx| {
+                            move |event: &gpui::ScrollEvent, phase, window, cx| {
                                 if phase == gpui::DispatchPhase::Capture
                                     && bounds.contains(&event.position)
                                 {

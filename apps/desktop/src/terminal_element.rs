@@ -76,8 +76,8 @@ use gpui::{
     FontWeight, Global, GlobalElementId, Hitbox, HitboxBehavior, Hsla, InteractiveElement,
     IntoElement, KeyContext, KeyDownEvent, KeyUpEvent, Keystroke, LayoutId, Modifiers,
     ModifiersChangedEvent, MouseButton, MouseDownEvent, MouseMoveEvent, MouseUpEvent,
-    ParentElement, Pixels, Point, Render, RenderImage, Rgba, ScrollWheelEvent, ShapedLine,
-    SharedString, Size, StrikethroughStyle, Style, Styled, TextAlign, TextRun, UTF16Selection,
+    ParentElement, Pixels, Point, Render, RenderImage, Rgba, ScrollEvent, ShapedLine, SharedString,
+    Size, StrikethroughStyle, Style, Styled, TextAlign, TextRun, UTF16Selection,
     UnderlineStyle as GpuiUnderlineStyle, Window, canvas, div, fill, outline, point,
     prelude::FluentBuilder as _, px, size,
 };
@@ -2162,7 +2162,7 @@ impl TerminalView {
         Cmd+click opens the link under the pointer (ghostty behavior) instead of starting a selection, and it is checked before mouse reporting the way ghostty's `mouseButtonCallback` handles a link before reporting, because a link click swallows the event. Codex's fullscreen view (its default since 0.157) captures the mouse for its whole session, so with the check after reporting every Cmd+click went to Codex, which opened the URL with the host's own opener and skipped Ghostex's link routing (browser pane, editor, remote sessions). A plain click still goes to the app. On Windows and Linux the modifier is Ctrl (`secondary()`), because `platform` there is the Windows/Super key; Cmd stays accepted so the web build still opens links from a Mac browser, where wasm reports Ctrl as secondary.
         */
         if event.button == MouseButton::Left
-            && (event.modifiers.secondary() || event.modifiers.platform)
+            && (event.modifiers.secondary(cx) || event.modifiers.platform)
         {
             let viewport_cell = self.grid_cell(event.position, origin);
             if let Some(link) = self
@@ -2627,7 +2627,7 @@ impl TerminalView {
 
     fn handle_wheel(
         &mut self,
-        event: &ScrollWheelEvent,
+        event: &ScrollEvent,
         origin: Point<Pixels>,
         scale: f32,
         cx: &mut Context<Self>,
@@ -3692,7 +3692,7 @@ impl TerminalElement {
         window.on_mouse_event({
             let entity = entity.clone();
             let hitbox = hitbox.clone();
-            move |event: &ScrollWheelEvent, phase, window, cx| {
+            move |event: &ScrollEvent, phase, window, cx| {
                 if phase != DispatchPhase::Bubble || !hitbox.should_handle_scroll(window) {
                     return;
                 }
