@@ -36,6 +36,8 @@ pub enum ChatRpcMethod {
     SetSessionChatDraft,
     AcknowledgeSessionChatDraftHandoff,
     ReadSessionTerminalTail,
+    /// Copy Report's text about this session's terminal (`/api/readSessionChatReport`).
+    ReadSessionChatReport,
     SessionForkBranches,
     SwitchDraftAgent,
     /// Where a draft will run (`/api/draftRunLocation`), read and changed by the Run on row.
@@ -90,6 +92,7 @@ impl ChatRpcMethod {
             Self::SetSessionChatDraft => "setSessionChatDraft",
             Self::AcknowledgeSessionChatDraftHandoff => "acknowledgeSessionChatDraftHandoff",
             Self::ReadSessionTerminalTail => "readSessionTerminalTail",
+            Self::ReadSessionChatReport => "readSessionChatReport",
             Self::SessionForkBranches => "sessionForkBranches",
             Self::SwitchDraftAgent => "switchDraftAgent",
             Self::DraftRunLocation => "draftRunLocation",
@@ -133,6 +136,7 @@ impl ChatRpcMethod {
             "setSessionChatDraft" => Self::SetSessionChatDraft,
             "acknowledgeSessionChatDraftHandoff" => Self::AcknowledgeSessionChatDraftHandoff,
             "readSessionTerminalTail" => Self::ReadSessionTerminalTail,
+            "readSessionChatReport" => Self::ReadSessionChatReport,
             "sessionForkBranches" => Self::SessionForkBranches,
             "switchDraftAgent" => Self::SwitchDraftAgent,
             "draftRunLocation" => Self::DraftRunLocation,

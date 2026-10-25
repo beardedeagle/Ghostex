@@ -127,6 +127,8 @@ pub struct TerminalTailState {
     /// The request id of the hover read in flight, so an older answer is dropped.
     pub hover_request: Option<u64>,
     pub notice_request: Option<u64>,
+    /// Copy Report's read in flight (extras/report.rs).
+    pub report_request: Option<u64>,
     pub notice_open: bool,
     pub notice_loading: bool,
     pub notice_error: Option<String>,

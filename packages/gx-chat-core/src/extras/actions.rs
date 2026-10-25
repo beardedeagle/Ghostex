@@ -118,6 +118,10 @@ pub fn handle_with_ids(
             vec![read_terminal_tail(request_id)]
         }
 
+        ActionKind::CopyReport => {
+            crate::extras::report::request(&mut state.extras.terminal_tail, next_request_id())
+        }
+
         ActionKind::OpenSubagent => {
             let Some(selector) = label(action, "selector") else {
                 return Vec::new();

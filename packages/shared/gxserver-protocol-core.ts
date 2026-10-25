@@ -208,6 +208,7 @@ export type GxserverEndpointPath =
   | '/api/resolveAgentPromptLaunch'
   | '/api/readSessionChat'
   | '/api/readSessionTerminalTail'
+  | '/api/readSessionChatReport'
   | '/api/catchUpSession'
   | '/api/readSessionFilesLinks'
   | '/api/readSessionChatSkills'

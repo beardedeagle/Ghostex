@@ -252,7 +252,7 @@ impl GhostexGpuiApp {
                 self.open_gpui_settings_modal(kind, open_message, cx);
             }
             GpuiAppModalKind::Feedback => {
-                self.open_gpui_feedback_modal(cx);
+                self.open_gpui_feedback_modal(false, cx);
             }
             GpuiAppModalKind::CreateLinearTicket => {
                 self.open_gpui_create_linear_ticket_modal(open_message, cx);

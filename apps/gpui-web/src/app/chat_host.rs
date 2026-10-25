@@ -42,6 +42,12 @@ impl GhostexGpuiApp {
         {
             // The composer's terminal button: the same session, as a terminal.
             Some("terminalView" | "switchToTerminal") => self.web_show_terminal(true, cx),
+            // Copy Report's last step: Send Bug / Feedback with its agent switch on.
+            Some("sendFeedback") => {
+                let collect_with_agent = message["collectWithAgent"] == true
+                    || message["params"]["collectWithAgent"] == true;
+                self.open_gpui_feedback_modal(collect_with_agent, cx);
+            }
             // A row of a coordinator's Threads panel: that thread's chat, on the same machine.
             // gxserver resumed it first when it was closed (`openCoordinatorThread`). An agent
             // message card's Go to session opens the other session's chat the same way.

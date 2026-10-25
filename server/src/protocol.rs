@@ -567,6 +567,8 @@ pub fn endpoint_for(path: &str) -> Option<EndpointDescriptor> {
         without asking.
         */
         | "/api/readSessionTerminalTail"
+        // CDXC:SessionChat 2026-10-25 WHY: remote-allowed like readSessionTerminalTail: Copy Report reads the screen, queue and send log of the machine that runs the session.
+        | "/api/readSessionChatReport"
         // CDXC:CatchMeUp 2026-10-11 WHY: remote-allowed like readSessionChat: the transcript and the summary agent live on the machine that runs the session.
         | "/api/catchUpSession"
         // CDXC:FilesAndLinks 2026-10-12 WHY: remote-allowed like readSessionChat: the transcripts it reads live on the machine that runs the sessions.

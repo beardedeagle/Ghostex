@@ -99,6 +99,7 @@ pub(crate) fn dispatch_agent_http_blocking(
                 &result,
             );
             crate::session_chat_question_resend::observe_turn_end(state, &params, &result);
+            crate::session_chat_claude_feedback_card::observe_turn_end(state, &params, &result);
             crate::session_chat_open_questions::observe_activity(state, &params, &result);
             crate::session_chat_plan_mode_guard::observe_hook(
                 state,

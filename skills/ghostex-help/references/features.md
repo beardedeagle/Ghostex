@@ -1278,8 +1278,12 @@ the agent's input box appears. It keeps waiting for as long as the session is
 open, even if you close Ghostex, and until it goes out you can edit or delete it
 from the buttons under the message. If Claude Code has its settings, a plugin
 recommendation, or its background-agents list over the input box, sending closes
-it first (a recommendation is declined for now). A question or approval the
-agent is waiting on still has to be answered in its card.
+it first (a recommendation is declined for now). When Claude Code shows a bug
+report or feedback it drafted by itself ("Bug report drafted: …" over its input
+box), Ghostex dismisses it as soon as Claude's turn ends and answers "keep" if
+Claude then asks whether to turn those drafts off; the draft stays saved for
+Claude's own `/feedback`. A question or approval the agent is waiting on still
+has to be answered in its card.
 ZCode supports chat messages, thinking, tool results, attachments, and imported
 conversation history. Install its hooks in Settings > Agents to connect new
 conversations and keep activity in sync. ZCode runs in the same terminal, so
@@ -4128,6 +4132,16 @@ connected remote machine, the agent starts on that machine instead, in its own
 Ghostex config folder, and reads that machine's version, settings and logs; the
 switch's description names the machine. If that machine is not connected, Start
 Agent says so instead of starting on this computer.
+
+When a chat message cannot reach the agent because Ghostex cannot see its input
+box, the "Message not sent" card has Copy Report. It copies a report of what
+Ghostex sees in that session to the clipboard: the whole terminal screen as
+Ghostex reads it, whether the input box is ready and why not, the terminal's
+size, the session's waiting messages and recent send problems, and the Ghostex
+version and operating system (no folder names or account details). A toast says
+it was copied, and Send Bug / Feedback opens with "Collect more data with an
+agent" on, so you can paste the report there and send it to us as a GitHub
+issue. The phone's chat has the same button.
 
 If Ghostex's background service (gxserver) is not answering on this computer,
 Review, Send and Start Agent cannot go through it. The desktop app then offers

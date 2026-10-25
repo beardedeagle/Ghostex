@@ -931,6 +931,20 @@ pub(super) async fn run_session_chat_send_worker(
                         break;
                     }
                 }
+                SessionChatSendStep::DismissClaudeFeedbackCard => {
+                    if let Err(error) =
+                        crate::session_chat_claude_feedback_card::dismiss_feedback_card_step(
+                            &project_id,
+                            &session_id,
+                            &zmx_name,
+                            &source,
+                        )
+                        .await
+                    {
+                        outcome = Err(error);
+                        break;
+                    }
+                }
                 SessionChatSendStep::DismissClaudePanel { agent, timeout_ms } => {
                     // Claude can drop a key that lands the instant a panel opens, so Escape is
                     // pressed again only while an Escape-safe panel is still what the screen
@@ -954,6 +968,23 @@ pub(super) async fn run_session_chat_send_worker(
                                     )
                                 },
                             )
+                        {
+                            break None;
+                        }
+                        // The send's reading can be older than the screen: the panel may have
+                        // closed meanwhile (gxserver closes Claude's feedback card on its own), and
+                        // an Escape on Claude's idle input box starts its double-Escape rewind.
+                        if !codex
+                            && presses == 0
+                            && capture_session_terminal_text_vt(&zmx_name)
+                                .await
+                                .is_some_and(|screen| {
+                                    !crate::session_chat_composer::detect_session_chat_composer_ready(
+                                        agent.as_deref(),
+                                        &screen,
+                                    )
+                                    .should_dismiss()
+                                })
                         {
                             break None;
                         }

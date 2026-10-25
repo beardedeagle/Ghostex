@@ -123,6 +123,9 @@ pub enum SessionChatSendStep {
         agent: Option<String>,
         timeout_ms: u64,
     },
+    /// Close Claude Code's self-drafted feedback card with Escape, one press per capture that
+    /// still shows it (session_chat_claude_feedback_card.rs).
+    DismissClaudeFeedbackCard,
     /*
     CDXC:SessionChat 2026-08-26:
     Hold the sequence until the agent CLI's input box is on screen. This runs

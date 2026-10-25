@@ -292,6 +292,21 @@ pub(super) async fn route_chat_http(
                 )
             },
         ),
+        // Copy Report (session_chat_report.rs).
+        "/api/readSessionChatReport" => handle_domain_http(
+            &state,
+            endpoint.path,
+            request_id,
+            &body_json,
+            |repository, _db, params, _| {
+                crate::session_chat_report::read_session_chat_report(
+                    &state,
+                    repository,
+                    &read_project_id(params)?,
+                    &read_session_id(params)?,
+                )
+            },
+        ),
         "/api/exportSessionTranscript" => {
             handle_export_session_transcript_http(&state, endpoint.path, request_id, &body_json)
                 .await

@@ -66,6 +66,8 @@ pub(crate) struct FeedbackModalConfig {
     pub(crate) offline_diagnostics: Option<fn() -> String>,
     /// What to remove from that issue before the browser opens.
     pub(crate) scrub_context: FeedbackScrubContext,
+    /// Open with "Collect more data with an agent" on (the chat's Copy Report).
+    pub(crate) collect_with_agent: bool,
 }
 
 /// Client storage's `feedbackGithubUser` store: the GitHub username the last feedback named.
@@ -219,7 +221,7 @@ impl GpuiFeedbackModalWindow {
             images: Vec::new(),
             github_input,
             github,
-            collect_with_agent: false,
+            collect_with_agent: config.collect_with_agent,
             agent_id: config.agent_id,
             agent_machine: config.agent_machine,
             pending_images: 0,

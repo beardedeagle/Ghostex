@@ -10,8 +10,13 @@ impl GhostexGpuiApp {
     /// Opens the pop-up for the `feedback` modal kind, with the GitHub username the last feedback
     /// named and the default agent for new sessions. It needs nothing from the open message: the
     /// pop-up drafts, sends and starts the feedback agent through gxserver itself, and tells the app
-    /// when it closed or which agent session to open.
-    pub(crate) fn open_gpui_feedback_modal(&mut self, cx: &mut gpui::Context<Self>) {
+    /// when it closed or which agent session to open. `collect_with_agent` starts it with "Collect
+    /// more data with an agent" on, as the chat's Copy Report does.
+    pub(crate) fn open_gpui_feedback_modal(
+        &mut self,
+        collect_with_agent: bool,
+        cx: &mut gpui::Context<Self>,
+    ) {
         let config = FeedbackModalConfig {
             app: if cfg!(target_family = "wasm") {
                 "web"
@@ -30,6 +35,7 @@ impl GhostexGpuiApp {
             #[cfg(target_family = "wasm")]
             offline_diagnostics: None,
             scrub_context: feedback_scrub_context(),
+            collect_with_agent,
         };
         let host = self.native_app_modal_host(cx, |app, command, cx| match command {
             FeedbackModalCommand::Closed => {

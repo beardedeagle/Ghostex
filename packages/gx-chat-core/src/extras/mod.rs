@@ -16,6 +16,7 @@ pub mod document;
 pub mod minimap;
 pub mod minimap_rail;
 pub mod panels;
+pub mod report;
 pub mod save_markdown;
 pub mod save_markdown_paths;
 pub mod search;

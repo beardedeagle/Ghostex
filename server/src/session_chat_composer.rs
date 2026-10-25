@@ -134,6 +134,9 @@ pub struct SessionChatComposerReadiness {
     dismissible: bool,
     /// The agent's input box is not drawn at all: no dialog, panel or notice stands in its place.
     input_box_absent: bool,
+    /// The panel is Claude's self-drafted feedback card (session_chat_claude_feedback_card.rs),
+    /// which gxserver also closes when no send is waiting.
+    claude_feedback_card: bool,
 }
 
 impl SessionChatComposerReadiness {
@@ -155,6 +158,10 @@ impl SessionChatComposerReadiness {
         self.dismissible
     }
 
+    pub(crate) fn shows_claude_feedback_card(&self) -> bool {
+        self.claude_feedback_card
+    }
+
     /// CDXC:SessionChat 2026-10-24 WHY:
     /// A blank screen, a booting CLI or a shell prompt (the agent never started, or its start command sits unrun at the prompt) is not a dialog the user can answer: nothing of the agent is on screen. A model pick or draft handoff waiting on it must not type into the shell, and a pick that waits on it for minutes stops and says why (GitHub #290), while a pick waiting behind an open dialog keeps waiting.
     /// Only meaningful for an agent with a composer signature.
@@ -170,6 +177,7 @@ impl SessionChatComposerReadiness {
             screen_tail,
             dismissible: false,
             input_box_absent: false,
+            claude_feedback_card: false,
         }
     }
 
@@ -180,6 +188,7 @@ impl SessionChatComposerReadiness {
             screen_tail,
             dismissible: false,
             input_box_absent: false,
+            claude_feedback_card: false,
         }
     }
 
@@ -190,6 +199,7 @@ impl SessionChatComposerReadiness {
             screen_tail,
             dismissible: false,
             input_box_absent: false,
+            claude_feedback_card: false,
         }
     }
 
@@ -200,6 +210,7 @@ impl SessionChatComposerReadiness {
             screen_tail,
             dismissible: true,
             input_box_absent: false,
+            claude_feedback_card: false,
         }
     }
 
@@ -849,6 +860,17 @@ pub fn detect_session_chat_composer_ready(
             "Claude Code's side question is open instead of the input box.".to_string(),
             screen_tail,
         );
+    }
+    if matches!(agent.as_str(), "claude" | "openclaude")
+        && crate::session_chat_claude_feedback_card::feedback_card_on_screen(screen_text)
+    {
+        return SessionChatComposerReadiness {
+            claude_feedback_card: true,
+            ..SessionChatComposerReadiness::not_ready_dismissible(
+                "Claude Code's self-drafted feedback card is open over the input box.".to_string(),
+                screen_tail,
+            )
+        };
     }
     if matches!(agent.as_str(), "claude" | "openclaude") {
         if let Some(popup) =

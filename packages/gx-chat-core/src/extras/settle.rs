@@ -257,6 +257,9 @@ fn settle_terminal_tail_rpc(
     outcome: Result<&Value, String>,
 ) -> Option<Vec<Effect>> {
     let tail = &mut state.extras.terminal_tail;
+    if let Some(effects) = crate::extras::report::settle(tail, request_id, outcome.clone()) {
+        return Some(effects);
+    }
     if tail.hover_request == Some(request_id) {
         tail.hover_request = None;
         // Keep the last verdict; a failed read is "unknown", never "not ready".

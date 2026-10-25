@@ -107,6 +107,7 @@ fn rpc_method_name(wire: &str) -> &'static str {
         ChatRpcMethod::SetSessionChatDraft => "setSessionChatDraft",
         ChatRpcMethod::AcknowledgeSessionChatDraftHandoff => "acknowledgeSessionChatDraftHandoff",
         ChatRpcMethod::ReadSessionTerminalTail => "readSessionTerminalTail",
+        ChatRpcMethod::ReadSessionChatReport => "readSessionChatReport",
         ChatRpcMethod::SessionForkBranches => "sessionForkBranches",
         ChatRpcMethod::SwitchDraftAgent => "switchDraftAgent",
         ChatRpcMethod::DraftRunLocation => "draftRunLocation",

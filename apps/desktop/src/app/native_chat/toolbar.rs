@@ -30,6 +30,9 @@ pub(super) const COMPOSER_CONTROLS: [(&str, &str, &str, &str); 4] = [
     ),
 ];
 
+/// The Copy Report pill's width at scale 1 (icon, gap, label and padding), reserved while it shows.
+const COPY_REPORT_PILL_WIDTH: f32 = 108.0;
+
 /// Where the composer buttons that open a menu were last painted: each menu lines up with its
 /// button's right edge (`MenuSide::Right`).
 #[derive(Default)]
@@ -137,6 +140,10 @@ impl NativeChatView {
                 "maximize" if self.maximized_window.is_some() => "titlebar/minimize.svg",
                 _ => icon,
             };
+            // CDXC:SessionChat 2026-10-25 DECISION: User: Copy Report shows "when the chat composer shows red", i.e. while the Terminal View glyph reads not ready, so its pill sits right before that glyph. The phone's NativeComposer.tsx matches.
+            if id == "terminal" && self.copy_report_pill_shown() {
+                toolbar = toolbar.child(self.render_copy_report_pill(p, cx));
+            }
             // The Terminal View control also carries the agent CLI's readiness tint and screen preview.
             toolbar = toolbar.child(if id == "terminal" {
                 self.render_terminal_view_button(p, cx)
@@ -178,7 +185,12 @@ impl NativeChatView {
             .collect();
         // More actions, each drawn control, Dictate (never folded) and Send, with the gaps between them.
         let buttons = 1 + controls.len() + usize::from(self.composer_control_available("dictate"));
-        let actions_width = (buttons as f32 * (28.0 + 6.0) + 24.0) * scale;
+        let report_pill = if self.copy_report_pill_shown() {
+            COPY_REPORT_PILL_WIDTH + 6.0
+        } else {
+            0.0
+        };
+        let actions_width = (buttons as f32 * (28.0 + 6.0) + 24.0 + report_pill) * scale;
         let chat = cx.weak_entity();
         gpui::canvas(
             move |bounds, window, cx| {

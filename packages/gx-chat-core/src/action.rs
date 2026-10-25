@@ -90,6 +90,8 @@ action_kinds! {
     SearchFolds => "searchFolds",
     TerminalTailHover => "terminalTailHover",
     TerminalTailToggle => "terminalTailToggle",
+    // Copy Report (extras/report.rs).
+    CopyReport => "copyReport",
     OpenSubagent => "openSubagent",
     SubagentBack => "subagentBack",
     SubagentClose => "subagentClose",

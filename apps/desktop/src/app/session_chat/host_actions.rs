@@ -178,6 +178,16 @@ impl GhostexGpuiApp {
         if self.handle_session_details_host_action(action, &message, window, cx) {
             return;
         }
+        // Copy Report's last step: Send Bug / Feedback with its agent switch on (gx-chat-core
+        // `extras/report.rs`).
+        if action == "sendFeedback" {
+            let collect_with_agent = message
+                .get("collectWithAgent")
+                .and_then(serde_json::Value::as_bool)
+                == Some(true);
+            self.open_gpui_feedback_modal(collect_with_agent, cx);
+            return;
+        }
         if action == "recordSendFailure" {
             if let Some(details) = message.get("details") {
                 support_logs::append_session_chat_send_failure(details.clone());
