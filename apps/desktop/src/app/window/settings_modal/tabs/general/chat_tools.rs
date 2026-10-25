@@ -493,12 +493,12 @@ fn file_opening_section(
         (
             "documentFileOpenTarget",
             "HTML, Markdown and images",
-            ".html, .md and pictures such as .png, .jpg and .svg, opened from Quick Access, agent chat or the terminal.",
+            ".html, .md and pictures such as .png, .jpg and .svg, opened from Quick Access, agent chat, the terminal or `ghostex open`.",
         ),
         (
             "otherFileOpenTarget",
             "Other files",
-            "Code and text files, opened from Quick Access, agent chat or the terminal.",
+            "Code and text files, opened from Quick Access, agent chat, the terminal or `ghostex open`.",
         ),
     ] {
         if !g.visible(s, key) {

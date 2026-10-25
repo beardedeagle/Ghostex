@@ -357,8 +357,7 @@ impl GhostexGpuiApp {
         {
             return;
         }
-        self.pending_session_chat_composer_insert
-            .insert(session_id, content);
+        self.hold_for_session_chat_composer(session_id, &content);
     }
 
     pub(crate) fn show_agents_session_chat_mode(

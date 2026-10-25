@@ -3,4 +3,5 @@
 //! verb gx-core validated (`ghostex_gx_core::plan_renderer_command`).
 
 mod answer;
+mod open_paths;
 mod perform;

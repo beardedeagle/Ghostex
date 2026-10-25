@@ -726,6 +726,16 @@ wrap_permission_handler! {
                 ));
                 return 1;
             }
+            // The app's own pages list the computer's fonts without a question
+            // (CDXC:Browser 2026-10-25 in site_permissions.rs).
+            if own_page_local_fonts_request(&self.profile, &requesting_origin, requested_permissions)
+            {
+                let Some(callback) = callback else {
+                    return 0;
+                };
+                callback.cont(PermissionRequestResult::ACCEPT);
+                return 1;
+            }
             /*
             macOS `GhostexCEFBrowserClient::OnShowPermissionPrompt` parity: the
             embedded code-server's clipboard prompts are decided here, granted

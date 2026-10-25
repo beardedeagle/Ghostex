@@ -18,7 +18,6 @@ use gpui::relative;
 use gpui_component::v_flex;
 
 use crate::app::consts::*;
-use crate::app::helpers::ThrottledAnimationExt as _;
 use crate::app::helpers::*;
 use crate::app::model::*;
 use crate::app::native_sidebar::drag::SidebarDrag;

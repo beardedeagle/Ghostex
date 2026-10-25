@@ -731,6 +731,7 @@ pub(crate) fn gpui_configured_hotkey_label(action_id: &str) -> Option<String> {
 pub(crate) fn gpui_keyboard_owner_allows_hotkey(
     owner: GpuiKeyboardOwner,
     action_id: &str,
+    hotkey_text: &str,
     terminal_model_picker_session: Option<TerminalSessionId>,
 ) -> bool {
     /*
@@ -811,7 +812,11 @@ pub(crate) fn gpui_keyboard_owner_allows_hotkey(
                 ProjectWorkareaCefSurfaceSlotKey::Source
                 | ProjectWorkareaCefSurfaceSlotKey::CodeWindow(_),
             ),
-        )) => gpui_source_workarea_allowed_configured_hotkey_action_id(action_id),
+        )) => {
+            gpui_source_workarea_allowed_configured_hotkey_action_id(action_id)
+                || (gpui_sidebar_session_walk_hotkey_reverse(action_id).is_some()
+                    && !gpui_vs_code_editor_tab_chord(hotkey_text))
+        }
         GpuiKeyboardOwner::FirstResponder(FirstResponderTarget::CefSurface(
             FirstResponderCefSurface::BrowserTab(_),
         )) => matches!(
@@ -854,6 +859,8 @@ pub(crate) fn gpui_keyboard_owner_allows_hotkey(
                 | "openBrowserPane"
                 | "deferNotificationAndJumpNext"
                 | "focusLeft"
+                | "focusNextSession"
+                | "focusPreviousSession"
                 | "focusRight"
                 | "jumpToLatestUnreadNotification"
                 | "navigateHistoryBack"
@@ -865,6 +872,20 @@ pub(crate) fn gpui_keyboard_owner_allows_hotkey(
         | GpuiKeyboardOwner::FirstResponder(FirstResponderTarget::Other)
         | GpuiKeyboardOwner::FirstResponder(FirstResponderTarget::None) => false,
     }
+}
+
+/// VS Code's own editor-tab chords on macOS (Ctrl+Tab / Ctrl+Shift+Tab open the editor switcher,
+/// Cmd+Shift+] / [ move between editor tabs). Next/Previous Session's defaults and aliases are the
+/// same chords, so while the Code view has the keyboard they stay with VS Code.
+///
+/// CDXC:Hotkeys 2026-10-25 WHY:
+/// Previous/Next Session works from inside every web view, but in the VS Code view VS Code keeps its editor-tab keys (Ctrl+Tab, Ctrl+Shift+Tab, Cmd+Shift+] / [, which are also the session defaults and aliases), following the 2026-09-25 DECISION that Cmd+N and Cmd+Shift+O belong to VS Code while the Code editor has keyboard focus. Only a chord VS Code does not use (such as Ctrl+Cmd+Tab) switches sessions there; Browser and the other pages take the defaults too, as Chrome does.
+#[cfg(target_os = "macos")]
+fn gpui_vs_code_editor_tab_chord(hotkey_text: &str) -> bool {
+    matches!(
+        normalized_gpui_hotkey_text(hotkey_text).as_deref(),
+        Some("ctrl+tab" | "ctrl+shift+tab" | "cmd+shift+]" | "cmd+shift+[")
+    )
 }
 
 /// Builds native key bindings by overlaying the persisted shared hotkey map

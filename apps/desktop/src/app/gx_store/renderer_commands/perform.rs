@@ -5,18 +5,16 @@
 //! runtime, exactly what the runtime's renderer handler called), Full Reload, Restart and Close
 //! After Done are the sidebar row's commands, `switch-project` and `focus-group` are the menu bar's
 //! project activation, `move-project` is the sidebar's project drag, `run-command` is the titlebar
-//! Action runner, and `open` is the operating system's open-file request.
+//! Action runner, and `open` / `edit` are routed by `open_paths.rs`.
 //!
 //! SEE-ALSO: packages/gx-core/src/renderer_commands/ (validation and target resolution),
 //! apps/desktop/src/app/status_activation.rs (`dispatch_gpui_status_activation`,
 //! `dispatch_gpui_menu_bar_project_activation`; F3 moves both off the runtime).
 
-use std::path::PathBuf;
-
 use ghostex_gx_core::protocol::RendererCommand;
 use ghostex_gx_core::{
-    OpenPathTarget, OpenPathsMode, RendererCommandError, RendererSession, RendererVerb,
-    SessionGroupOp, plan_project_step, plan_renderer_command,
+    OpenPathsMode, RendererCommandError, RendererSession, RendererVerb, SessionGroupOp,
+    plan_project_step, plan_renderer_command,
 };
 use gpui::Window;
 use serde_json::{Value, json};
@@ -28,10 +26,8 @@ use crate::app::consts::{
     GPUI_SIDEBAR_WORKSPACE_TERMINAL_RENAME_COMMAND_MESSAGE_VERSION,
 };
 use crate::app::helpers::{
-    GpuiTitlebarActionRunMode, GpuiTitlebarActionType, gpui_os_integration_project_root_for_path,
-    gpui_sidebar_open_browser_url_from_json,
+    GpuiTitlebarActionRunMode, GpuiTitlebarActionType, gpui_sidebar_open_browser_url_from_json,
 };
-use crate::app::model::{PendingSourceFileOpen, PendingSourceFileOpenOrigin};
 
 /// `{ ghostexId, projectId, sessionId }`, the session block of the old runtime's answers.
 fn session_json(session: &RendererSession) -> Value {
@@ -240,7 +236,7 @@ impl GhostexGpuiApp {
                 }))
             }
             RendererVerb::OpenPaths { mode, targets } => {
-                self.gx_store_open_renderer_paths(targets, cx);
+                self.gx_store_open_cli_paths(mode, targets, cx);
                 let mode = match mode {
                     OpenPathsMode::Open => "open",
                     OpenPathsMode::Edit => "edit",
@@ -301,51 +297,6 @@ impl GhostexGpuiApp {
                 Ok(answer)
             }
         }
-    }
-
-    /// `ghostex open` / `edit` / `ghostex <path>`: each path's project is added and opened in the
-    /// Code view, the way the operating system's open-file request does it
-    /// (`open_gpui_os_integration_paths`), and the first FILE among them is opened in the editor
-    /// at its line and column once Code is ready for that project, the way a chat file link is.
-    fn gx_store_open_renderer_paths(
-        &mut self,
-        targets: Vec<OpenPathTarget>,
-        cx: &mut gpui::Context<Self>,
-    ) {
-        let background = cx.background_executor().clone();
-        cx.spawn(async move |this, cx| {
-            let paths: Vec<PathBuf> = targets
-                .iter()
-                .map(|target| PathBuf::from(&target.path))
-                .collect();
-            let file = background
-                .spawn(async move {
-                    targets.into_iter().find_map(|target| {
-                        let file_path = PathBuf::from(&target.path);
-                        if !file_path.is_file() {
-                            return None;
-                        }
-                        let project_path = gpui_os_integration_project_root_for_path(&file_path)?;
-                        Some(PendingSourceFileOpen {
-                            column: target.column,
-                            file_path,
-                            line: target.line,
-                            origin: PendingSourceFileOpenOrigin::SessionChat,
-                            project_path,
-                            remote_target: None,
-                            remote_working_directory: None,
-                        })
-                    })
-                })
-                .await;
-            let _ = this.update_in(cx, |this, window, cx| {
-                if let Some(file) = file {
-                    this.pending_source_file_open = Some(file);
-                }
-                this.open_gpui_os_integration_paths(paths, window, cx);
-            });
-        })
-        .detach();
     }
 
     /// `runGxserverRendererCommandButton`: the active project's Action with this id, launched the

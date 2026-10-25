@@ -945,6 +945,29 @@ fn update_prompt(
     Ok(())
 }
 
+/// Deletes the queued prompts of a session deleted for good, or of every session of a removed
+/// project (`session_id` is `None`), and returns how many went.
+///
+/// CDXC:SessionChat 2026-10-25 WHY:
+/// The queue has no foreign key onto `sessions` on purpose (migration 0021): its text must outlive a session row that is pruned or re-created. A session deleted for good (`/api/removeSession`, `/api/removeProject`, deleting a worktree) is neither, yet its rows stayed behind where no client or CLI verb could reach them, and a held one could still be tried and reported to its sender for a session that no longer existed (2026-10-25: an agent's message to a test Cursor session it then deleted). Only those deliberate deletes drop the rows; closing a session keeps them, since it can be brought back, and still marks held messages Not sent (`session_chat_send_wake.rs`).
+pub(crate) fn forget_session_chat_queue(
+    db: &Connection,
+    project_id: &str,
+    session_id: Option<&str>,
+) -> Result<usize, DomainStateError> {
+    match session_id {
+        Some(session_id) => db.execute(
+            "DELETE FROM session_chat_queued_prompts WHERE projectId = ?1 AND sessionId = ?2",
+            params![project_id, session_id],
+        ),
+        None => db.execute(
+            "DELETE FROM session_chat_queued_prompts WHERE projectId = ?1",
+            params![project_id],
+        ),
+    }
+    .map_err(sql_error)
+}
+
 fn remove_prompt(
     db: &Connection,
     project_id: &str,

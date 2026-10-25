@@ -268,7 +268,9 @@ view from the strip.
   `openBrowserPane`, `forkSession`, `renameActiveSession`, `sleepFocusedSession`,
   `closeFocusedSession`.
 - **VS Code**: the built-in VS Code based editor (code-server). Opens files from
-  chat links, `ghostex edit <file>`, and Open In. Optional Use VS Code settings
+  chat links, `ghostex edit <file>`, and Open In. `ghostex edit` opens a file in
+  its project's VS Code view, and a file that is in no project in the VS Code
+  view of the project on screen, without adding a project. Optional Use VS Code settings
   reuses the local VS Code configuration. VS Code shows one window per project;
   turn on Open VS Code windows as tabs (Settings > General > Tools > Editor,
   advanced) and a window VS Code opens (File > New Window, a folder or workspace
@@ -501,8 +503,8 @@ view from the strip.
   file selected in File Explorer (Finder on a Mac).
   Browser links stop working when Ghostex restarts; open the file again for a new one.
   Settings > File opening decides where a file opens from Quick Access, a chat
-  link or a terminal link: one dropdown for HTML, Markdown and images, one for
-  every other file (code and text). Both offer Files (the default), the built-in
+  link, a terminal link or `ghostex open <file>`: one dropdown for HTML,
+  Markdown and images, one for every other file (code and text). Both offer Files (the default), the built-in
   VS Code view, and the editor apps Ghostex knows (VS Code, Cursor, Zed, the
   JetBrains IDEs and the rest); an editor that is not installed on this computer
   is listed but cannot be picked. If you had changed the old Markdown, HTML or
@@ -1865,7 +1867,9 @@ the chat box, or, with an empty chat box, opens your stashed prompts; the row
 shows how many are stashed.
 The Maximize button's tooltip shows the Maximize Chat Box shortcut (Option+Ctrl+M
 on macOS, Ctrl+Alt+Shift+M on Windows and Linux), which maximizes the chat box of
-the chat you are in, or restores it.
+the chat you are in, or restores it. The Prompt Editor shortcut (Ctrl+G on macOS,
+Ctrl+Shift+G on Windows and Linux) does the same while you are in a chat: it
+maximizes the chat box with your text in it, and pressing it again restores it.
 As space gets tighter, toolbar buttons move into More actions one at a time:
 Session note, Attach, Maximize, then Terminal View. The microphone never moves:
 it always stays right next to Send.
@@ -2279,7 +2283,7 @@ terminal, including a remote terminal. Shift+Insert also pastes, in terminals
 and in text fields such as the chat composer and dialogs. A configured hotkey
 using the same chord takes precedence. In an agent's terminal prompt, use
 Prompt Editor in the terminal toolbar, Ctrl+G on macOS, or Ctrl+Shift+G on
-Windows and Linux to open the Ghostex prompt editor or your machine default
+Windows and Linux (in chat view the same shortcut maximizes the chat box) to open the Ghostex prompt editor or your machine default
 editor for long prompts. Remote sessions open it in that computer's VS Code view.
 The agent must be at its prompt and support an external editor; an idle shell
 does not provide that agent prompt-editor action. The Ghostex editor uses the

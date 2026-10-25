@@ -281,12 +281,19 @@ impl GhostexGpuiApp {
             A project this app has not seen before starts with no tabs at all, not with the previous
             project's strip: its tabs belong to it, and inheriting them would open pages in a project
             the user never asked to open them in.
+
+            CDXC:Workarea 2026-10-25 WHY:
+            The outgoing project's view goes with its tabs. Keeping `active_mode` showed that view in
+            the new project with no tab in the strip (a lone ×), and a later switch to the same view,
+            such as `ghostex edit` landing a file in Code, was a no-op that never added its tab. With
+            no view here the panel follows the same rule as a project whose saved view is Agents.
             */
             self.open_views.clear();
             self.view_strip_layout = GpuiViewStripLayout::default();
             self.code_windows = CodeWindows::default();
             self.view_panel_maximized = false;
-            self.last_open_view_mode = self.open_view_mode();
+            self.active_mode = TitlebarMode::Agents;
+            self.last_open_view_mode = None;
             self.apply_view_pane_state(cx);
             self.seed_terminal_view_for_open(cx);
             self.focus_default_surface_for_active_mode(cx);

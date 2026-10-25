@@ -93,7 +93,7 @@ pub fn xdg_state_root() -> PathBuf {
 }
 
 /// CDXC:Build 2026-10-01 WHY:
-/// `cargo run` hands its child CARGO_*, RUSTUP_TOOLCHAIN (set to the toolchain that built the xtask) and library-path variables. Children inherit them, and a RUSTUP_TOOLCHAIN in the environment outranks every `rust-toolchain.toml`, so the desktop and gxserver builds the start runs would compile with the machine's default Rust instead of their pinned 1.95.0. Drop what cargo and rustup added before anything is spawned; a RUSTUP_TOOLCHAIN the user exported themselves (source `env`) stays.
+/// `cargo run` hands its child CARGO_*, RUSTUP_TOOLCHAIN (set to the toolchain that built the xtask) and library-path variables. Children inherit them, and a RUSTUP_TOOLCHAIN in the environment outranks every `rust-toolchain.toml`, so the desktop and gxserver builds the start runs would compile with the machine's default Rust instead of their pinned toolchain. Drop what cargo and rustup added before anything is spawned; a RUSTUP_TOOLCHAIN the user exported themselves (source `env`) stays.
 pub fn sanitize_cargo_run_environment() {
     let toolchain_source = env_var("RUSTUP_TOOLCHAIN_SOURCE");
     let rustup_set_toolchain = match toolchain_source.as_deref() {

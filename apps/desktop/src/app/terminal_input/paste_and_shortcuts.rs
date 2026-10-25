@@ -419,6 +419,10 @@ impl GhostexGpuiApp {
             return true;
         }
         if action_id == "promptEditor" {
+            // A chat box maximizes or restores instead (CDXC:Hotkeys 2026-10-25 DECISION in native_chat/maximized.rs).
+            if self.run_focused_chat_hotkey("toggleChatComposerMaximized", window, cx) {
+                return true;
+            }
             if let Some((target, runtime_session_id)) =
                 self.focused_gpui_engine_terminal_action_target()
             {

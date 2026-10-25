@@ -191,7 +191,7 @@ impl GhostexGpuiApp {
             .into_any_element()
     }
 
-    /// One tab, drawn as the view tab strip draws its tabs: its icon and label, its tooltip beside
+    /// One tab, drawn as the view tab strip draws its tabs: its icon and label, its tooltip under
     /// it, and the close control after the label; a pinned tab is its icon alone.
     ///
     /// CDXC:CodeEditor 2026-10-25 WHY:
@@ -252,9 +252,11 @@ impl GhostexGpuiApp {
                     })
             })
             .when(asleep && !showing, |this| this.opacity(0.72))
-            // Beside the tab, as the strip's tooltips are: below it would sit behind the page.
+            // Under the tab: beside it the bubble covers the neighbouring tab. With window glass
+            // enabled on macOS or Windows, its frosted tooltip host draws it above the page;
+            // otherwise it stays in this window, nudged clear of the page where space allows.
             .managed_tooltip_with_placement(
-                ManagedTooltipPlacement::WiderSide,
+                ManagedTooltipPlacement::Below,
                 move |window, cx| {
                     titlebar_tooltip(view_tab_strip_tooltip_text(&tooltip), window, cx)
                 },
