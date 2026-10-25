@@ -297,9 +297,11 @@ impl GhostexGpuiApp {
         if action == "composerReady" {
             self.reconcile_agents_chat_surfaces(cx);
             self.deliver_pending_session_chat_received_draft(session_id, cx);
-            if self.agents_chat_mode_sessions.contains(&session_id)
-                && self.native_chat_views.contains_key(&session_id)
-            {
+            // CDXC:Drafts 2026-10-25 WHY:
+            // Recorded whether or not the session is in Chat yet: a prewarmed view reports ready
+            // once, before its session switches to Chat, and never again, so requiring Chat mode
+            // here left a working chat box marked not ready and its inserts waiting for a click.
+            if self.native_chat_views.contains_key(&session_id) {
                 self.session_chat_composer_ready_sessions.insert(session_id);
             }
             self.drain_pending_keyboard_handoff(window, cx);
@@ -311,12 +313,7 @@ impl GhostexGpuiApp {
             eligible session, not just the focused one, and the focus handoff
             above deliberately does nothing for the rest.
             */
-            if let Some(content) = self
-                .pending_session_chat_composer_insert
-                .remove(&session_id)
-            {
-                self.insert_prompt_into_session_chat(session_id, &content, cx);
-            }
+            self.deliver_held_session_chat_composer_text(session_id, cx);
             return;
         }
         /*

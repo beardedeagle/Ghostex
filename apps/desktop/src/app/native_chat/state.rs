@@ -925,8 +925,10 @@ impl NativeChatView {
                     self.draft_id = entry["version"]["draftId"].as_str().unwrap_or_default().to_string();
                     self.draft_revision = entry["version"]["revision"].as_u64().unwrap_or(1);
                     let restored = if entry["parked"] == true || entry["submitted"] == true { String::new() } else { entry["text"].as_str().unwrap_or_default().to_string() };
+                    // Text that went in before the chat box was ready (a review comment pill)
+                    // joins the restored draft the way a later one would.
                     let draft = match &local_draft {
-                        Some(local) => format!("{restored}{local}"),
+                        Some(local) => ghostex_gx_chat_core::composer::review_comments::append_to_draft(&restored, local),
                         None => restored,
                     };
                     self.input_needs_sync = self.draft != draft;

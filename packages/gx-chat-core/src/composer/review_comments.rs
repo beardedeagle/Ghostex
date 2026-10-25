@@ -283,3 +283,51 @@ fn percent_decode(value: &str) -> Option<String> {
     }
     String::from_utf8(out).ok()
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn pill(file: &str, lines: &str, text: &str) -> String {
+        ReviewComment {
+            file: file.into(),
+            lines: lines.into(),
+            scope: "the branch's changes".into(),
+            excerpt: vec!["+line".into()],
+            text: text.into(),
+        }
+        .reference()
+    }
+
+    #[test]
+    fn held_comments_all_survive_in_order() {
+        let first = pill("README.md", "L7", "one");
+        let second = pill("greet.py", "L18", "two");
+        let third = pill("greet.py", "L20", "three");
+        let mut held = String::new();
+        for addition in [&first, &second, &third] {
+            held = append_to_draft(&held, addition);
+        }
+        assert_eq!(held, format!("{first} {second} {third}"));
+    }
+
+    #[test]
+    fn delivering_held_comments_keeps_typed_text() {
+        let first = pill("README.md", "L7", "one");
+        let second = pill("greet.py", "L18", "two");
+        let held = append_to_draft(&first, &second);
+        let draft = append_to_draft("Please look at these", &held);
+        assert_eq!(draft, format!("Please look at these\n\n{first} {second}"));
+        let later = pill("greet.py", "L20", "three");
+        assert_eq!(
+            append_to_draft(&draft, &later),
+            format!("Please look at these\n\n{first} {second} {later}")
+        );
+    }
+
+    #[test]
+    fn appending_to_an_empty_draft_is_the_addition() {
+        assert_eq!(append_to_draft("  \n", "note"), "note");
+        assert_eq!(append_to_draft("text", "note"), "text\n\nnote");
+    }
+}

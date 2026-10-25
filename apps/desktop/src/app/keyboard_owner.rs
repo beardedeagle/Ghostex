@@ -526,12 +526,7 @@ impl GhostexGpuiApp {
             view.focus_requested = true;
             view.ensure_input(window, cx);
         });
-        if let Some(content) = self
-            .pending_session_chat_composer_insert
-            .remove(&session_id)
-        {
-            self.insert_prompt_into_session_chat(session_id, &content, cx);
-        }
+        self.deliver_held_session_chat_composer_text(session_id, cx);
     }
 
     /// Physical half of a browser handoff: the pane's page surface takes GPUI and native focus; a pane without a page blurs GPUI chrome so the address bar does not keep the caret.
