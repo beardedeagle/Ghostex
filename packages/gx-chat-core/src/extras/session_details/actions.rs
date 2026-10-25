@@ -104,7 +104,10 @@ fn open(action: &UserAction) -> Vec<Effect> {
             if name.is_empty() {
                 return Vec::new();
             }
-            host("openAgentsHubSkill", json!({ "name": name }))
+            host(
+                "openAgentsHubSkill",
+                json!({ "name": name, "path": text(action, "path") }),
+            )
         }
         "file" => {
             let path = text(action, "path");

@@ -34,6 +34,11 @@ impl GhostexGpuiApp {
                 .map(str::trim)
                 .filter(|skill| !skill.is_empty())
                 .map(str::to_string),
+            initial_skill_path: message
+                .get("initialSkillPath")
+                .and_then(serde_json::Value::as_str)
+                .filter(|path| !path.is_empty())
+                .map(str::to_string),
             word_wrap: crate::app::native_docs::storage::read_word_wrap(),
         };
         let host: AgentsHubModalHost = self.native_app_modal_host(cx, |app, command, cx| {

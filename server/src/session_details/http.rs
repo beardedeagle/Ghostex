@@ -219,12 +219,19 @@ fn read_details(
             .unwrap_or(Value::Null)
     };
     if let Some(facts) = facts.as_ref() {
+        let sources = super::skills::skill_sources(
+            &home,
+            folder.as_deref().map(std::path::Path::new),
+            facts.skills.iter().map(|(name, _)| name.as_str()),
+        );
         result["skills"] = json!({
             "used": facts.invoked_skills,
             "available": facts.skills.iter().map(|(name, description)| json!({
                 "name": name,
                 "description": description,
                 "tokens": skill_tokens(name),
+                "scope": sources.get(name).map(|source| source.scope),
+                "path": sources.get(name).and_then(|source| source.path.clone()),
             })).collect::<Vec<_>>(),
         });
         let file_tokens = |path: &str| {

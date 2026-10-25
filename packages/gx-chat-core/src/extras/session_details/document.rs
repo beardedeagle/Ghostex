@@ -490,12 +490,29 @@ fn skills(state: &ChatState, data: &Value) -> Option<Value> {
         .into_iter()
         .flatten()
         .collect();
-    let row = |name: &str, description: Option<&str>| {
+    // A home skill opens in Agents Hub at its own SKILL.md, a project or plugin skill (which
+    // Agents Hub does not list) opens that file, and a skill built into Claude Code has none
+    // (server/src/session_details/skills.rs). An older gxserver sends no scope: Agents Hub by name.
+    let row = |name: &str, skill: Option<&&Value>| {
+        let description = skill.and_then(|skill| skill["description"].as_str());
+        let path = skill.and_then(|skill| skill["path"].as_str());
+        let action = match (skill.and_then(|skill| skill["scope"].as_str()), path) {
+            (Some("builtin"), _) => None,
+            (Some("project" | "plugin"), Some(path)) => {
+                Some(open_action("file", json!({ "path": path })))
+            }
+            (_, path) => Some(open_action("skill", json!({ "name": name, "path": path }))),
+        };
+        let tooltip = match (&action, description) {
+            (None, Some(description)) => Some(format!("{description}\n\nBuilt into Claude Code.")),
+            (None, None) => Some("Built into Claude Code.".to_string()),
+            (Some(_), description) => description.map(str::to_string),
+        };
         json!({
             "text": name,
-            "tooltip": description,
-            "link": true,
-            "action": open_action("skill", json!({"name": name})),
+            "tooltip": tooltip,
+            "link": action.is_some(),
+            "action": action,
         })
     };
     let used: Vec<Value> = skills["used"]
@@ -503,25 +520,14 @@ fn skills(state: &ChatState, data: &Value) -> Option<Value> {
         .into_iter()
         .flatten()
         .filter_map(Value::as_str)
-        .map(|name| {
-            let description = available
-                .iter()
-                .find(|skill| skill["name"] == name)
-                .and_then(|skill| skill["description"].as_str());
-            row(name, description)
-        })
+        .map(|name| row(name, available.iter().find(|skill| skill["name"] == name)))
         .collect();
     if used.is_empty() && available.is_empty() {
         return None;
     }
     let all: Vec<Value> = available
         .iter()
-        .map(|skill| {
-            row(
-                skill["name"].as_str().unwrap_or_default(),
-                skill["description"].as_str(),
-            )
-        })
+        .map(|skill| row(skill["name"].as_str().unwrap_or_default(), Some(skill)))
         .collect();
     let tokens = number(data.pointer("/context/breakdown/skills/tokens"));
     let count = all.len();

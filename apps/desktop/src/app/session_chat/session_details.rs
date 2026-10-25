@@ -23,6 +23,9 @@ pub(crate) struct SessionDetailsSwitch {
     /// The button's bounds in the window's content, which the floating card opens under.
     pub(crate) button_bounds: Rc<Cell<gpui::Bounds<gpui::Pixels>>>,
     dismissed_at: Option<Instant>,
+    /// The chat session that last had focus, which the button keeps following while focus is
+    /// somewhere that is not a chat (the sidebar, Files, a terminal, another window).
+    last_chat: Cell<Option<TerminalSessionId>>,
 }
 
 fn switch_path() -> PathBuf {
@@ -40,6 +43,7 @@ impl Default for SessionDetailsSwitch {
             open,
             button_bounds: Rc::default(),
             dismissed_at: None,
+            last_chat: Cell::new(None),
         }
     }
 }
@@ -55,14 +59,26 @@ impl SessionDetailsSwitch {
 }
 
 impl GhostexGpuiApp {
-    /// The chat the button opens the panel of: the focused session's, while it shows its chat.
+    /// The chat the button opens the panel of: the focused session's while it shows its chat,
+    /// else the chat session that last had focus.
+    ///
+    /// CDXC:SessionDetails 2026-10-25 DECISION:
+    /// User: "when i click away from the chat session it hides the Show session details button. this shouldn't happen please, should keep it for the last focused chat session". Focus moving to the sidebar, Files, a terminal or another window keeps the button on the last focused chat; only another chat taking focus moves it, and it hides only while no chat has had focus (or that chat is gone).
     pub(crate) fn session_details_target_chat(
         &self,
     ) -> Option<gpui::Entity<crate::app::native_chat::state::NativeChatView>> {
-        let session_id = self.focused_agents_or_companion_shell_session_id()?;
-        if !self.agents_chat_mode_sessions.contains(&session_id) {
-            return None;
+        let shows_chat = |session_id: &TerminalSessionId| {
+            self.agents_chat_mode_sessions.contains(session_id)
+                && self.native_chat_views.contains_key(session_id)
+        };
+        let focused = self
+            .focused_agents_or_companion_shell_session_id()
+            .filter(shows_chat);
+        if focused.is_some() {
+            self.session_details.last_chat.set(focused);
         }
+        let session_id =
+            focused.or_else(|| self.session_details.last_chat.get().filter(shows_chat))?;
         self.native_chat_views.get(&session_id).cloned()
     }
 
@@ -111,11 +127,16 @@ impl GhostexGpuiApp {
     fn open_agents_hub_on_skill(
         &mut self,
         name: &str,
+        path: Option<&str>,
         _window: &mut gpui::Window,
         cx: &mut gpui::Context<Self>,
     ) {
         self.open_gpui_agents_hub_modal(
-            &serde_json::json!({"initialTab": "skills", "initialSkill": name}),
+            &serde_json::json!({
+                "initialTab": "skills",
+                "initialSkill": name,
+                "initialSkillPath": path,
+            }),
             cx,
         );
     }
@@ -174,7 +195,12 @@ impl GhostexGpuiApp {
                     .and_then(Value::as_str)
                     .unwrap_or_default()
                     .to_string();
-                self.open_agents_hub_on_skill(&name, window, cx);
+                let path = message
+                    .get("path")
+                    .and_then(Value::as_str)
+                    .filter(|path| !path.is_empty())
+                    .map(str::to_string);
+                self.open_agents_hub_on_skill(&name, path.as_deref(), window, cx);
             }
             "openSettingsPage" => {
                 let page = message

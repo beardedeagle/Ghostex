@@ -7,6 +7,7 @@
 //! - `scan.rs`: what the session's Claude transcript says it loaded (MCP servers and their tools,
 //!   memory files, skills) and which background commands it ran, read incrementally.
 //! - `probe.rs`: Claude's own context breakdown, from a silent read-only copy of the session.
+//! - `skills.rs`: where each listed skill's SKILL.md is (home, project or plugin), or that it is built in.
 //! - `environment.rs`, `changes.rs`, `connectors.rs`, `background.rs`: the panel's other sections.
 //!
 //! CDXC:SessionDetails 2026-10-25 DECISION:
@@ -21,6 +22,7 @@ mod gate;
 mod http;
 mod probe;
 mod scan;
+mod skills;
 
 pub(crate) use gate::{claude_task_tools_environment, session_details_enabled};
 pub(crate) use http::{handle_read_session_details_http, handle_stop_session_background_task_http};
