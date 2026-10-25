@@ -5,7 +5,7 @@ use std::path::Path;
 use std::process::Command;
 
 use crate::bail;
-use crate::util::{self, bun, bun_x, check, command, env_trimmed, output, root, status_code, Res};
+use crate::util::{self, bun, bun_x, check, command, output, root, status_code, Res};
 
 /// Runs each step in order and stops at the first that fails, returning its exit code.
 fn steps(steps: Vec<Command>) -> Res<i32> {
@@ -247,14 +247,7 @@ fn build_wasm(release: bool) -> Res {
         let Some(version) = zig_zon_version(&zon) else {
             bail!("No .version in {}", ghostty.join("build.zig.zon").display())
         };
-        let homebrew_zig = Path::new("/opt/homebrew/opt/zig@0.17/bin/zig");
-        let zig = env_trimmed("GHOSTEX_ZIG").unwrap_or_else(|| {
-            if homebrew_zig.exists() {
-                homebrew_zig.display().to_string()
-            } else {
-                "zig".into()
-            }
-        });
+        let zig = util::find_zig()?;
         check(
             Command::new(zig)
                 .current_dir(&ghostty)

@@ -937,53 +937,14 @@ if [[ "${GHOSTEX_MACOS_GXSERVER_ONLY:-0}" == "1" ]]; then
 	exit 0
 fi
 
-# CDXC:Build 2026-10-26: `cargo xtask start` builds zmx and its Ghostty Zig dependency.
-# Both are on Zig 0.17 now (zmx merged upstream/main for 0.17, matching the vendored
-# ghostty pin), so the repo needs exactly one Zig toolchain. An explicit `ZIG` still
-# wins; otherwise prefer a 0.17 binary from PATH/Homebrew/mise instead of blindly taking the
-# first PATH entry, which may still be an older keg. Supersedes the 2026-05-29 0.16 note.
-ZIG_BIN="${ZIG:-}"
-if [[ -z "$ZIG_BIN" ]]; then
-	for zig_candidate in \
-		"$(command -v zig || true)" \
-		/opt/homebrew/bin/zig \
-		/opt/homebrew/opt/zig@0.17/bin/zig \
-		"$HOME/.local/share/mise/installs/zig/0.17"*/bin/zig; do
-		[[ -n "$zig_candidate" && -x "$zig_candidate" ]] || continue
-		# Remember the first usable binary so the version error below can name it.
-		[[ -n "$ZIG_BIN" ]] || ZIG_BIN="$zig_candidate"
-		if [[ "$("$zig_candidate" version 2>/dev/null || true)" == 0.17.* ]]; then
-			ZIG_BIN="$zig_candidate"
-			break
-		fi
-	done
-fi
-if [[ -z "$ZIG_BIN" ]]; then
-	cat >&2 <<EOF
-Zig 0.17.x is required to build Ghostex's native zmx/Ghostty dependency.
-
-Install it, then rerun this script:
-  brew install zig
-  # or: mise install zig@0.17.0
-EOF
-	exit 1
-fi
-ZIG_VERSION="$("$ZIG_BIN" version 2>/dev/null || true)"
-if [[ "$ZIG_VERSION" != 0.17.* ]]; then
-	cat >&2 <<EOF
-Zig 0.17.x is required to build Ghostex's native zmx/Ghostty dependency.
-
-Selected Zig:
-  $ZIG_BIN
-  version: ${ZIG_VERSION:-unknown}
-
-Install a 0.17 toolchain or set ZIG explicitly:
-  brew install zig
-  mise install zig@0.17.0
-  ZIG=/opt/homebrew/bin/zig cargo xtask start
-EOF
-	exit 1
-fi
+# `cargo xtask start` builds zmx and its Ghostty Zig dependency with the one Zig
+# series the vendored Ghostty requires, resolved the same way as every other build
+# path (tooling/zig-toolchain.sh), so a PATH `zig` of another version is skipped.
+# shellcheck source=../../../tooling/zig-toolchain.sh
+source "$REPO_ROOT/tooling/zig-toolchain.sh"
+ZIG_BIN="$(ghostex_find_zig "$REPO_ROOT")"
+ZIG_VERSION="$("$ZIG_BIN" version)"
+echo "Zig for zmx: $ZIG_BIN ($ZIG_VERSION)"
 export ZIG="$ZIG_BIN"
 
 mkdir -p "$WEB_DIR"
