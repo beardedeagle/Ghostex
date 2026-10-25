@@ -558,6 +558,7 @@ pub(crate) fn project_editor_shell_from_shell_state(
         .unwrap_or(model.next_lifecycle_recency)
         .max(max_recency.saturating_add(1))
         .max(1);
+    // No Auto Sleep exemption here (`view_modes_never_auto_slept`): the shell model has no settings, and every view sleeps at launch anyway.
     model.enforce_awake_mode_cap(active_mode, &[]);
     Some(model)
 }

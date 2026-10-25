@@ -33,8 +33,8 @@ impl GhostexGpuiApp {
     /// The views whose Auto Sleep setting (Settings > General > System > Auto Sleep) is Off: the
     /// awake cap leaves them awake too.
     ///
-    /// CDXC:Workarea 2026-10-24 DECISION:
-    /// User: with five views open, visiting three others put Code to sleep through the awake cap although they want VS Code never to sleep, and Settings > System > Auto Sleep has no option for the cap; "if Auto Sleep is off, the cap must not sleep it either". Measured: a Code view the cap slept came back with its unsaved files, open tabs and layout, but its terminal was a fresh shell (the earlier output and the running process were gone), because sleeping Code stops code-server. Views without an Auto Sleep setting (extension views) stay under the cap.
+    /// CDXC:Workarea 2026-10-25 DECISION:
+    /// User (Q568), asked whether Auto Sleep set to Off should mean the view is never put to sleep, not even by the 3-view limit: "yes". Without it, with five views open, visiting three others slept Code through the awake cap although VS Code Auto Sleep was Off, and the Code view came back with its unsaved files, open tabs and layout but a fresh terminal (the earlier output and the running process were gone), because sleeping Code stops code-server. Views without an Auto Sleep setting (extension views) stay under the cap.
     pub(crate) fn view_modes_never_auto_slept(&self) -> impl Iterator<Item = TitlebarMode> {
         let policy = self.project_editor_auto_sleep_policy;
         project_editor_modes()
