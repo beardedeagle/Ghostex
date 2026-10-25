@@ -151,6 +151,7 @@ export type GxserverEndpointPath =
   | '/api/readSidebarHud'
   | '/api/mutateSidebarHudSettings'
   | '/api/updateWorkspaceSessionGroups'
+  | '/api/readWorkspaceSessionGroups'
   /*
    * CDXC:Navigation 2026-08-19:
    * Titlebar Back/Forward walks a daemon-owned trail of previously active

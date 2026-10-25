@@ -19,6 +19,14 @@ pub enum RendererCommandError {
     InvalidDirection,
     /// `ghostex open` / `edit` with no path.
     NoPaths,
+    /// A group verb naming a group the project does not hold.
+    NoMatchingSessionGroup,
+    /// `create-session-group` in a project that already has as many groups as the sidebar allows.
+    SessionGroupLimit,
+    /// `move-session-to-group` into a group gxserver's copy cannot hold any more members of.
+    SessionGroupFull,
+    /// A group verb before the app has read its stored session groups.
+    SessionGroupsLoading,
 }
 
 impl RendererCommandError {
@@ -41,6 +49,12 @@ impl RendererCommandError {
             }
             Self::InvalidDirection => "The direction must be up or down.",
             Self::NoPaths => "No path to open was given.",
+            Self::NoMatchingSessionGroup => "No matching session group was found.",
+            Self::SessionGroupLimit => "Group limit reached for this project.",
+            Self::SessionGroupFull => "That session group is full.",
+            Self::SessionGroupsLoading => {
+                "Ghostex is still loading its session groups; try again in a moment."
+            }
         }
     }
 }

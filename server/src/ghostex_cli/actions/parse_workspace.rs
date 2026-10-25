@@ -82,6 +82,7 @@ pub(super) fn parse_keep_sessions_awake(flags: &Flags) -> CliResult<Value> {
 
 pub(super) fn parse_create_session(rest: &[String], flags: &Flags) -> Value {
     let mut map = Map::new();
+    set_or_remove(&mut map, "cwd", flag_json(flags, "cwd"));
     set_or_remove(&mut map, "groupId", flag_json(flags, "groupId"));
     map.insert(
         "input".to_string(),

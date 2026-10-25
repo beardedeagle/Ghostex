@@ -109,6 +109,12 @@ struct RendererClient {
     sender: EventClientSender,
 }
 
+/// The message of a renderer command that found no app to send it to. A renderer that does not
+/// answer in time reports the same `dependencyUnavailable` code with another message, and a CLI
+/// verb that tells the user to open Ghostex has to tell the two apart.
+pub(crate) const NO_RENDERER_MESSAGE: &str =
+    "No renderer is connected to gxserver for renderer-only commands.";
+
 #[derive(Debug)]
 pub struct RendererCommandError {
     pub code: &'static str,
@@ -304,7 +310,7 @@ impl RendererCommandError {
     fn dependency_unavailable() -> Self {
         Self {
             code: "dependencyUnavailable",
-            message: "No renderer is connected to gxserver for renderer-only commands.".to_string(),
+            message: NO_RENDERER_MESSAGE.to_string(),
         }
     }
 

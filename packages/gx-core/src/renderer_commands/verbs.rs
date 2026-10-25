@@ -26,6 +26,7 @@ use super::targets::{
 use crate::core::Core;
 use crate::keys::MachineId;
 use crate::sidebar_view::text::{js_trim, utf16_len, utf16_prefix};
+use crate::workspace_groups::{SessionGroupOp, SessionGroupRequest};
 
 /// The tabs `ghostex settings open --tab` may name, each a `SettingsTabId` id
 /// (apps/desktop/src/app/window/settings_modal/model.rs). Keep in lockstep with
@@ -145,6 +146,8 @@ pub enum RendererVerb {
     /// `appUpdate`, sent only by gxserver's own `/api/appUpdate*` endpoints, never the CLI's
     /// renderer-command door.
     AppUpdate(AppUpdateOp),
+    /// `sessionGroups`: the `ghostex` session group verbs (`workspace_groups/verb_edits.rs`).
+    SessionGroups(SessionGroupRequest),
 }
 
 fn string<'a>(payload: &'a Value, key: &str) -> Option<&'a str> {
@@ -291,8 +294,74 @@ pub fn plan_renderer_command(
             Some("install") => Ok(RendererVerb::AppUpdate(AppUpdateOp::Install)),
             _ => Err(RendererCommandError::Unsupported),
         },
+        "sessionGroups" => session_groups(core, payload).map(RendererVerb::SessionGroups),
         _ => Err(RendererCommandError::Unsupported),
     }
+}
+
+/// A group verb, with its project and session checked against this computer's rows: a session
+/// is moved only within the project the daemon lists it in.
+fn session_groups(
+    core: &Core,
+    payload: &Value,
+) -> Result<SessionGroupRequest, RendererCommandError> {
+    let project_id = trimmed(payload, "projectId");
+    if let Some(project_id) = &project_id {
+        let known = core
+            .presentation()
+            .machine(&MachineId::Local)
+            .is_some_and(|machine| machine.domain_project(project_id).is_some());
+        if !known {
+            return Err(RendererCommandError::NoMatchingProject);
+        }
+    }
+    let group_id = trimmed(payload, "groupId");
+    let required_group = || {
+        group_id
+            .clone()
+            .ok_or(RendererCommandError::NoMatchingSessionGroup)
+    };
+    let op = match trimmed(payload, "op").as_deref() {
+        Some("list") => SessionGroupOp::List,
+        Some("check") => SessionGroupOp::Check {
+            group_id: required_group()?,
+        },
+        Some("create") => SessionGroupOp::Create {
+            title: match payload.get("title") {
+                None | Some(Value::Null) => None,
+                Some(_) => Some(rename_title(payload).ok_or(RendererCommandError::InvalidTitle)?),
+            },
+        },
+        Some("rename") => SessionGroupOp::Rename {
+            group_id: required_group()?,
+            title: rename_title(payload).ok_or(RendererCommandError::InvalidTitle)?,
+        },
+        Some("delete") => SessionGroupOp::Delete {
+            group_id: required_group()?,
+        },
+        Some("move") => {
+            let session_id =
+                trimmed(payload, "sessionId").ok_or(RendererCommandError::NoMatchingSession)?;
+            let listed = project_id.as_deref().is_some_and(|project_id| {
+                core.presentation()
+                    .loaded(&MachineId::Local)
+                    .and_then(|loaded| loaded.server_session(project_id, &session_id))
+                    .is_some()
+            });
+            if !listed {
+                return Err(RendererCommandError::NoMatchingSession);
+            }
+            SessionGroupOp::Move {
+                session_id,
+                group_id,
+            }
+        }
+        _ => return Err(RendererCommandError::Unsupported),
+    };
+    if project_id.is_none() && op != SessionGroupOp::List {
+        return Err(RendererCommandError::NoMatchingProject);
+    }
+    Ok(SessionGroupRequest { project_id, op })
 }
 
 fn run_command(payload: &Value, key: &str) -> Result<RendererVerb, RendererCommandError> {
