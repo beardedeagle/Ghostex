@@ -2558,7 +2558,7 @@
     {
       "key": "autoSleepCodeEditorIdleMinutes",
       "title": "VS Code Auto Sleep",
-      "subtitle": "Choose when inactive VS Code panes sleep, or turn Auto Sleep off.",
+      "subtitle": "Choose when inactive VS Code panes sleep, or turn Auto Sleep off. Off also keeps Code awake when more than three views are open.",
       "tab": "settings",
       "tabTitle": "General",
       "group": "system",
@@ -2656,7 +2656,7 @@
     {
       "key": "autoSleepProjectEditorIdleMinutes",
       "title": "Project Auto Sleep",
-      "subtitle": "Choose when inactive Project panes sleep, or turn Auto Sleep off.",
+      "subtitle": "Choose when inactive Project panes sleep, or turn Auto Sleep off. Off also keeps them awake when more than three views are open.",
       "tab": "settings",
       "tabTitle": "General",
       "group": "system",
@@ -2705,7 +2705,7 @@
     {
       "key": "autoSleepBrowserIdleMinutes",
       "title": "Browser Auto Sleep",
-      "subtitle": "Choose when inactive browser panes sleep, or turn Auto Sleep off.",
+      "subtitle": "Choose when inactive browser panes sleep, or turn Auto Sleep off. Off also keeps the Browser awake when more than three views are open.",
       "tab": "settings",
       "tabTitle": "General",
       "group": "system",

@@ -29,7 +29,7 @@ fn auto_sleep_section(
         (
             "autoSleepCodeEditorIdleMinutes",
             "VS Code Auto Sleep",
-            "Choose when inactive VS Code panes sleep, or turn Auto Sleep off.",
+            "Choose when inactive VS Code panes sleep, or turn Auto Sleep off. Off also keeps Code awake when more than three views are open.",
         ),
         (
             "autoSleepGitEditorIdleMinutes",
@@ -39,12 +39,12 @@ fn auto_sleep_section(
         (
             "autoSleepProjectEditorIdleMinutes",
             "Project Auto Sleep",
-            "Choose when inactive Project panes sleep, or turn Auto Sleep off.",
+            "Choose when inactive Project panes sleep, or turn Auto Sleep off. Off also keeps them awake when more than three views are open.",
         ),
         (
             "autoSleepBrowserIdleMinutes",
             "Browser Auto Sleep",
-            "Choose when inactive browser panes sleep, or turn Auto Sleep off.",
+            "Choose when inactive browser panes sleep, or turn Auto Sleep off. Off also keeps the Browser awake when more than three views are open.",
         ),
         (
             "autoSleepAgentIdleMinutes",
