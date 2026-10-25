@@ -646,7 +646,7 @@ pub const HOTKEY_DEFINITIONS: &[HotkeyDefinition] = &[
     HotkeyDefinition {
         id: "promptEditor",
         title: "Prompt Editor",
-        description: "Open the prompt editor for the focused terminal.",
+        description: "Open the prompt editor for the focused terminal, or maximize the chat box of the chat you are in (press again to restore it).",
         default_key: "ctrl+g",
         windows_linux_default_key: Some("cmd+shift+g"),
         alternate_default_keys: &[],

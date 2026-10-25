@@ -1857,7 +1857,9 @@ the chat box, or, with an empty chat box, opens your stashed prompts; the row
 shows how many are stashed.
 The Maximize button's tooltip shows the Maximize Chat Box shortcut (Option+Ctrl+M
 on macOS, Ctrl+Alt+Shift+M on Windows and Linux), which maximizes the chat box of
-the chat you are in, or restores it.
+the chat you are in, or restores it. The Prompt Editor shortcut (Ctrl+G on macOS,
+Ctrl+Shift+G on Windows and Linux) does the same while you are in a chat: it
+maximizes the chat box with your text in it, and pressing it again restores it.
 As space gets tighter, toolbar buttons move into More actions one at a time:
 Session note, Attach, Maximize, then Terminal View. The microphone never moves:
 it always stays right next to Send.
@@ -2271,7 +2273,7 @@ terminal, including a remote terminal. Shift+Insert also pastes, in terminals
 and in text fields such as the chat composer and dialogs. A configured hotkey
 using the same chord takes precedence. In an agent's terminal prompt, use
 Prompt Editor in the terminal toolbar, Ctrl+G on macOS, or Ctrl+Shift+G on
-Windows and Linux to open the Ghostex prompt editor or your machine default
+Windows and Linux (in chat view the same shortcut maximizes the chat box) to open the Ghostex prompt editor or your machine default
 editor for long prompts. Remote sessions open it in that computer's VS Code view.
 The agent must be at its prompt and support an external editor; an idle shell
 does not provide that agent prompt-editor action. The Ghostex editor uses the

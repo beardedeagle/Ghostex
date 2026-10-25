@@ -61,7 +61,7 @@ Default bindings are listed for macOS (`cmd`) with the Windows/Linux default whe
 | Delayed Actions | `ctrl+shift+s` | `cmd+alt+s` | Open delayed actions for the focused terminal session. | `delayedSend` |
 | Close After Done | unassigned |  | Toggle Close After Done for the focused terminal session. | `closeAfterDone` |
 | Model & Effort Picker | `alt+p` |  | Open the model picker: arrows choose a model and its reasoning, Enter saves it as the default, Option+Enter uses it in this session only. | `openModelPicker` |
-| Prompt Editor | `ctrl+g` | `cmd+shift+g` | Open the prompt editor for the focused terminal. | `promptEditor` |
+| Prompt Editor | `ctrl+g` | `cmd+shift+g` | Open the prompt editor for the focused terminal, or maximize the chat box of the chat you are in (press again to restore it). | `promptEditor` |
 | Attach File or Folder | `cmd+alt+p` |  | Attach a file or folder to the focused terminal. | `attachFileOrFolder` |
 | Session Note | `cmd+alt+n` |  | Open the note attached to the focused agent conversation. | `sessionNote` |
 | Stash Prompt | `alt+s` |  | Stash the current prompt in the focused agent terminal. | `stashPrompt` |
