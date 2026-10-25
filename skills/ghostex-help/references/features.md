@@ -1684,8 +1684,8 @@ button again closes it. Nothing is sent to the session's own agent. If the
 Title Generation Agent is not installed, the card says so; pick another one in
 Settings > Agents. Setting: `chatCatchMeUp`.
 
-Session details panel (beta): a built-in extension, off by default; turn it on
-in Settings > Extensions > Store. While it is on, a Claude chat shows a small
+Session details panel (beta): a built-in extension, on by default; turn it off
+in Settings > Extensions. While it is on, a Claude chat shows a small
 context ring with its percentage at the top right of the window, next to the ⋯
 menu; click it to show or hide the panel of the chat you are in (one switch for
 the whole app, remembered across restarts). When the chat is wide enough the
@@ -3614,7 +3614,7 @@ backend: `ghostex team deploy|join|invite|identity|status|ping|leave`. Slack:
   Windows), Workspaces (off by default; it brings workspaces and the team's
   Slack flow), Read aloud (off by default, and
   listed only while Enable Experimental Features is on) and the Session details
-  panel (beta, off by default). Turning one off removes it everywhere at once (its header button,
+  panel (beta, on by default). Turning one off removes it everywhere at once (its header button,
   Settings pages and rows, hotkeys, Quick Access rows and menus) and turning it
   back on restores everything you had set up. Settings: `actionsHidden`,
   `openInTitlebarButtonHidden`, `sidebarSpacesEnabled`, `cloudBoxesHidden`,

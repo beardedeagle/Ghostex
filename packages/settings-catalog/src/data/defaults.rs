@@ -129,8 +129,8 @@ pub const DEFAULT_GHOSTEX_SETTINGS: &[(&str, J)] = &[
     ("workspacesHidden", J::Bool(true)),
     // CDXC:VoiceMode 2026-10-21 DECISION: Read aloud is off by default (official_extensions.rs).
     ("readAloudHidden", J::Bool(true)),
-    // CDXC:SessionDetails 2026-10-25 DECISION: the Session details panel is a beta built-in extension, off by default (official_extensions.rs).
-    ("sessionDetailsPanelHidden", J::Bool(true)),
+    // CDXC:SessionDetails 2026-10-25 DECISION: the Session details panel is a beta built-in extension, on by default (official_extensions.rs).
+    ("sessionDetailsPanelHidden", J::Bool(false)),
     // CDXC:Extensions 2026-10-19 DECISION: Connectors, OS Integration and Debugging are on by default; their old gates still apply (official_extensions.rs).
     ("connectorsHidden", J::Bool(false)),
     ("osIntegrationHidden", J::Bool(false)),
