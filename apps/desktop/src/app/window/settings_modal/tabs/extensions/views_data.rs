@@ -360,6 +360,7 @@ pub(crate) fn view_order_items(
             !values.bool("automateViewTabHidden"),
         ),
         item("manage", "Files", !values.bool("docsViewTabHidden")),
+        item("changes", "Changes", !values.bool("changesViewTabHidden")),
         item(
             "terminal",
             "Terminal",

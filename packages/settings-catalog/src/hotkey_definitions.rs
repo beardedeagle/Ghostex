@@ -479,6 +479,16 @@ pub const HOTKEY_DEFINITIONS: &[HotkeyDefinition] = &[
         action: J::Obj(&[("id", J::Str("switchAutomateView")), ("kind", J::Str("switchWorkareaView")), ("view", J::Str("automate"))]),
     },
     HotkeyDefinition {
+        id: "switchChangesView",
+        title: "Switch to Changes",
+        description: "Switch to Changes view.",
+        default_key: "",
+        windows_linux_default_key: None,
+        alternate_default_keys: &[],
+        retired_default_keys: &[],
+        action: J::Obj(&[("id", J::Str("switchChangesView")), ("kind", J::Str("switchWorkareaView")), ("view", J::Str("changes"))]),
+    },
+    HotkeyDefinition {
         id: "switchTerminalView",
         title: "Switch to Terminal",
         description: "Switch to Terminal view.",

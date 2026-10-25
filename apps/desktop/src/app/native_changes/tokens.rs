@@ -1,186 +1,6 @@
-//! The patch model the diff panel draws (`packages/core-ui/git-file-diff-modal.tsx` (deleted 2026-10-01)): patch lines
-//! classified by kind, the display options, and the token kinds of the per-row syntax colouring.
-use super::model::{GitChangedFile, GitFileDiffDraft, summarize_changed_files};
-use std::collections::HashMap;
-
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub(crate) enum DiffLineKind {
-    Addition,
-    Context,
-    Deletion,
-    Hunk,
-    Metadata,
-    Raw,
-}
-
-impl DiffLineKind {
-    /// The kinds whose rows carry code (and so syntax colouring and a split view).
-    pub(crate) fn is_code(self) -> bool {
-        matches!(self, Self::Addition | Self::Context | Self::Deletion)
-    }
-}
-
-#[derive(Clone, Debug, PartialEq, Eq)]
-pub(crate) struct DiffLine {
-    pub(crate) content: String,
-    pub(crate) kind: DiffLineKind,
-    /// 1-based position in the patch, the row's gutter number.
-    pub(crate) number: usize,
-}
-
-pub(crate) const NO_DIFF_AVAILABLE: &str = "No diff is available for this file.";
-
-/// `classifyDiffLine`.
-fn classify_diff_line(line: &str) -> DiffLineKind {
-    if line.starts_with("@@") {
-        return DiffLineKind::Hunk;
-    }
-    const METADATA: [&str; 9] = [
-        "diff --git",
-        "index ",
-        "new file mode",
-        "deleted file mode",
-        "similarity index",
-        "rename from ",
-        "rename to ",
-        "--- ",
-        "+++ ",
-    ];
-    if METADATA.iter().any(|prefix| line.starts_with(prefix)) {
-        return DiffLineKind::Metadata;
-    }
-    if line.starts_with('+') {
-        return DiffLineKind::Addition;
-    }
-    if line.starts_with('-') {
-        return DiffLineKind::Deletion;
-    }
-    if line.starts_with("No diff is available") {
-        return DiffLineKind::Raw;
-    }
-    DiffLineKind::Context
-}
-
-/// `parseDiffLines`: the patch without its trailing whitespace, one row per line, or the single
-/// "No diff is available" row for an empty patch.
-pub(crate) fn parse_diff_lines(patch: &str) -> Vec<DiffLine> {
-    let raw: Vec<&str> = patch.trim_end().split('\n').collect();
-    let lines: Vec<&str> = if raw.iter().any(|line| !line.is_empty()) {
-        raw
-    } else {
-        vec![NO_DIFF_AVAILABLE]
-    };
-    lines
-        .into_iter()
-        .enumerate()
-        .map(|(index, line)| {
-            // A CRLF patch keeps its `\r` in the browser, where it draws as nothing.
-            let content = line.strip_suffix('\r').unwrap_or(line).to_string();
-            DiffLine {
-                kind: classify_diff_line(&content),
-                content,
-                number: index + 1,
-            }
-        })
-        .collect()
-}
-
-/// `isWhitespaceOnlyChangeLine`.
-pub(crate) fn is_whitespace_only_change(line: &DiffLine) -> bool {
-    matches!(line.kind, DiffLineKind::Addition | DiffLineKind::Deletion)
-        && line
-            .content
-            .get(1..)
-            .map(str::trim)
-            .is_none_or(str::is_empty)
-}
-
-#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
-pub(crate) enum GitDiffViewMode {
-    #[default]
-    Unified,
-    Split,
-}
-
-/// `GitCommitDiffPreferences`: the diff display options.
-#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
-pub(crate) struct GitDiffPrefs {
-    pub(crate) hide_whitespace: bool,
-    pub(crate) line_wrap: bool,
-    pub(crate) view_mode: GitDiffViewMode,
-}
-
-impl GitDiffPrefs {
-    /// Side by side forces wrapping (`effectiveLineWrap`).
-    pub(crate) fn effective_line_wrap(&self) -> bool {
-        self.view_mode == GitDiffViewMode::Split || self.line_wrap
-    }
-
-    /// `readGitCommitDiffPreferences`: anything unreadable is the default.
-    pub(crate) fn from_storage(raw: Option<&str>) -> Self {
-        let Some(value) = raw.and_then(|raw| serde_json::from_str::<serde_json::Value>(raw).ok())
-        else {
-            return Self::default();
-        };
-        Self {
-            hide_whitespace: value.get("hideWhitespace").and_then(|v| v.as_bool()) == Some(true),
-            line_wrap: value.get("lineWrap").and_then(|v| v.as_bool()) == Some(true),
-            view_mode: if value.get("viewMode").and_then(|v| v.as_str()) == Some("split") {
-                GitDiffViewMode::Split
-            } else {
-                GitDiffViewMode::Unified
-            },
-        }
-    }
-
-    /// `writeGitCommitDiffPreferences`'s JSON.
-    pub(crate) fn to_storage(&self) -> String {
-        serde_json::json!({
-            "hideWhitespace": self.hide_whitespace,
-            "lineWrap": self.line_wrap,
-            "viewMode": match self.view_mode {
-                GitDiffViewMode::Unified => "unified",
-                GitDiffViewMode::Split => "split",
-            },
-        })
-        .to_string()
-    }
-}
-
-/// `buildLoadingFileDiffPatch`: the stand-in patch Show All draws for a file whose diff has not arrived.
-fn loading_file_patch(file_path: &str) -> String {
-    format!(
-        "diff --git a/{file_path} b/{file_path}\n--- a/{file_path}\n+++ b/{file_path}\n@@ loading diff @@\n Loading diff..."
-    )
-}
-
-/// `buildAllFilesDiffDraft`: every changed file's patch, one after another.
-pub(crate) fn all_files_diff_draft(
-    files: &[GitChangedFile],
-    cache: &HashMap<String, GitFileDiffDraft>,
-) -> Option<GitFileDiffDraft> {
-    if files.is_empty() {
-        return None;
-    }
-    let stats = summarize_changed_files(files);
-    let patch = files
-        .iter()
-        .map(|file| {
-            cache
-                .get(&file.path)
-                .map(|draft| draft.patch.trim_end().to_string())
-                .filter(|patch| !patch.is_empty())
-                .unwrap_or_else(|| loading_file_patch(&file.path))
-        })
-        .collect::<Vec<_>>()
-        .join("\n\n");
-    Some(GitFileDiffDraft {
-        file_path: "All files".to_string(),
-        patch,
-        additions: Some(stats.additions),
-        deletions: Some(stats.deletions),
-    })
-}
+//! The diff's syntax colouring: a small language-agnostic tokenizer (keywords, types, strings,
+//! numbers, comments) that works on one line at a time, and tab expansion.
+//! Moved from the retired commit review window (window/git_commit_modal/diff.rs).
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub(crate) enum DiffTokenKind {
@@ -189,7 +9,6 @@ pub(crate) enum DiffTokenKind {
     Function,
     Keyword,
     Literal,
-    Marker,
     Number,
     Operator,
     Plain,
@@ -293,18 +112,11 @@ fn is_operator(ch: char) -> bool {
     "{}[]().,:;?<>+=*/%!&|^~-".contains(ch)
 }
 
-/// `tokenizeDiffLineContent`: the leading `+`, `-` or space as a marker, then the code's tokens,
-/// as byte ranges of `content` (tokens never overlap and cover it in order).
-///
-/// CDXC:Git 2026-06-08-04:20:
-/// Commit review diffs need visible syntax coloring in both the inline commit diff and standalone file diff without replacing the existing split/unified row model. Tokenize each rendered patch row so the diff layout, wrapping, and line-number behavior stay shared across both surfaces.
+/// The code's tokens as byte ranges of `content` (a diff line without its marker); tokens never
+/// overlap and cover it in order.
 pub(crate) fn tokenize_diff_line(content: &str) -> Vec<(std::ops::Range<usize>, DiffTokenKind)> {
     let mut tokens = Vec::new();
-    let mut offset = 0;
-    if content.starts_with(['+', '-', ' ']) {
-        tokens.push((0..1, DiffTokenKind::Marker));
-        offset = 1;
-    }
+    let offset = 0;
     let code: Vec<(usize, char)> = content[offset..]
         .char_indices()
         .map(|(index, ch)| (index + offset, ch))

@@ -151,6 +151,14 @@ pub const GHOSTEX_OFFICIAL_EXTENSIONS: J = J::Arr(&[
         ("title", J::Str("Files")),
     ]),
     J::Obj(&[
+        ("description", J::Str("Review what changed, comment on lines for your agent, revert a hunk, and commit, all beside your sessions.")),
+        ("category", J::Str("code-and-files")),
+        ("id", J::Str("changes")),
+        ("placement", J::Str("view")),
+        ("settingsKey", J::Str("changesViewTabHidden")),
+        ("title", J::Str("Changes")),
+    ]),
+    J::Obj(&[
         ("description", J::Str("A command terminal beside your sessions, with its own tabs and splits, that works like the Commands pane but lives in the view panel.")),
         ("category", J::Str("code-and-files")),
         ("id", J::Str("terminal")),

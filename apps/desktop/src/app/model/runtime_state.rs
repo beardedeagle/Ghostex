@@ -421,7 +421,7 @@ impl ProjectScopedWorkareaAvailability {
                         _ => false,
                     }
             }
-            TitlebarMode::Manage | TitlebarMode::Terminal => {
+            TitlebarMode::Manage | TitlebarMode::Terminal | TitlebarMode::Changes => {
                 self.project_context.has_project_scoped_workareas()
             }
         }
@@ -521,7 +521,8 @@ impl ProjectWorkareaCefSurfaceSlotKey {
             TitlebarMode::Agents
             | TitlebarMode::Browser
             | TitlebarMode::Terminal
-            | TitlebarMode::BotFeed => {
+            | TitlebarMode::BotFeed
+            | TitlebarMode::Changes => {
                 return None;
             }
         })

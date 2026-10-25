@@ -48,6 +48,7 @@ pub(crate) fn official(platform: Platform) -> Section {
         row("bots", "Bots", "Swap the sidebar to your Hermes agents: one row each, with a new session one click away. Needs the Hermes CLI."),
         row("botAutomations", "Bot automations", "A feed of every Hermes cron run, one channel per job, opened from the Bots sidebar. Needs Bots."),
         row("docs", "Files", "Browse your project’s notes, plans, and reference files together in one focused reading space."),
+        row("changes", "Changes", "Review what changed, comment on lines for your agent, revert a hunk, and commit, all beside your sessions."),
         row("terminal", "Terminal", "A command terminal beside your sessions, with its own tabs and splits, that works like the Commands pane but lives in the view panel."),
         row("tips", "Tips & Tricks", "A panel of short tips for getting more out of Ghostex, opened from the ⋯ menu."),
         row("notifications", "Notifications", "A bell in the sidebar's top row that lists what your agents finished or need from you."),

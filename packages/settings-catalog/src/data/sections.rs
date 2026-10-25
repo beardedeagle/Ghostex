@@ -202,6 +202,7 @@ pub const HOTKEY_SETTINGS_SECTIONS: J = J::Arr(&[
                 J::Str("switchKanbanView"),
                 J::Str("switchManageView"),
                 J::Str("switchAutomateView"),
+                J::Str("switchChangesView"),
                 J::Str("switchTerminalView"),
                 J::Str("switchTitlebarView1"),
                 J::Str("switchTitlebarView2"),

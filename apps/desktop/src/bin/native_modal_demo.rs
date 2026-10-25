@@ -55,10 +55,10 @@ mod delayed_send_modal;
 mod delete_worktree_demo;
 #[path = "../app/window/delete_worktree_modal.rs"]
 mod delete_worktree_modal;
-#[path = "native_modal_demo/git_commit.rs"]
-mod git_commit_demo;
-#[path = "../app/window/git_commit_modal/mod.rs"]
-mod git_commit_modal;
+#[path = "native_modal_demo/file_diff.rs"]
+mod file_diff_demo;
+#[path = "../app/window/file_diff_modal/mod.rs"]
+mod file_diff_modal;
 #[path = "native_modal_demo/missing_project_folder.rs"]
 mod missing_project_folder_demo;
 #[path = "../app/window/missing_project_folder_modal.rs"]
@@ -281,6 +281,7 @@ fn open_export_transcript(demo: &DemoEnv, cx: &mut App) {
                     name[..1].make_ascii_uppercase();
                     name
                 },
+                family: Some(id.to_string()),
             })
             .collect()
     };
@@ -321,7 +322,7 @@ fn open_export_transcript(demo: &DemoEnv, cx: &mut App) {
     let config = ExportTranscriptModalConfig {
         agents,
         default_agent_id: Some("codex".to_string()),
-        target_agent_id: None,
+        handoff_target: None,
         palette: demo.palette,
         prefs_path: None,
         initial_mode,
@@ -371,8 +372,7 @@ fn main() {
                 "permission-guide" => permission_guide_demo::open(&demo, cx),
                 "install-hooks" => agent_hooks_required_demo::open(&demo, cx),
                 "agents-hub" => agents_hub_demo::open(&demo, cx),
-                "git-commit" => git_commit_demo::open(&demo, cx),
-                "git-file-diff" => git_commit_demo::open_file_diff(&demo, cx),
+                "git-file-diff" => file_diff_demo::open_file_diff(&demo, cx),
                 "onboarding" => onboarding_demo::open(&demo, cx),
                 "web-runtime-prompt" => web_runtime_prompt_demo::open(&demo, cx),
                 other => {

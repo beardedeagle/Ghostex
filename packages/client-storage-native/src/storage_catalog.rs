@@ -90,12 +90,6 @@ pub const CATALOG: &[CatalogStore] = &[
     ),
     store("exportMode", "ghostex.exportTranscript.mode", false, Local),
     store(
-        "gitDiff",
-        "ghostex.gitCommitModal.diffPreferences.v1",
-        false,
-        Local,
-    ),
-    store(
         "hiddenItems",
         "ghostex.sidebar.hidden-items.v1",
         false,

@@ -38,7 +38,6 @@ pub(crate) enum GpuiAppModalKind {
     DeleteWorktree,
     RenameWorktree,
     SidebarSpaceEditor,
-    GitCommit,
     GitFileDiff,
     MermaidDiagram,
     MarkdownTable,
@@ -94,7 +93,6 @@ impl GpuiAppModalKind {
             "deleteWorktree" => Some(Self::DeleteWorktree),
             "renameWorktree" => Some(Self::RenameWorktree),
             "sidebarSpaceEditor" => Some(Self::SidebarSpaceEditor),
-            "gitCommit" => Some(Self::GitCommit),
             "gitFileDiff" => Some(Self::GitFileDiff),
             "mermaidDiagram" => Some(Self::MermaidDiagram),
             "markdownTable" => Some(Self::MarkdownTable),
@@ -143,7 +141,6 @@ impl GpuiAppModalKind {
             Self::DeleteWorktree => "deleteWorktree",
             Self::RenameWorktree => "renameWorktree",
             Self::SidebarSpaceEditor => "sidebarSpaceEditor",
-            Self::GitCommit => "gitCommit",
             Self::GitFileDiff => "gitFileDiff",
             Self::MermaidDiagram => "mermaidDiagram",
             Self::MarkdownTable => "markdownTable",
@@ -189,7 +186,6 @@ impl GpuiAppModalKind {
             Self::DeleteWorktree => "Ghostex Delete Worktree",
             Self::RenameWorktree => "Ghostex Rename Worktree",
             Self::SidebarSpaceEditor => "Ghostex Space",
-            Self::GitCommit => "Ghostex Commit Changes",
             Self::GitFileDiff => "Ghostex File Diff",
             Self::MermaidDiagram | Self::MarkdownTable | Self::VisualPage => "",
             Self::Extension(_) => "Ghostex Extension",
@@ -224,7 +220,6 @@ impl GpuiAppModalKind {
                 | Self::OpenTargets
                 | Self::FindPrompts
                 | Self::AgentsHub
-                | Self::GitCommit
                 | Self::GitFileDiff
         )
     }
@@ -323,10 +318,6 @@ impl GpuiAppModalKind {
             Self::Worktree => size(
                 px(APP_MODAL_HOST_WORKTREE_WINDOW_WIDTH),
                 px(APP_MODAL_HOST_WORKTREE_WINDOW_HEIGHT),
-            ),
-            Self::GitCommit => size(
-                px(APP_MODAL_HOST_GIT_COMMIT_WINDOW_WIDTH),
-                px(APP_MODAL_HOST_GIT_COMMIT_WINDOW_HEIGHT),
             ),
             Self::DeleteWorktree => size(
                 px(APP_MODAL_HOST_COMPACT_WINDOW_WIDTH),
@@ -467,7 +458,6 @@ impl GpuiAppModalKind {
                 | Self::Worktree
                 | Self::DeleteWorktree
                 | Self::RenameWorktree
-                | Self::GitCommit
                 | Self::GitFileDiff
         )
     }
@@ -545,7 +535,6 @@ impl GpuiAppModalKind {
             | Self::DeleteWorktree
             | Self::RenameWorktree
             | Self::SidebarSpaceEditor
-            | Self::GitCommit
             | Self::GitFileDiff
             | Self::ExportTranscriptResult
             | Self::MissingProjectFolder => serde_json::json!({

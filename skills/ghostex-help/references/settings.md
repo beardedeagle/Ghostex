@@ -371,6 +371,7 @@ How to use this file:
 - **Hide Browser view** `browserViewTabHidden` (boolean, default false): Stop offering the Browser view, so it is missing from the view panel tab strip, its + menu and the view picker.
 - **Hide Kanban view** `kanbanViewTabHidden` (boolean, default false): Stop offering the Kanban view, so it is missing from the view panel tab strip, its + menu and the view picker.
 - **Hide Automate view** `automateViewTabHidden` (boolean, default false): Stop offering the Automate view, so it is missing from the view panel tab strip, its + menu and the view picker.
+- **Hide Changes view** `changesViewTabHidden` (boolean, default false): Stop offering the Changes view, so it is missing from the view panel tab strip, its + menu and the view picker.
 - **Hide Files view** `docsViewTabHidden` (boolean, default false): Stop offering the Files view, so it is missing from the view panel tab strip, its + menu and the view picker.
 - **Hide Linear view** `linearViewTabHidden` (boolean, default false): Hide the Linear view from the view picker and tab menus.
 - **Hide Jira view** `jiraViewTabHidden` (boolean, default false): Hide the Jira view from the view picker and tab menus.
@@ -410,6 +411,7 @@ How to use this file:
 - **Bots** `bots` (Settings UI row without a settings key; use `ghostex settings open`): Swap the sidebar to your Hermes agents: one row each, with a new session one click away. Needs the Hermes CLI.
 - **Bot automations** `botAutomations` (Settings UI row without a settings key; use `ghostex settings open`): A feed of every Hermes cron run, one channel per job, opened from the Bots sidebar. Needs Bots.
 - **Files** `docs` (Settings UI row without a settings key; use `ghostex settings open`): Browse your project’s notes, plans, and reference files together in one focused reading space.
+- **Changes** `changes` (Settings UI row without a settings key; use `ghostex settings open`): Review what changed, comment on lines for your agent, revert a hunk, and commit, all beside your sessions.
 - **Terminal** `terminal` (Settings UI row without a settings key; use `ghostex settings open`): A command terminal beside your sessions, with its own tabs and splits, that works like the Commands pane but lives in the view panel.
 - **Tips & Tricks** `tips` (Settings UI row without a settings key; use `ghostex settings open`): A panel of short tips for getting more out of Ghostex, opened from the ⋯ menu.
 - **Notifications** `notifications` (Settings UI row without a settings key; use `ghostex settings open`): A bell in the sidebar's top row that lists what your agents finished or need from you.

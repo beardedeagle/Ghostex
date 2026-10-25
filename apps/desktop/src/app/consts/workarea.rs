@@ -222,6 +222,7 @@ pub(crate) const BOTS_HIDDEN_SETTINGS_KEY: &str = "botsHidden";
 pub(crate) const BOT_AUTOMATIONS_HIDDEN_SETTINGS_KEY: &str = "botAutomationsHidden";
 
 pub(crate) const DOCS_VIEW_TAB_HIDDEN_SETTINGS_KEY: &str = "docsViewTabHidden";
+pub(crate) const CHANGES_VIEW_TAB_HIDDEN_SETTINGS_KEY: &str = "changesViewTabHidden";
 
 pub(crate) const TERMINAL_VIEW_TAB_HIDDEN_SETTINGS_KEY: &str = "terminalViewTabHidden";
 

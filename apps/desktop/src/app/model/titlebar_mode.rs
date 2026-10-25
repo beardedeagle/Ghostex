@@ -50,6 +50,9 @@ pub(crate) enum TitlebarMode {
     Kanban,
     Automate,
     Manage,
+    /// The Changes view: the project's diff with line comments, revert and the commit bar, drawn
+    /// by GPUI. See `app/native_changes/`.
+    Changes,
     /// The Terminal view: the Commands pane's second tree, drawn as a view tab. See
     /// `model/command_pane_docks.rs`.
     Terminal,
@@ -71,6 +74,7 @@ impl TitlebarMode {
             "kanban" => Some(Self::Kanban),
             "automate" => Some(Self::Automate),
             "manage" => Some(Self::Manage),
+            "changes" => Some(Self::Changes),
             "terminal" => Some(Self::Terminal),
             "bot-feed" => Some(Self::BotFeed),
             "work" => Some(Self::Work),
@@ -89,6 +93,7 @@ impl TitlebarMode {
             Self::Kanban => "kanban".to_string(),
             Self::Automate => "automate".to_string(),
             Self::Manage => "manage".to_string(),
+            Self::Changes => "changes".to_string(),
             Self::Terminal => "terminal".to_string(),
             Self::BotFeed => "bot-feed".to_string(),
             Self::Work => "work".to_string(),
@@ -106,6 +111,7 @@ impl TitlebarMode {
             Self::Kanban => "Kanban",
             Self::Automate => "Automate",
             Self::Manage => "Files",
+            Self::Changes => "Changes",
             Self::Terminal => "Terminal",
             Self::BotFeed => "Automations",
             Self::Work => "Issues",
@@ -144,6 +150,7 @@ impl TitlebarMode {
             Self::Kanban => TITLEBAR_ICON_LAYOUT_BOARD_SPLIT,
             Self::Automate => TITLEBAR_ICON_BOLT,
             Self::Manage => TITLEBAR_ICON_FILE_TEXT,
+            Self::Changes => "titlebar/file-diff.svg",
             Self::Terminal => TITLEBAR_ICON_TERMINAL,
             Self::BotFeed => TITLEBAR_ICON_MESSAGES,
             Self::Work => "titlebar/briefcase.svg",
@@ -188,6 +195,7 @@ impl TitlebarMode {
             Self::Work => 7,
             Self::Extension(_) => 8,
             Self::Agents => 9,
+            Self::Changes => 10,
         }
     }
 
@@ -202,6 +210,7 @@ impl TitlebarMode {
             Self::Terminal => 6,
             Self::BotFeed => 7,
             Self::Work => 8,
+            Self::Changes => 9,
             Self::Extension(id) => {
                 id.as_str()
                     .bytes()
@@ -224,6 +233,7 @@ impl TitlebarMode {
             Self::Kanban => "Kanban is unavailable for the current project context.",
             Self::Automate => "Automate is unavailable for the current project context.",
             Self::Manage => "Files is unavailable for the current project context.",
+            Self::Changes => "Changes is unavailable for the current project context.",
             Self::Terminal => "",
             Self::BotFeed => "",
             Self::Work => "Issues shows your tickets once a Linear key is set or gh is signed in.",
@@ -238,7 +248,7 @@ impl TitlebarMode {
     pub(crate) fn placeholder_is_unavailable_notice(self) -> bool {
         matches!(
             self,
-            Self::Kanban | Self::Automate | Self::Manage | Self::Extension(_)
+            Self::Kanban | Self::Automate | Self::Manage | Self::Changes | Self::Extension(_)
         )
     }
 }

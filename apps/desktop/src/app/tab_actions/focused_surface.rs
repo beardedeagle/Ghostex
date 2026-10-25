@@ -109,6 +109,7 @@ impl GhostexGpuiApp {
                 | TitlebarMode::Automate
                 | TitlebarMode::Manage
                 | TitlebarMode::BotFeed
+                | TitlebarMode::Changes
                 | TitlebarMode::Work
                 | TitlebarMode::Extension(_) => ShellFocusTarget::ProjectEditorSurface(mode),
             };
@@ -168,6 +169,7 @@ impl GhostexGpuiApp {
             | TitlebarMode::Automate
             | TitlebarMode::Manage
             | TitlebarMode::BotFeed
+            | TitlebarMode::Changes
             | TitlebarMode::Work
             | TitlebarMode::Extension(_) => ShellFocusTarget::ProjectEditorSurface(mode),
             TitlebarMode::Agents | TitlebarMode::Terminal => return false,

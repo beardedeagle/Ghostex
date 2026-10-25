@@ -239,9 +239,6 @@ impl GhostexGpuiApp {
             GpuiAppModalKind::AgentsHub => {
                 self.open_gpui_agents_hub_modal(open_message, cx);
             }
-            GpuiAppModalKind::GitCommit => {
-                self.open_gpui_git_commit_modal(open_message, cx);
-            }
             GpuiAppModalKind::GitFileDiff => {
                 self.open_gpui_git_file_diff_modal(open_message, cx);
             }
@@ -301,7 +298,6 @@ impl GhostexGpuiApp {
             GpuiAppModalKind::Worktree => {
                 self.receive_gpui_create_worktree_modal_message(message, cx)
             }
-            GpuiAppModalKind::GitCommit => self.receive_gpui_git_commit_modal_message(message, cx),
             kind if kind.is_settings_modal_entry() => {
                 self.receive_native_settings_modal_payload(message, cx)
             }

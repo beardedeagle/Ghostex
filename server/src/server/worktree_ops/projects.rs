@@ -342,8 +342,22 @@ pub(crate) fn prepare_project_worktree_merge_plan(
     let worktree_project = repository.get_project(&project_id)?.ok_or_else(|| {
         DomainStateError::not_found(format!("Project {project_id} does not exist."))
     })?;
-    let worktree = normalize_worktree_metadata(worktree_project.get("worktree"))
-        .ok_or_else(|| DomainStateError::bad_request("Project is not a worktree."))?;
+    let Some(worktree) = normalize_worktree_metadata(worktree_project.get("worktree")) else {
+        // CDXC:Changes 2026-10-25 DECISION: User: "why does merge to main need worktree even???" Merge into main is offered whenever the branch is not main, so a project that is not a worktree merges its own current branch into main in its own folder (it ends on main, as a worktree's parent does).
+        let path = project_required_path(&worktree_project, "Project")?;
+        let path = normalize_existing_directory_path(
+            Some(&Value::String(path)),
+            "project.path",
+            &state.paths.home_dir,
+        )?;
+        return Ok(ProjectWorktreeMergePlan {
+            parent_path: path.clone(),
+            parent_project_id: project_id,
+            projects,
+            worktree_branch: None,
+            worktree_path: path,
+        });
+    };
     let parent_project = resolve_worktree_parent_project(&projects, &worktree)?;
     let worktree_path = project_required_path(&worktree_project, "Worktree project")?;
     let parent_path = project_required_path(&parent_project, "Parent project")?;

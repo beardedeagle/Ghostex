@@ -78,6 +78,7 @@ fn view_picker_description(mode: TitlebarMode) -> (gpui::SharedString, Option<gp
         TitlebarMode::Automate => "Run repeatable project routines.",
         TitlebarMode::Terminal => "Shell commands beside your agents..",
         TitlebarMode::Manage => "Notes, plans and reference files.",
+        TitlebarMode::Changes => "Review the diff, comment for the agent and commit.",
         TitlebarMode::BotFeed => "Every Hermes cron run, one channel per job.",
         TitlebarMode::Work => "Your tickets, issues and PRs.",
         TitlebarMode::Extension(id) => {
@@ -440,6 +441,7 @@ fn view_picker_shortcut(mode: TitlebarMode) -> Option<char> {
         TitlebarMode::Kanban => Some('K'),
         TitlebarMode::Automate => Some('U'),
         TitlebarMode::Manage => Some('D'),
+        TitlebarMode::Changes => Some('G'),
         TitlebarMode::Terminal => Some('T'),
         TitlebarMode::Work => Some('W'),
         TitlebarMode::Agents | TitlebarMode::BotFeed | TitlebarMode::Extension(_) => None,

@@ -229,12 +229,19 @@ impl GhostexGpuiApp {
                 "The header's Commit menu commits and opens pull requests here.",
                 cx,
             ),
-            Some("reviewChanges" | "openFile" | "locateFile" | "annotateReply") => self
-                .web_chat_needs_app_toast(
-                    "Files open in the Ghostex app",
-                    "The browser has no Code or Docs view.",
-                    cx,
-                ),
+            // Review all and Session details' Changes card open the Changes panel beside the chat.
+            Some("reviewChanges") => self.open_changes_view(
+                Some(crate::app::native_changes::ChangesPreset {
+                    scope: crate::app::native_changes::ChangesScope::AgainstMain,
+                    action: None,
+                }),
+                cx,
+            ),
+            Some("openFile" | "locateFile" | "annotateReply") => self.web_chat_needs_app_toast(
+                "Files open in the Ghostex app",
+                "The browser has no Code or Docs view.",
+                cx,
+            ),
             // The desktop's own bookkeeping for its panes, support logs and draft handoffs, which
             // the page does not have: nothing to do.
             Some(

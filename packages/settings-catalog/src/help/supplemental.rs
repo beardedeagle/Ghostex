@@ -157,6 +157,17 @@ pub(crate) const SUPPLEMENTAL_ROWS: &[Supplemental] = &[
         user_only: false,
     },
     Supplemental {
+        key: "changesViewTabHidden",
+        tab: EXTENSIONS,
+        group: None,
+        section: "viewOrder",
+        section_title: "Views",
+        title: "Hide Changes view",
+        subtitle: "Stop offering the Changes view, so it is missing from the view panel tab strip, its + menu and the view picker.",
+        options: &[],
+        user_only: false,
+    },
+    Supplemental {
         key: "docsViewTabHidden",
         tab: EXTENSIONS,
         group: None,

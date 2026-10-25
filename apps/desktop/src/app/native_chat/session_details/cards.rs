@@ -910,7 +910,8 @@ impl NativeChatView {
                     .child(str_of(section, "detail")),
             )
             .tooltip(|window, cx| {
-                gpui_component::tooltip::Tooltip::new("Review in the Code view").build(window, cx)
+                gpui_component::tooltip::Tooltip::new("Review in the Changes view")
+                    .build(window, cx)
             })
             .on_click(cx.listener(move |this, _, _, cx| {
                 cx.stop_propagation();

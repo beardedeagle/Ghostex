@@ -78,7 +78,7 @@ them as installed by another Ghostex) instead of rewriting them.
 **Open a view** is the picker the panel shows when nothing is open in it. It
 lists every view you can open here: the built-in views first, then your own views
 and extensions. Press a view's letter to open it (C for Code, B for Browser, K for
-Kanban, U for Automate, D for Files, T for Terminal, W for Issues) while the picker is in front. Views you hid
+Kanban, U for Automate, D for Files, G for Changes, T for Terminal, W for Issues) while the picker is in front. Views you hid
 for this project are not in the list; **Manage views and where they appear…** at
 the bottom opens their settings, and **Hidden here** on the `+` menu brings one
 back. Closing the panel's last tab closes the whole panel; to bring the picker
@@ -163,6 +163,38 @@ terminal: `ghostex issues start SPX-1245 --cloud [--prompt-file task.md]`. **New
 the top creates a Linear ticket or a GitHub issue (see Create Linear Ticket
 under Git and worktrees) and the list picks it up right away. The Issues view is
 part of the desktop app; the web version opens a chip's link instead.
+
+**Changes** shows what changed in the project as one diff you scroll through.
+**Against main** (the default) shows everything the branch changed, committed or
+not, compared with where it left the default branch; **Uncommitted** shows only
+what is not committed yet. New files are included. The file list above the diff
+jumps to a file (hide it with the files button to keep only the diff, where each
+file's header stays pinned at the top while you read it); click a header to fold
+the file, and tick **Viewed** to fold it until it changes again. The toolbar
+switches between Unified and Split, wraps long lines and hides whitespace-only
+changes. To comment for the agent, hover a line and click **+**, or drag across
+lines and click **Comment**; write the comment and press Cmd+Enter (**Add to
+chat**). The file, the lines and your comment go into the chat composer of the
+session you last clicked in the sidebar (or are pasted into its terminal), ready
+to send, and the comment stays on its lines as **Sent** until those lines change
+or you click **Resolve** (**Show resolved comments** brings old ones back). Drag
+across lines and click **Copy** (or Cmd+C) to copy them without line numbers.
+Hover a hunk for **Revert**, or right-click a file's header for Copy Path, Open in
+Files, Open File/Folder Location and **Revert file…**; both ask first. When the
+project has uncommitted work, the commit bar at the bottom takes a message (leave
+it empty and the agent picked beside it writes one) and the files ticked in the
+list; its main button runs **Commit**, **Commit & Push** or **Commit, Push &
+Create PR** (on the default branch that first moves the work to a new branch named
+from the message), and its arrow also offers **Multiple Commits** (the agent splits
+the work into commits) and **Merge into main…** on any branch other than main.
+Keys while the view has focus: J and K step through hunks, ] and [ through files,
+C comments on the current hunk, V marks the file viewed, O opens it in Files and
+Esc clears the selection. The header's Commit button, the Git menu's Commit, Push
+and Create PR, Session details' Changes card and a chat's **Review all** all open
+this view (Commit and Push on Uncommitted, a pull request on Against main). In
+Ghostex Web the right-panel button in the header shows Changes beside the chat.
+Hide it with `changesViewTabHidden`; give it a key with the **Switch to Changes**
+hotkey (`switchChangesView`).
 
 Right-click a view tab to choose where that view appears and what happens to it.
 **Reload** refreshes the clicked view, **Sleep** unloads it while keeping its tab (Code also stops its editor
@@ -1596,7 +1628,7 @@ demand; the original history remains available. The count includes each file onc
 edited repeatedly. File changes show as one card per message (or per turn in
 that section): its header says how many files changed, the folder they share,
 and the total added and removed lines with a green/red ratio bar, and on the
-desktop Review all opens the project's Code view to review the changes. Each
+desktop Review all opens the project's Changes view to review them. Each
 file is a row with its name, its folder, an Edited, New or Deleted tag, its
 green/red counts and a five-block change bar. Click a row to open its diff,
 with the file's own line numbers and the function each change sits in (for
@@ -3357,7 +3389,8 @@ Git's progress and a Cancel clone link.
 
 Project headers show the branch and diff stats; the header’s Commit (Git) menu offers
 commit, sync with main, PR review by a prompt agent, and related actions with
-persistent running toasts. Add Worktree on a project header creates a git
+persistent running toasts. Commit, Push and Create PR open the Changes view (see
+Views) with its commit bar ready, where you review the diff and confirm. Add Worktree on a project header creates a git
 worktree as its own project so a second agent works on a branch without
 touching the main checkout; worktrees can be renamed, merged back, and
 deleted from the sidebar. When a worktree's folder is deleted, the sessions that

@@ -584,6 +584,10 @@ pub struct GhostexGpuiApp {
     pub(crate) native_app_modal: Option<NativeAppModal>,
     /// The native Automate view, created the first time the view panel shows Automate; see app/native_automate/.
     pub(crate) native_automate: Option<Entity<crate::app::native_automate::NativeAutomateView>>,
+    /// The Changes view (app/native_changes/), made the first time it is drawn.
+    pub(crate) native_changes: Option<Entity<crate::app::native_changes::ChangesView>>,
+    /// What an entry point asked the Changes view to show when it next draws.
+    pub(crate) native_changes_preset: Option<crate::app::native_changes::ChangesPreset>,
     /// The Bot automations feed page, cached like Automate's (`app/native_bot_feed/host.rs`).
     pub(crate) native_bot_feed: Option<Entity<crate::app::native_bot_feed::NativeBotFeedView>>,
     /// The Work page's pending ticket open (`app/work_view/host.rs`).

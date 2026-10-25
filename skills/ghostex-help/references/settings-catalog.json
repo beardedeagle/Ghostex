@@ -3627,6 +3627,7 @@
         "switchKanbanView": "",
         "switchManageView": "",
         "switchAutomateView": "",
+        "switchChangesView": "",
         "switchTerminalView": "",
         "switchTitlebarView1": "alt+1",
         "switchTitlebarView2": "alt+2",
@@ -9671,6 +9672,18 @@
       "agentWritable": true
     },
     {
+      "key": "changesViewTabHidden",
+      "title": "Hide Changes view",
+      "subtitle": "Stop offering the Changes view, so it is missing from the view panel tab strip, its + menu and the view picker.",
+      "tab": "extensions",
+      "tabTitle": "Store",
+      "section": "viewOrder",
+      "sectionTitle": "Views",
+      "type": "boolean",
+      "default": false,
+      "agentWritable": true
+    },
+    {
       "key": "docsViewTabHidden",
       "title": "Hide Files view",
       "subtitle": "Stop offering the Files view, so it is missing from the view panel tab strip, its + menu and the view picker.",
@@ -10090,6 +10103,17 @@
       "key": "docs",
       "title": "Files",
       "subtitle": "Browse your project’s notes, plans, and reference files together in one focused reading space.",
+      "tab": "extensions",
+      "tabTitle": "Store",
+      "section": "official",
+      "sectionTitle": "Built-in",
+      "type": "ui",
+      "agentWritable": false
+    },
+    {
+      "key": "changes",
+      "title": "Changes",
+      "subtitle": "Review what changed, comment on lines for your agent, revert a hunk, and commit, all beside your sessions.",
       "tab": "extensions",
       "tabTitle": "Store",
       "section": "official",
@@ -12172,6 +12196,12 @@
       "id": "switchAutomateView",
       "title": "Switch to Automate",
       "description": "Switch to Automate view.",
+      "defaultKey": ""
+    },
+    {
+      "id": "switchChangesView",
+      "title": "Switch to Changes",
+      "description": "Switch to Changes view.",
       "defaultKey": ""
     },
     {

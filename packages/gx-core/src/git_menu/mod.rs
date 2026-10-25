@@ -41,7 +41,7 @@ pub use read::{
 };
 pub use review::{
     normalize_relative_git_file_path, parse_commit_message, resolve_trusted_file_selection,
-    review_modal_draft, GitRemoteProject, PendingGitReview, ReviewDraftInput, TrustedFileSelection,
+    GitRemoteProject, PendingGitReview, TrustedFileSelection,
 };
 pub use state::{
     GitAction, GitChangedFile, GitHubState, GitPreferences, GitPullRequest, GitPullRequestState,

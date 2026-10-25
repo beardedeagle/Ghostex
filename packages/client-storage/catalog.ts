@@ -67,13 +67,6 @@ export const storageCatalog = Object.freeze({
     'ghostex.exportTranscript.mode',
     enumCodec(['export', 'handoff'])
   ),
-  gitDiff: define(
-    'gitDiff',
-    'Git diff preferences',
-    desktop + 'src/app/git_commit_modal_lifecycle.rs',
-    'ghostex.gitCommitModal.diffPreferences.v1',
-    objectCodec
-  ),
   hiddenItems: define(
     'hiddenItems',
     'Sidebar visibility',
@@ -499,7 +492,7 @@ export const storageCatalog = Object.freeze({
   commitAgent: define(
     'commitAgent',
     'Commit prompt agent',
-    desktop + 'src/app/git_commit_modal_lifecycle.rs',
+    desktop + 'src/app/native_changes_host.rs',
     'ghostex.promptAgent.gitCommit',
     textCodec
   ),

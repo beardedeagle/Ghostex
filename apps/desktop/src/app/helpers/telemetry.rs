@@ -78,6 +78,7 @@ pub(crate) fn gpui_telemetry_surface_for_titlebar_mode(
         TitlebarMode::Manage => Some(GpuiTelemetrySurface::Docs),
         TitlebarMode::Terminal
         | TitlebarMode::BotFeed
+        | TitlebarMode::Changes
         | TitlebarMode::Work
         | TitlebarMode::Extension(_) => None,
     }

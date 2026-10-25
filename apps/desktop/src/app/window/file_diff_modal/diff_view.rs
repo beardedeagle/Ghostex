@@ -39,11 +39,10 @@ const ICON_ROWS: &str = "modals/git-commit/layout-rows.svg";
 const ICON_WRAP: &str = "modals/git-commit/text-wrap.svg";
 const ICON_PILCROW: &str = "modals/git-commit/pilcrow.svg";
 
-/// Where the panel is drawn: inside the commit review (`.gx-app-modal` tokens) or in the
-/// standalone File diff dialog (the `.ghostex-settings-shadcn` skin, whose text is all 400).
+/// Where the panel is drawn: the File diff dialog (the `.ghostex-settings-shadcn` skin, whose text
+/// is all 400). The commit review's skin went with that window on 2026-10-25.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub(crate) enum GitDiffSkin {
-    CommitReview,
     FileDiff,
 }
 
@@ -54,8 +53,6 @@ pub(crate) struct GitDiffPalette {
     pub(crate) foreground: Rgba,
     pub(crate) muted: Rgba,
     pub(crate) text_weight: FontWeight,
-    placeholder_background: Rgba,
-    placeholder_border: Rgba,
     surface_background: Rgba,
     surface_border: Rgba,
     number_border: Rgba,
@@ -99,33 +96,23 @@ impl GitDiffPalette {
         let muted = p.muted;
         // `--border` and `--input` as the two skins resolve them (the React computed styles).
         let (border_alpha, input_alpha) = match (skin, p.light) {
-            (GitDiffSkin::CommitReview, false) => (0.11, 0.15),
-            (GitDiffSkin::CommitReview, true) => (0.1412, 0.1608),
             (GitDiffSkin::FileDiff, false) => (0.0784, 0.0784),
             (GitDiffSkin::FileDiff, true) => (0.1412, 0.1608),
         };
         let border = modal_rgba(ink, border_alpha);
-        // `color-mix(in srgb, var(--card) 84%, var(--background) 16%)` and the 72/28 placeholder mix.
-        // The commit review's dark tokens resolve to #212121 and #1f1f1f over its #0e0e0e surface,
-        // the File diff's to #151515 over #0d0d0d; light is white. Under window glass they become
-        // ink washes at the same steps, like every other native modal surface.
-        let (surface_background, placeholder_background) = if p.light && !p.glass {
-            (rgb(0xffffff), rgb(0xffffff))
+        // `color-mix(in srgb, var(--card) 84%, var(--background) 16%)`: the File diff's dark tokens
+        // resolve to #151515 over #0d0d0d; light is white. Under window glass it becomes an ink
+        // wash at the same step, like every other native modal surface.
+        let surface_background = if p.light && !p.glass {
+            rgb(0xffffff)
         } else {
-            let (surface_step, placeholder_step) = match skin {
-                GitDiffSkin::CommitReview => (0.08, 0.0705),
-                GitDiffSkin::FileDiff => (0.03, 0.03),
+            let surface_step = match skin {
+                GitDiffSkin::FileDiff => 0.03,
             };
             if p.glass {
-                (
-                    modal_rgba(ink, surface_step),
-                    modal_rgba(ink, placeholder_step),
-                )
+                modal_rgba(ink, surface_step)
             } else {
-                (
-                    css_mix(rgb(ink), surface_step, p.solid_surface),
-                    css_mix(rgb(ink), placeholder_step, p.solid_surface),
-                )
+                css_mix(rgb(ink), surface_step, p.solid_surface)
             }
         };
         let app_muted = if p.light { rgb(0x717171) } else { muted };
@@ -134,11 +121,8 @@ impl GitDiffPalette {
             foreground: fg,
             muted,
             text_weight: match skin {
-                GitDiffSkin::CommitReview => FontWeight::MEDIUM,
                 GitDiffSkin::FileDiff => FontWeight::NORMAL,
             },
-            placeholder_background,
-            placeholder_border: css_fade(border, 0.86),
             surface_background,
             surface_border: css_fade(border, 0.86),
             number_border: css_fade(border, 0.72),
@@ -177,7 +161,6 @@ impl GitDiffPalette {
             control_text: css_mix(fg, 0.72, muted),
             control_hover: css_fade(modal_rgba(ink, input_alpha), 0.46),
             control_radius: match skin {
-                GitDiffSkin::CommitReview => 10.0,
                 GitDiffSkin::FileDiff => 8.0,
             },
             scrollbar_thumb: if p.light {
@@ -352,10 +335,6 @@ impl GitDiffView {
         self.list
             .reset_with_uniform_height(visible.len(), px(DIFF_ROW_HEIGHT));
         self.visible = Rc::new(visible);
-    }
-
-    pub(crate) fn has_patch(&self) -> bool {
-        self.patch.is_some()
     }
 }
 
@@ -565,38 +544,6 @@ impl DiffRows {
             ))
             .into_any_element()
     }
-}
-
-/// `.git-file-diff-placeholder`: the loading or empty message in a bordered 180px box.
-pub(crate) fn render_diff_placeholder(dp: &GitDiffPalette, text: &str) -> AnyElement {
-    div()
-        .w_full()
-        .min_h(px(180.0))
-        .flex()
-        .items_center()
-        .justify_center()
-        .p(px(20.0))
-        .bg(hsla(dp.placeholder_background))
-        .border_1()
-        .border_color(hsla(dp.placeholder_border))
-        .text_color(hsla(dp.muted))
-        .text_size(px(13.0))
-        .line_height(px(18.57))
-        .font_weight(FontWeight::BOLD)
-        .text_center()
-        .child(text.to_string())
-        .into_any_element()
-}
-
-/// `.git-file-diff-surface` with its rows, filling the space it is given (`min-height: 100%`).
-pub(crate) fn render_diff_surface(
-    view: &GitDiffView,
-    dp: &GitDiffPalette,
-    prefs: GitDiffPrefs,
-    id: &'static str,
-    window: &Window,
-) -> AnyElement {
-    diff_surface(view, dp, prefs, id, true, window)
 }
 
 /// Rows past which a wrapped surface stops sizing itself to its rows: they would not fit the

@@ -54,6 +54,7 @@ impl ProjectEditorAutoSleepEpochs {
             TitlebarMode::Agents
             | TitlebarMode::Terminal
             | TitlebarMode::BotFeed
+            | TitlebarMode::Changes
             | TitlebarMode::Work
             | TitlebarMode::Extension(_) => None,
         }
@@ -69,6 +70,7 @@ impl ProjectEditorAutoSleepEpochs {
             TitlebarMode::Agents
             | TitlebarMode::Terminal
             | TitlebarMode::BotFeed
+            | TitlebarMode::Changes
             | TitlebarMode::Work
             | TitlebarMode::Extension(_) => {
                 return None;
@@ -116,6 +118,7 @@ impl ProjectEditorAutoSleepPolicySnapshot {
             TitlebarMode::Agents
             | TitlebarMode::Terminal
             | TitlebarMode::BotFeed
+            | TitlebarMode::Changes
             | TitlebarMode::Work
             | TitlebarMode::Extension(_) => None,
         }
@@ -227,6 +230,7 @@ impl ProjectEditorShellModel {
             TitlebarMode::Agents
             | TitlebarMode::Terminal
             | TitlebarMode::BotFeed
+            | TitlebarMode::Changes
             | TitlebarMode::Work => None,
         }
     }
@@ -250,6 +254,7 @@ impl ProjectEditorShellModel {
             TitlebarMode::Agents
             | TitlebarMode::Terminal
             | TitlebarMode::BotFeed
+            | TitlebarMode::Changes
             | TitlebarMode::Work => None,
         }
     }

@@ -71,6 +71,12 @@ pub(crate) struct GhostexGpuiApp {
     pub(crate) native_app_modal: Option<crate::app::native_app_modal_lifecycle::NativeAppModal>,
     /// The Git menu the header's Git button opens, as the desktop's titlebar holds it (`gx_store/git/hud.rs` writes it).
     pub(crate) titlebar_git_menu_state: Option<crate::app::model::GpuiTitlebarGitMenuState>,
+    /// The Changes view (the desktop's `app/native_changes/`), drawn beside the chat while
+    /// `changes_open` (`web_host/changes.rs`).
+    pub(crate) native_changes: Option<Entity<crate::app::native_changes::ChangesView>>,
+    pub(crate) native_changes_preset: Option<crate::app::native_changes::ChangesPreset>,
+    pub(crate) changes_open: bool,
+    pub(crate) changes_width: f32,
     /// Handoff / Export's Reveal path; an export never lands on a page's disk, so it stays empty.
     pub(crate) pending_export_transcript_reveal_path: Option<String>,
     /// The agents a worktree or New Thread dialog offers (the HUD's `agents`).
@@ -113,6 +119,10 @@ impl GhostexGpuiApp {
             shown_sessions: Default::default(),
             chat_grid_claims: Default::default(),
             native_chats: HashMap::new(),
+            native_changes: None,
+            native_changes_preset: None,
+            changes_open: false,
+            changes_width: 620.0,
             chat_presentations: HashMap::new(),
             terminals: HashMap::new(),
             show_terminal: false,

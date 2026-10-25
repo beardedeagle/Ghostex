@@ -18,7 +18,8 @@
 //! host: which project is active, the toasts, the dialogs, the timers and the tunnel.
 
 mod actions;
-mod calls;
+pub(crate) mod calls;
+mod changes;
 mod export_transcript;
 mod hud;
 mod merge;

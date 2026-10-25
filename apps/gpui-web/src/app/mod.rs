@@ -15,6 +15,7 @@ pub(crate) mod gx_store;
 pub(crate) mod helpers;
 pub(crate) mod hotkeys;
 pub(crate) mod model;
+pub(crate) mod native_changes;
 pub(crate) mod native_chat;
 pub(crate) mod native_sidebar;
 #[allow(dead_code, unused_imports)]

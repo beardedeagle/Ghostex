@@ -145,11 +145,7 @@ impl GhostexGpuiApp {
                 TITLEBAR_ICON_PANEL_BOTTOM,
                 None,
             ))
-            .child(Self::render_disabled_header_button(
-                "web-header-panel-right",
-                TITLEBAR_ICON_PANEL_RIGHT,
-                None,
-            ))
+            .child(self.render_web_changes_button(cx))
             .into_any_element()
     }
 
@@ -225,6 +221,35 @@ impl GhostexGpuiApp {
                 .on_prepaint(move |painted, _, _| bounds.set(painted))
                 .into_any_element(),
         )
+    }
+
+    /// The right-panel button shows and hides the Changes view beside the chat; the page has no
+    /// view panel, so this panel is where the desktop's Changes tab lives here.
+    fn render_web_changes_button(&self, cx: &mut Context<Self>) -> AnyElement {
+        let text = titlebar_active_text_color();
+        let open = self.changes_open;
+        div()
+            .id("web-header-panel-right")
+            .size(px(TITLEBAR_CONTROL_HEIGHT))
+            .flex()
+            .flex_none()
+            .items_center()
+            .justify_center()
+            .rounded(px(6.0))
+            .cursor_pointer()
+            .when(open, |button| button.bg(titlebar_popup_menu_hover_color()))
+            .hover(|button| button.bg(titlebar_popup_menu_hover_color()))
+            .child(titlebar_svg_icon(TITLEBAR_ICON_PANEL_RIGHT, 16.0, text))
+            .tooltip(move |window, cx| {
+                gpui_component::tooltip::Tooltip::new(if open {
+                    "Hide Changes"
+                } else {
+                    "Show Changes"
+                })
+                .build(window, cx)
+            })
+            .on_click(cx.listener(|app, _, _, cx| app.web_toggle_changes(cx)))
+            .into_any_element()
     }
 
     /// Commit opens the Git menu, as the desktop's Commit split button's main half does (`CDXC:Git 2026-09-20`).
@@ -325,6 +350,7 @@ impl Render for GhostexGpuiApp {
             });
         }
         let header = self.render_workarea_header(cx);
+        let changes = self.render_web_changes_panel(window, cx);
         let terminal_bar =
             (shows_terminal && surface.is_some()).then(|| self.render_terminal_action_bar(cx));
         div()
@@ -369,16 +395,31 @@ impl Render for GhostexGpuiApp {
                         gpui::transparent_black()
                     })
                     .child(header)
-                    .child(match surface {
-                        Some(surface) => div().flex_1().min_h_0().overflow_hidden().child(surface),
-                        None => div()
+                    .child(
+                        div()
                             .flex_1()
+                            .min_h_0()
                             .flex()
-                            .items_center()
-                            .justify_center()
-                            .text_color(rgb(0x8a8a8a))
-                            .child(status.unwrap_or_else(|| "Select a session".to_string())),
-                    })
+                            .child(match surface {
+                                Some(surface) => div()
+                                    .flex_1()
+                                    .min_w_0()
+                                    .h_full()
+                                    .overflow_hidden()
+                                    .child(surface),
+                                None => div()
+                                    .flex_1()
+                                    .min_w_0()
+                                    .flex()
+                                    .items_center()
+                                    .justify_center()
+                                    .text_color(rgb(0x8a8a8a))
+                                    .child(
+                                        status.unwrap_or_else(|| "Select a session".to_string()),
+                                    ),
+                            })
+                            .children(changes),
+                    )
                     .children(terminal_bar),
             )
             .children(self.render_web_git_menu(cx))
