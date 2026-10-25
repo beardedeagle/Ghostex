@@ -16,6 +16,7 @@
 - **Project search skips what isn't your code:** it follows .gitignore, leaves out dependencies, build output, vendored code and large or binary files, and keeps its notes behind an info icon so the results get more room.
 - **Cmd+F finds text in code and text files** with the same panel Markdown files have: whole word, match case, replace and a match count, with every match highlighted.
 - **Long Markdown files scroll smoothly,** several times faster per frame than before.
+- **A filter button in the file list's search box shows only HTML, Markdown, Excalidraw, image or video files,** one type or several at once, with the folders that hold them.
 
 ### 🔗 Session links
 
@@ -30,6 +31,10 @@
 
 - **A Session details panel shows what a Claude session is working with,** beside the chat when there is room and as a floating card when there isn't: where it runs, how full its context is with Claude's own breakdown, its task list, connectors, skills, memory files, changes against main with Commit or Create PR, and background commands with a stop button.
 - **It is a beta, on by default:** click the context ring at the top right of the window to show or hide it, and turn it off in Settings > Extensions > Store. Each part shows a pulsing placeholder while it loads, and clicking a skill opens it in Agents Hub. Claude sessions only for now.
+
+### 🎙️ Voice
+
+- **The voice agent is an extension you can turn off** in Settings > Extensions: its button leaves the top of the window, its hotkeys and call entries go away on the computer and the phone, and Dictate keeps working.
 
 ### 🤖 OpenCode
 
