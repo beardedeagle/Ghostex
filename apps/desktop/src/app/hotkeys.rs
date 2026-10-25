@@ -324,35 +324,10 @@ pub(crate) fn gpui_key_binding_from_shared_hotkey<A: Action>(
     hotkey: &str,
     action: A,
     context: Option<&str>,
-    cx: &gpui::App,
 ) -> KeyBinding {
     let keystroke = gpui_keystroke_from_shared_hotkey(hotkey)
         .unwrap_or_else(|| panic!("invalid shell hotkey: {hotkey}"));
-    gpui_runtime_key_binding(keystroke.as_str(), action, context, cx)
-}
-
-/// A key binding for a chord built at runtime (from settings, the hotkey catalog or a per-platform
-/// helper). GPUI's `KeyBinding::new` only takes `'static` chords and parses them without knowing
-/// the host OS; `KeyBinding::load` reads the host from `cx`, which the web build needs to follow a
-/// Mac browser's conventions.
-pub(crate) fn gpui_runtime_key_binding<A: Action>(
-    keystrokes: &str,
-    action: A,
-    context: Option<&str>,
-    cx: &gpui::App,
-) -> KeyBinding {
-    let context = context.map(|context| {
-        gpui::KeyBindingContextPredicate::parse(context)
-            .unwrap_or_else(|error| panic!("invalid key context {context}: {error}"))
-            .into()
-    });
-    KeyBinding::load(keystrokes, Box::new(action), context, false, None, cx)
-        .unwrap_or_else(|error| panic!("invalid key binding {keystrokes}: {error}"))
-}
-
-/// Whether `keystroke`, a chord built at runtime, parses on this host.
-pub(crate) fn gpui_runtime_keystroke_parses(keystroke: &str, cx: &gpui::App) -> bool {
-    Keystroke::parse_with_os(keystroke, cx.platform_info().os).is_ok()
+    KeyBinding::new(keystroke.as_str(), action, context)
 }
 
 /// Default hotkey chords mirrored from the hotkey catalog (`default_hotkeys()` in
@@ -919,7 +894,7 @@ fn gpui_vs_code_editor_tab_chord(hotkey_text: &str) -> bool {
 /// explicit blank meaning "intentionally unassigned" — wins over the default;
 /// a missing or non-string persisted value falls back to the default chord,
 /// so fresh installs get the full default hotkey set.
-pub(crate) fn gpui_configured_hotkey_key_bindings_from_settings(cx: &gpui::App) -> Vec<KeyBinding> {
+pub(crate) fn gpui_configured_hotkey_key_bindings_from_settings() -> Vec<KeyBinding> {
     let snapshot = shared_settings::shared_sidebar_settings_snapshot();
     let persisted_hotkeys = snapshot
         .object()
@@ -936,21 +911,19 @@ pub(crate) fn gpui_configured_hotkey_key_bindings_from_settings(cx: &gpui::App) 
     let previous_session_alias =
         gpui_keystroke_from_shared_hotkey("cmd+shift+[").expect("valid previous-session alias");
     let mut bindings = vec![
-        gpui_runtime_key_binding(
+        KeyBinding::new(
             next_session_alias.as_str(),
             RunConfiguredGhostexHotkey {
                 action_id: "focusNextSession".to_string(),
             },
             None,
-            cx,
         ),
-        gpui_runtime_key_binding(
+        KeyBinding::new(
             previous_session_alias.as_str(),
             RunConfiguredGhostexHotkey {
                 action_id: "focusPreviousSession".to_string(),
             },
             None,
-            cx,
         ),
     ];
     let mut push_binding = |action_id: &str, key: &str| {
@@ -963,16 +936,15 @@ pub(crate) fn gpui_configured_hotkey_key_bindings_from_settings(cx: &gpui::App) 
         let Some(keystroke) = gpui_keystroke_from_shared_hotkey(key) else {
             return;
         };
-        if !gpui_runtime_keystroke_parses(&keystroke, cx) {
+        if Keystroke::parse(&keystroke).is_err() {
             return;
         }
-        bindings.push(gpui_runtime_key_binding(
+        bindings.push(KeyBinding::new(
             keystroke.as_str(),
             RunConfiguredGhostexHotkey {
                 action_id: action_id.to_string(),
             },
             None,
-            cx,
         ));
     };
     for (action_id, default_key) in GPUI_DEFAULT_GHOSTEX_HOTKEYS {
@@ -1007,7 +979,6 @@ pub(crate) fn gpui_configured_hotkey_key_bindings_from_settings(cx: &gpui::App) 
 
 pub(crate) fn gpui_configured_hotkey_unbinds_from_settings(
     snapshot: &shared_settings::SharedSidebarSettingsSnapshot,
-    cx: &gpui::App,
 ) -> Vec<KeyBinding> {
     let persisted_hotkeys = snapshot
         .object()
@@ -1043,14 +1014,9 @@ pub(crate) fn gpui_configured_hotkey_unbinds_from_settings(
         );
     }
     keys.into_iter()
-        .filter(|keystroke| gpui_runtime_keystroke_parses(keystroke, cx))
+        .filter(|keystroke| Keystroke::parse(keystroke).is_ok())
         .map(|keystroke| {
-            gpui_runtime_key_binding(
-                keystroke.as_str(),
-                gpui::Unbind(action_name.into()),
-                None,
-                cx,
-            )
+            KeyBinding::new(keystroke.as_str(), gpui::Unbind(action_name.into()), None)
         })
         .collect()
 }

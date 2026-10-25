@@ -455,7 +455,7 @@ fn press(slot: &Slot, keys: &str, cx: &mut App) {
     // re-enters while it re-renders the window.
     let any_window: gpui::AnyWindowHandle = window.into();
     let _ = any_window.update(cx, |_root, window, cx| {
-        if let Ok(keystroke) = gpui::Keystroke::parse_with_os(&keys, cx.platform_info().os) {
+        if let Ok(keystroke) = gpui::Keystroke::parse(&keys) {
             window.dispatch_keystroke(keystroke, cx);
         }
     });

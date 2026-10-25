@@ -59,7 +59,7 @@ impl EditorState {
     /// vertical deltas fall through to the outer scroll container untouched.
     pub(crate) fn on_scroll_wheel(
         &mut self,
-        event: &gpui::ScrollEvent,
+        event: &gpui::ScrollWheelEvent,
         _window: &mut Window,
         cx: &mut Context<Self>,
     ) {

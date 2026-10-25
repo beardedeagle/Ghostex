@@ -44,7 +44,7 @@ mod macos {
     use gpui::{
         AnyWindowHandle, App, AppContext as _, Bounds, Context, Entity, IntoElement, Modifiers,
         MouseButton, MouseDownEvent, MouseUpEvent, ParentElement as _, PlatformInput, Render,
-        ScrollDelta, ScrollEvent, Styled as _, TouchPhase, Window, WindowBounds, WindowKind,
+        ScrollDelta, ScrollWheelEvent, Styled as _, TouchPhase, Window, WindowBounds, WindowKind,
         WindowOptions, canvas, div, point, px, size,
     };
 
@@ -260,7 +260,7 @@ mod macos {
     fn wheel(window: &mut Window, cx: &mut App, delta: f32, phase: TouchPhase) {
         let center = window.bounds().size;
         window.dispatch_event(
-            PlatformInput::Scroll(ScrollEvent {
+            PlatformInput::ScrollWheel(ScrollWheelEvent {
                 position: point(center.width / 2.0, center.height / 2.0),
                 delta: ScrollDelta::Pixels(point(px(0.0), px(delta))),
                 modifiers: Modifiers::default(),

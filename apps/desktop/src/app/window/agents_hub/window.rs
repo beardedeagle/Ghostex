@@ -835,7 +835,7 @@ impl GpuiAgentsHubModalWindow {
         cx: &mut Context<Self>,
     ) -> bool {
         let modifiers = keystroke.modifiers;
-        if !modifiers.secondary(cx) || modifiers.shift || modifiers.alt {
+        if !modifiers.secondary() || modifiers.shift || modifiers.alt {
             return false;
         }
         let key = keystroke.key.as_str();

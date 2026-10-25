@@ -593,7 +593,7 @@ impl GpuiFeedbackModalWindow {
     ) {
         match event.keystroke.key.as_str() {
             "escape" => self.close(window, cx),
-            "enter" if event.keystroke.modifiers.secondary(cx) && !event.is_held => {
+            "enter" if event.keystroke.modifiers.secondary() && !event.is_held => {
                 self.advance(window, cx)
             }
             _ => return,

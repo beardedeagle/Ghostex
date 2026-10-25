@@ -163,23 +163,11 @@ pub fn bind_keys(cx: &mut App) {
         // Cmd on macOS and Ctrl on Windows and Linux.
         KeyBinding::new("shift-home", SelectHome, ctx),
         KeyBinding::new("shift-end", SelectEnd, ctx),
+        KeyBinding::new("secondary-home", DocStart, ctx),
+        KeyBinding::new("secondary-end", DocEnd, ctx),
+        KeyBinding::new("secondary-shift-home", SelectDocStart, ctx),
+        KeyBinding::new("secondary-shift-end", SelectDocEnd, ctx),
     ]);
-    // Local change (Ghostex Docs): GPUI resolves `secondary` from the host OS, which only
-    // `KeyBinding::load` knows (`KeyBinding::new` parses without one and fails on it).
-    let secondary = |keystrokes: &str, action: Box<dyn gpui::Action>, cx: &App| {
-        let context = gpui::KeyBindingContextPredicate::parse(CONTEXT)
-            .expect("valid editor key context")
-            .into();
-        KeyBinding::load(keystrokes, action, Some(context), false, None, cx)
-            .expect("valid editor key binding")
-    };
-    let document_keys = [
-        secondary("secondary-home", Box::new(DocStart), cx),
-        secondary("secondary-end", Box::new(DocEnd), cx),
-        secondary("secondary-shift-home", Box::new(SelectDocStart), cx),
-        secondary("secondary-shift-end", Box::new(SelectDocEnd), cx),
-    ];
-    cx.bind_keys(document_keys);
     bind_platform_keys(cx);
 }
 
@@ -3709,7 +3697,7 @@ impl EditorState {
         // (Ctrl-click off macOS) and a plain click places the caret.
         let link_click = match self.markdown_style.as_ref() {
             Some(st) if st.links_need_modifier => {
-                event.modifiers.secondary(cx) && !event.modifiers.shift
+                event.modifiers.secondary() && !event.modifiers.shift
             }
             Some(_) => !event.modifiers.shift && !event.modifiers.control,
             None => false,
@@ -5821,7 +5809,7 @@ impl Render for EditorState {
             .on_mouse_up(MouseButton::Left, cx.listener(Self::on_mouse_up))
             .on_mouse_up_out(MouseButton::Left, cx.listener(Self::on_mouse_up))
             .on_mouse_move(cx.listener(Self::on_mouse_move))
-            .on_scroll(cx.listener(Self::on_scroll_wheel))
+            .on_scroll_wheel(cx.listener(Self::on_scroll_wheel))
             .child(EditorElement {
                 editor: cx.entity(),
             })

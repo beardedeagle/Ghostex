@@ -74,9 +74,9 @@ impl GhostexGpuiApp {
                 &previous_settings_object,
                 write_result.snapshot.object(),
             );
-        let previous_hotkey_unbinds =
-            gpui_configured_hotkey_unbinds_from_settings(&previous_settings_snapshot, cx);
-        cx.bind_keys(previous_hotkey_unbinds);
+        cx.bind_keys(gpui_configured_hotkey_unbinds_from_settings(
+            &previous_settings_snapshot,
+        ));
         self.sync_gpui_ghostty_config_file_after_settings_save(
             &ghostty_config_backed_setting_keys_changed,
             &write_result.snapshot,
