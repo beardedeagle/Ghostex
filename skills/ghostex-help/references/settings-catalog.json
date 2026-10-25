@@ -1552,7 +1552,7 @@
     {
       "key": "documentFileOpenTarget",
       "title": "HTML, Markdown and images",
-      "subtitle": "Choose where HTML, Markdown and picture files open from Quick Access, agent chat and the terminal: Files, VS Code, or an editor app installed on this computer.",
+      "subtitle": "Choose where HTML, Markdown and picture files open from Quick Access, agent chat, the terminal and `ghostex open`: Files, VS Code, or an editor app installed on this computer.",
       "tab": "settings",
       "tabTitle": "General",
       "group": "tools",

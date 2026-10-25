@@ -61,6 +61,23 @@ pub(crate) fn file_open_target_for_path(path: &std::path::Path) -> SharedFileOpe
     }
 }
 
+/// The kind of file "HTML, Markdown and images" under Settings > File opening covers, if it is one
+/// (the same kinds [`file_open_target_for_path`] sends to `documentFileOpenTarget`).
+pub(crate) fn document_file_kind_for_path(
+    path: &std::path::Path,
+) -> Option<SharedDocumentFileKind> {
+    let path = path.to_string_lossy();
+    match DocsMediaKind::for_path(&path) {
+        Some(DocsMediaKind::Image) => Some(SharedDocumentFileKind::Image),
+        Some(_) => None,
+        None => match super::state::file_extension(&path).as_str() {
+            "md" | "markdown" | "mdown" | "mkdn" | "mdx" => Some(SharedDocumentFileKind::Markdown),
+            "html" | "htm" => Some(SharedDocumentFileKind::Html),
+            _ => None,
+        },
+    }
+}
+
 /// [`file_open_target_for_path`] for a file on this computer, which can also look inside it: a
 /// file that would open in the Files view but is not text Files can show (it has NUL bytes, or is
 /// not UTF-8) opens in the system app instead of Files' "Binary files are not previewed" notice.
