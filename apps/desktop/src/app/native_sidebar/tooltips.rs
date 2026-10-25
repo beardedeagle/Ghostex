@@ -1,7 +1,7 @@
 use gpui::prelude::FluentBuilder as _;
 use gpui::{
-    AnyView, App, AppContext as _, Context, FontWeight, IntoElement, ParentElement, Render, Styled,
-    Window, div, px,
+    AnyView, App, AppContext as _, Context, FontWeight, Hsla, IntoElement, ParentElement, Render,
+    Styled, Window, div, px,
 };
 use gpui_component::{
     tooltip::{ManagedTooltipPlacement, Tooltip},
@@ -194,15 +194,14 @@ fn sidebar_tooltip_bubble(
         && window.tooltip_presenter_active();
     // Without glass dark mode darkens it (`tooltip_background`); under glass it is the frosted
     // menus' material (CDXC:Tooltips 2026-10-15).
+    let in_window = in_window_bubble(window_glass_active_in(window));
     let background = if frosted {
         crate::app::helpers::frosted_tooltip_fill(menu)
-    } else if window_glass_active_in(window) {
-        tooltip_background(menu).opacity(0.9)
     } else {
-        tooltip_background(menu)
+        in_window.fill
     };
     let radius = px(gpui_component::tooltip::TOOLTIP_RADIUS);
-    let secondary = titlebar_popup_menu_foreground().opacity(0.6);
+    let secondary = in_window.secondary;
     Tooltip::element(move |_, _| {
         let lines = text.lines().filter(|line| !line.trim().is_empty());
         v_flex()
@@ -241,6 +240,30 @@ fn sidebar_tooltip_bubble(
     .px(px(9.0 * scale))
     .rounded(radius)
     .bg(background)
-    .border_color(titlebar_popup_menu_border_color())
+    .border_color(in_window.border)
     .build(window, cx)
+}
+
+/// The bubble's colours where it is drawn inside the window it floats over.
+#[derive(Clone, Copy)]
+pub(crate) struct InWindowBubble {
+    pub(crate) fill: Hsla,
+    pub(crate) border: Hsla,
+    /// Icons and second lines on the fill.
+    pub(crate) secondary: Hsla,
+}
+
+/// The session tooltip bubble's look for a control that floats over content inside its own window,
+/// where nothing can blur what is under it (GPUI blurs only behind a whole window): its opaque
+/// tooltip fill, nearly opaque under window glass so it still sits on the glass.
+///
+/// CDXC:Tooltips 2026-10-25 DECISION: User, of the chat's floating Copy / Paste in terminal bar over a reply: "this floating terminal/copy thing is too clear bg, please make the bg super blurred like we do in the sidebar tool tips!!" Anything that floats over content takes this bubble's fill (the frosted host's when it draws there), never a faint wash the text underneath reads through.
+/// SEE-ALSO: apps/desktop/src/app/native_chat/run_command.rs (the inline command bar), native_chat/image_viewer/ and native_docs/picture_viewer.rs (the picture toolbars and arrows).
+pub(crate) fn in_window_bubble(glass: bool) -> InWindowBubble {
+    let fill = tooltip_background(titlebar_popup_menu_background());
+    InWindowBubble {
+        fill: if glass { fill.opacity(0.9) } else { fill },
+        border: titlebar_popup_menu_border_color(),
+        secondary: titlebar_popup_menu_foreground().opacity(0.6),
+    }
 }

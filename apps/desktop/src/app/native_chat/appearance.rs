@@ -52,6 +52,8 @@ pub(crate) struct ChatAppearance {
     /// Handover heading color strength, 0 to 1, from the document's `markedHeadingStrength`
     /// (absent: 60%, the default).
     pub(crate) marked_heading_strength: f32,
+    /// Whether this chat is drawn on window glass (`on_window_glass`).
+    pub(crate) window_glass: bool,
 }
 
 impl ChatAppearance {
@@ -61,6 +63,7 @@ impl ChatAppearance {
         if !glass {
             return self;
         }
+        self.window_glass = true;
         let wash = |white: bool, alpha: f32| -> Hsla {
             gpui::Hsla::from(rgb(if white { 0xffffff } else { 0x000000 })).opacity(alpha)
         };
@@ -274,6 +277,7 @@ impl ChatAppearance {
             marked_heading_strength: state["markedHeadingStrength"]
                 .as_f64()
                 .map_or(0.6, |percent| (percent / 100.0).clamp(0.0, 1.0) as f32),
+            window_glass: false,
             transcript_width: enabled("sessionChatCustomTranscriptWidthEnabled").then(|| {
                 settings
                     .get("sessionChatTranscriptWidthPercent")

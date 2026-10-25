@@ -22,7 +22,9 @@ use serde_json::json;
 use super::appearance::SidebarAppearance;
 use super::model::NativeSidebarSession;
 use super::tooltips::SidebarTooltipSpan;
-pub(crate) use super::tooltips::{sidebar_style_card_tooltip, sidebar_style_tooltip};
+pub(crate) use super::tooltips::{
+    in_window_bubble, sidebar_style_card_tooltip, sidebar_style_tooltip,
+};
 use crate::GhostexGpuiApp;
 use crate::app::helpers::*;
 use ghostex_gx_core::{
