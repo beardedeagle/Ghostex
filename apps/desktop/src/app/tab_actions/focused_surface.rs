@@ -356,7 +356,7 @@ impl GhostexGpuiApp {
             }
             FocusedSurfaceCloseDecision::CloseViewPanel => {
                 if self.view_picker_open() {
-                    self.close_view_panel(window, cx);
+                    self.close_view_panel(cx);
                 }
             }
             FocusedSurfaceCloseDecision::CloseBrowserActiveTab => {

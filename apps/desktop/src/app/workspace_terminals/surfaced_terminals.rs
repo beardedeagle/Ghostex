@@ -270,6 +270,7 @@ impl GhostexGpuiApp {
         Restore the incoming project's own view: which one its panel shows, the one it last had open,
         and how wide its sessions column is beside it.
         */
+        self.pending_project_view_restore = None;
         let Some(state) = self
             .agents_workspace_project_id
             .as_ref()
@@ -306,6 +307,12 @@ impl GhostexGpuiApp {
         self.project_editor_shell
             .restore_workarea_split_ratio(state.workarea_split_ratio, workarea_span);
         let target_mode = self.available_titlebar_mode_or_agents(state.active_mode);
+        if target_mode != state.active_mode {
+            self.pending_project_view_restore = self
+                .agents_workspace_project_id
+                .clone()
+                .map(|project_id| (project_id, state.active_mode));
+        }
         self.last_open_view_mode = state
             .last_view_mode
             .filter(|mode| *mode != TitlebarMode::Agents)
@@ -328,8 +335,12 @@ impl GhostexGpuiApp {
         // incoming project has no view of its own to show.
         self.view_panel_picker_open =
             self.view_panel_picker_open && target_mode == TitlebarMode::Agents;
+        // A saved view that hands over after the switch keeps the panel expanded, as closing its
+        // tab does.
         self.view_panel_maximized = self.view_panel_maximized
-            && (target_mode != TitlebarMode::Agents || self.view_panel_picker_open);
+            && (target_mode != TitlebarMode::Agents
+                || self.view_panel_picker_open
+                || self.pending_project_view_restore.is_some());
         self.apply_view_pane_state(cx);
         self.seed_terminal_view_for_open(cx);
         self.focus_shell_target(

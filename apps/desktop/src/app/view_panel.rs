@@ -77,25 +77,26 @@ impl GhostexGpuiApp {
     /// project's last tab, or open the picker when it has none.
     pub(crate) fn toggle_view_panel(&mut self, window: &mut Window, cx: &mut gpui::Context<Self>) {
         if self.view_panel_open() {
-            self.close_view_panel(window, cx);
+            self.close_view_panel(cx);
             return;
         }
         match self.view_panel_toggle_target() {
             Some(target) => {
                 self.open_view_tab(target, window, cx);
             }
-            None => self.open_view_picker(window, cx),
+            None => self.open_view_picker(cx),
         }
     }
 
     /// Open the panel onto the picker. The picker takes shell focus so its single-letter shortcuts
     /// reach it rather than the terminal the user was typing in a moment ago.
-    pub(crate) fn open_view_picker(&mut self, window: &mut Window, cx: &mut gpui::Context<Self>) {
+    pub(crate) fn open_view_picker(&mut self, cx: &mut gpui::Context<Self>) {
+        self.pending_project_view_restore = None;
         // Marked open before the mode change, so a panel that was expanded stays expanded on the
         // picker instead of being closed and reopened (`set_active_mode`).
         self.view_panel_picker_open = true;
         if self.active_mode != TitlebarMode::Agents {
-            self.set_active_mode(TitlebarMode::Agents, window, cx);
+            self.activate_mode(TitlebarMode::Agents, cx);
         }
         self.focus_view_picker(cx);
         self.persist_shell_layout_state();
@@ -197,14 +198,38 @@ impl GhostexGpuiApp {
         }
     }
 
-    /// The tab that takes over when `mode` closes: the one to its right, else the one to its left,
-    /// else nothing, which brings the picker back.
-    fn view_tab_successor(&self, mode: TitlebarMode) -> Option<TitlebarMode> {
-        let tabs = self.open_view_tabs();
-        let index = tabs.iter().position(|tab| *tab == mode)?;
-        tabs.get(index + 1)
-            .or_else(|| index.checked_sub(1).and_then(|index| tabs.get(index)))
+    /// The tab that takes over when `mode` leaves the panel: the nearest one to its right that this
+    /// project can show, else the nearest to its left, else nothing. `mode` itself may be a view
+    /// this project can no longer show.
+    pub(crate) fn view_tab_successor(&self, mode: TitlebarMode) -> Option<TitlebarMode> {
+        let index = self.open_views.iter().position(|tab| *tab == mode)?;
+        let (left, right) = self.open_views.split_at(index);
+        right[1..]
+            .iter()
+            .chain(left.iter().rev())
             .copied()
+            .find(|tab| self.titlebar_mode_available(*tab))
+    }
+
+    /// Shows `successor` in place of the view leaving the panel or, with none, follows the last-tab
+    /// rule of `close_view_tab`. A Browser successor's address field is left to the caller
+    /// (`sync_browser_address_input_if_shown`), the one step that needs a `Window`.
+    pub(crate) fn show_view_tab_successor(
+        &mut self,
+        successor: Option<TitlebarMode>,
+        cx: &mut gpui::Context<Self>,
+    ) {
+        match successor {
+            Some(next) => {
+                self.activate_mode(next, cx);
+            }
+            None if crate::shared_settings::shared_sidebar_settings_snapshot()
+                .close_side_panel_with_last_tab() =>
+            {
+                self.close_view_panel(cx)
+            }
+            None => self.open_view_picker(cx),
+        }
     }
 
     /// CDXC:Workarea 2026-09-22 DECISION:
@@ -226,9 +251,8 @@ impl GhostexGpuiApp {
         if mode == TitlebarMode::Agents || !self.open_views.contains(&mode) {
             return;
         }
-        let successor = (mode == self.active_mode)
-            .then(|| self.view_tab_successor(mode))
-            .flatten();
+        let shown = mode == self.active_mode;
+        let successor = shown.then(|| self.view_tab_successor(mode)).flatten();
         self.open_views.retain(|tab| *tab != mode);
         // Closing the Code tab closes its windows too; the Sleep below releases their pages.
         if mode == TitlebarMode::Source {
@@ -237,28 +261,20 @@ impl GhostexGpuiApp {
         // A closed tab is not a sleeping tab: the page it owned has no way back on screen, so it
         // releases its CEF surface here instead of waiting for the idle timer.
         self.sleep_titlebar_view(mode, cx);
-        match successor {
-            Some(next) => {
-                self.set_active_mode(next, window, cx);
-            }
-            None if mode == self.active_mode
-                && crate::shared_settings::shared_sidebar_settings_snapshot()
-                    .close_side_panel_with_last_tab() =>
-            {
-                self.close_view_panel(window, cx)
-            }
-            None if mode == self.active_mode => self.open_view_picker(window, cx),
-            None => {}
+        if shown {
+            self.show_view_tab_successor(successor, cx);
+            self.sync_browser_address_input_if_shown(window, cx);
         }
         self.persist_shell_layout_state();
         cx.notify();
     }
 
     /// Closing the panel leaves the tab strip alone: reopening it comes back to the same tabs.
-    pub(crate) fn close_view_panel(&mut self, window: &mut Window, cx: &mut gpui::Context<Self>) {
+    pub(crate) fn close_view_panel(&mut self, cx: &mut gpui::Context<Self>) {
+        self.pending_project_view_restore = None;
         self.view_panel_maximized = false;
         self.view_panel_picker_open = false;
-        self.set_active_mode(TitlebarMode::Agents, window, cx);
+        self.activate_mode(TitlebarMode::Agents, cx);
     }
 
     /// Expand and restore, the button in the tab strip and the `⋯` row beside it.

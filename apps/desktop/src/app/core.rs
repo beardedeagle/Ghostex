@@ -324,6 +324,11 @@ pub struct GhostexGpuiApp {
     /// the panel shows; an empty list and `TitlebarMode::Agents` are the same statement, that the
     /// panel is closed. Swapped with the rest of the project's view state on a project switch.
     pub(crate) open_views: Vec<TitlebarMode>,
+    /// A restored project and its saved view, when the restore could not show that view: the scope
+    /// it was judged by may still have been the previous project's, since a session row can swap the
+    /// workspace before the project context and the sidebar HUD arrive. `finish_project_view_restore`
+    /// settles it once both describe this project.
+    pub(crate) pending_project_view_restore: Option<(String, TitlebarMode)>,
     /// Whether the open view has the whole workarea, with the sessions column folded away. Only ever
     /// true while a view is open; `agents_workspace_visible()` is the one reader that matters.
     pub(crate) view_panel_maximized: bool,

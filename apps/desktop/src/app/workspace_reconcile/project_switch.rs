@@ -89,6 +89,7 @@ impl GhostexGpuiApp {
         self.swap_browser_tabs_for_active_project(cx);
         self.refresh_project_workarea_runtime_cef_surfaces_from_runtime_state(cx);
         self.refresh_sidebar_gxserver_bootstrap_if_changed(cx);
+        self.finish_project_view_restore(cx);
         self.coerce_active_mode_to_available_project_context(cx);
         self.land_quick_automations_active_project_on_automate_mode(window, cx);
         self.land_pending_source_file_open_on_source_mode(window, cx);
@@ -96,6 +97,41 @@ impl GhostexGpuiApp {
         self.ensure_project_workarea_runtime_cef_surfaces_for_current_context(cx);
         self.broadcast_extension_context_changes(cx);
         cx.notify();
+    }
+
+    /// Settles `pending_project_view_restore` once the restored project's workspace, command and
+    /// Browser models, project context and sidebar HUD all belong to it (tried when the context is
+    /// applied and when a sidebar snapshot is installed, whichever comes last): the saved view comes
+    /// back when this project can show it after all, and otherwise hands over the way closing its
+    /// tab does. A view opened in between wins; opening the picker or closing the panel cancels it.
+    pub(crate) fn finish_project_view_restore(&mut self, cx: &mut gpui::Context<Self>) {
+        let Some((project_id, saved)) = self.pending_project_view_restore.as_ref() else {
+            return;
+        };
+        let project = Some(project_id.as_str());
+        if self.agents_workspace_project_id.as_deref() != project
+            || self.command_pane_project_id.as_deref() != project
+            || self.browser_tabs_project_id.as_deref() != project
+            || !self.view_scope_describes_project(project_id)
+        {
+            return;
+        }
+        let saved = *saved;
+        self.pending_project_view_restore = None;
+        if self.active_mode != TitlebarMode::Agents {
+            return;
+        }
+        let successor = if self.titlebar_mode_available(saved) {
+            Some(saved)
+        } else {
+            self.view_tab_successor(saved)
+        };
+        self.show_view_tab_successor(successor, cx);
+        if self.active_mode == TitlebarMode::Browser {
+            self.defer_in_main_window(cx, |app, window, cx| {
+                app.sync_browser_address_input_if_shown(window, cx);
+            });
+        }
     }
 
     /*

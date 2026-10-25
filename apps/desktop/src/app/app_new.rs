@@ -260,6 +260,7 @@ impl GhostexGpuiApp {
                 remote_attach_requests: Default::default(),
                 project_view_states_by_project: shell_layout_state.project_view_states_by_project,
                 open_views: shell_layout_state.open_views,
+                pending_project_view_restore: None,
                 view_panel_maximized: shell_layout_state.view_panel_maximized,
                 view_panel_picker_open: shell_layout_state.view_panel_picker_open,
                 view_picker_scroll: ScrollHandle::new(),

@@ -590,12 +590,26 @@ impl GhostexGpuiApp {
         CDXC:Browser 2026-06-22-09:55:
         Selection still materializes only the focused/global active loaded tab for toolbar parity, but the visibility gate now also keeps any other rendered Browser leaf's already-created active loaded surface visible. Inactive restored loaded tabs without CEF entities remain placeholders instead of being created from render or visibility updates.
         */
+        self.sync_active_browser_tab_surface(cx);
+        self.sync_browser_address_input(window, cx);
+    }
+
+    /// The part of `sync_active_browser_tab_to_surface` that needs no `Window`.
+    pub(crate) fn sync_active_browser_tab_surface(&mut self, cx: &mut gpui::Context<Self>) {
         let pane_id = self.browser_tabs.focused_pane;
-        let address_value = self.browser_tabs.address_value_for_pane(pane_id);
-        self.browser_url = address_value.clone();
-        self.set_browser_address_input_value(pane_id, address_value, window, cx);
+        self.browser_url = self.browser_tabs.address_value_for_pane(pane_id);
         self.ensure_browser_surface_for_pane(pane_id, cx);
         self.update_active_mode_cef_child_visibility(cx);
+    }
+
+    pub(crate) fn sync_browser_address_input(
+        &mut self,
+        window: &mut Window,
+        cx: &mut gpui::Context<Self>,
+    ) {
+        let pane_id = self.browser_tabs.focused_pane;
+        let address_value = self.browser_tabs.address_value_for_pane(pane_id);
+        self.set_browser_address_input_value(pane_id, address_value, window, cx);
     }
 
     pub(crate) fn select_browser_tab_in_pane(
