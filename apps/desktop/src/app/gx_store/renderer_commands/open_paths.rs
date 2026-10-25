@@ -4,8 +4,8 @@
 //! file goes where its verb and Settings > File opening say, and a file that is in no project opens
 //! in the project on screen instead of becoming a project of its own.
 //!
-//! CDXC:OsIntegration 2026-10-25 DECISION:
-//! User: `ghostex open` follows Settings > File opening's "HTML, Markdown and images": with Files chosen those files open in Files, with VS Code chosen they keep opening in VS Code (an editor app or the system app when that is the choice); every other file keeps opening in VS Code. `ghostex edit` on a file outside every project opens it in the VS Code view of the project currently on screen and creates no project; a file inside a project keeps opening in that project's VS Code view.
+//! CDXC:OsIntegration 2026-10-26 DECISION:
+//! User: `ghostex open` follows every Settings > File opening row for its file's type ("HTML, Markdown and images", "Other files", and Videos and Audio): Files opens it in Files, VS Code in the VS Code view, an editor app or the system app there. This supersedes the 2026-10-25 rule that only HTML, Markdown and images followed the setting while every other file opened in VS Code. `ghostex edit` always opens in VS Code. A file outside every project opens in the project currently on screen (its Files or VS Code view) and creates no project; a file inside a project opens in that project.
 
 use std::path::{Path, PathBuf};
 
@@ -41,15 +41,14 @@ pub(crate) enum CliFileRoute {
     ActiveProjectCode,
 }
 
-/// `document` is an HTML, Markdown or picture file, and `opens_in_code` says File opening sends it
-/// to the VS Code view (which carries the line and column, so it takes the Code routes below).
+/// `opens_in_code` says File opening sends the file to the VS Code view, which takes the Code
+/// routes below because they carry the line and column.
 pub(crate) fn cli_file_route(
     mode: OpenPathsMode,
-    document: bool,
     opens_in_code: bool,
     in_project: bool,
 ) -> CliFileRoute {
-    if mode == OpenPathsMode::Open && document && !opens_in_code {
+    if mode == OpenPathsMode::Open && !opens_in_code {
         CliFileRoute::FileOpening
     } else if in_project {
         CliFileRoute::ProjectCode
@@ -155,11 +154,10 @@ fn plan_cli_open(
             }
             continue;
         }
-        let document = crate::app::native_docs::entry::document_file_kind_for_path(&path).is_some();
-        let opens_in_code = document
+        let opens_in_code = mode == OpenPathsMode::Open
             && crate::app::native_docs::entry::local_file_open_target(&path)
                 == SharedFileOpenTarget::Code;
-        let route = cli_file_route(mode, document, opens_in_code, project.is_some());
+        let route = cli_file_route(mode, opens_in_code, project.is_some());
         if route == CliFileRoute::ProjectCode && os_route {
             plan.os_paths.push(path.clone());
         }
@@ -360,9 +358,8 @@ impl GhostexGpuiApp {
         self.focus_project_editor_surface(TitlebarMode::Source, window, cx);
     }
 
-    /// An HTML, Markdown or picture file in no project, where File opening says, shown by the
-    /// project on screen (Files lists it the way it lists a chat link to a file outside the
-    /// project).
+    /// A file in no project, where File opening says, shown by the project on screen (Files lists it
+    /// the way it lists a chat link to a file outside the project).
     fn open_cli_file_in_active_project(
         &mut self,
         file: &CliFileOpen,
@@ -415,25 +412,26 @@ mod tests {
     }
 
     #[test]
-    fn open_follows_file_opening_only_for_documents_it_does_not_send_to_code() {
+    fn open_follows_file_opening_for_every_file_it_does_not_send_to_code() {
         use CliFileRoute::*;
         use OpenPathsMode::*;
-        assert_eq!(cli_file_route(Open, true, false, true), FileOpening);
-        assert_eq!(cli_file_route(Open, true, false, false), FileOpening);
-        assert_eq!(cli_file_route(Open, true, true, true), ProjectCode);
-        assert_eq!(cli_file_route(Open, true, true, false), ActiveProjectCode);
-        assert_eq!(cli_file_route(Open, false, false, true), ProjectCode);
-        assert_eq!(cli_file_route(Open, false, false, false), ActiveProjectCode);
+        // Any file whose File opening row says Files, an editor app or the system app ("Other
+        // files" for greet.py and config.json, "HTML, Markdown and images" for page.html).
+        assert_eq!(cli_file_route(Open, false, true), FileOpening);
+        assert_eq!(cli_file_route(Open, false, false), FileOpening);
+        // Its row says VS Code: the project's VS Code view, or the one on screen.
+        assert_eq!(cli_file_route(Open, true, true), ProjectCode);
+        assert_eq!(cli_file_route(Open, true, false), ActiveProjectCode);
     }
 
     #[test]
     fn edit_always_opens_in_code_and_never_needs_a_project_of_its_own() {
         use CliFileRoute::*;
         use OpenPathsMode::*;
-        assert_eq!(cli_file_route(Edit, true, false, true), ProjectCode);
-        assert_eq!(cli_file_route(Edit, true, false, false), ActiveProjectCode);
-        assert_eq!(cli_file_route(Edit, false, false, true), ProjectCode);
-        assert_eq!(cli_file_route(Edit, false, false, false), ActiveProjectCode);
+        assert_eq!(cli_file_route(Edit, false, true), ProjectCode);
+        assert_eq!(cli_file_route(Edit, false, false), ActiveProjectCode);
+        assert_eq!(cli_file_route(Edit, true, true), ProjectCode);
+        assert_eq!(cli_file_route(Edit, true, false), ActiveProjectCode);
     }
 
     #[test]

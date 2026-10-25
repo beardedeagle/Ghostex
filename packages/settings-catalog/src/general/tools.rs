@@ -13,10 +13,10 @@ pub(crate) fn file_opening() -> Section {
         "File opening",
         vec![
             row("documentFileOpenTarget", "HTML, Markdown and images", "Choose where HTML, Markdown and picture files open from Quick Access, agent chat, the terminal and `ghostex open`: Files, VS Code, or an editor app installed on this computer.").option_list(crate::file_opening::file_open_target_options()),
-            row("otherFileOpenTarget", "Other files", "Choose where every other file (code and text) opens from Quick Access, agent chat and the terminal: Files, VS Code, or an editor app installed on this computer.").option_list(crate::file_opening::file_open_target_options()),
-            row("videoFileOpenTarget", "Videos", "Choose whether videos linked in agent chat or the terminal play in Files or open in the system app. Formats Files cannot play, such as .mp4 and .mov, always open in the system app.").options(MEDIA_FILE_OPEN_TARGET_OPTIONS),
+            row("otherFileOpenTarget", "Other files", "Choose where every other file (code and text) opens from Quick Access, agent chat, the terminal and `ghostex open`: Files, VS Code, or an editor app installed on this computer.").option_list(crate::file_opening::file_open_target_options()),
+            row("videoFileOpenTarget", "Videos", "Choose whether videos linked in agent chat or the terminal, or opened with `ghostex open`, play in Files or open in the system app. Formats Files cannot play, such as .mp4 and .mov, always open in the system app.").options(MEDIA_FILE_OPEN_TARGET_OPTIONS),
             row("fileChangesOpenTarget", "Open file changes in", "Choose where Review all on an agent's file changes and Session details' Changes card open: the Changes view or the VS Code view. If the chosen view is turned off, the other one opens.").options(FILE_CHANGES_OPEN_TARGET_OPTIONS),
-            row("audioFileOpenTarget", "Audio", "Choose whether audio files linked in agent chat or the terminal play in Files or open in the system app. Formats Files cannot play, such as .m4a, always open in the system app.").options(MEDIA_FILE_OPEN_TARGET_OPTIONS),
+            row("audioFileOpenTarget", "Audio", "Choose whether audio files linked in agent chat or the terminal, or opened with `ghostex open`, play in Files or open in the system app. Formats Files cannot play, such as .m4a, always open in the system app.").options(MEDIA_FILE_OPEN_TARGET_OPTIONS),
             row("docsOpenFilesAsTabs", "Show open files as tabs", "Show the files open in the Files view as a row of tabs above the document, instead of the Open Files list in the files sidebar. Every file you open, from the files list, Quick Access or a chat link, gets a tab, and each keeps its own unsaved changes and notes."),
         ],
     )

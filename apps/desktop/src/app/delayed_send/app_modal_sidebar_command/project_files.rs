@@ -31,8 +31,8 @@ impl GhostexGpuiApp {
 
     /// Opens a file picked in Quick Access where Settings > File opening says. Files and Code show
     /// the active project, so a file of another project makes its project active first; an editor
-    /// app or the system app opens the file as it is. `ghostex open` uses it for a project's HTML,
-    /// Markdown or picture file (gx_store/renderer_commands/open_paths.rs).
+    /// app or the system app opens the file as it is. `ghostex open` uses it for a project's file
+    /// (gx_store/renderer_commands/open_paths.rs).
     pub(crate) fn open_quick_access_project_file(
         &mut self,
         command: &Map<String, Value>,

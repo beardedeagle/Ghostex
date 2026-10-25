@@ -493,9 +493,8 @@ view from the strip.
   file selected in File Explorer (Finder on a Mac).
   Browser links stop working when Ghostex restarts; open the file again for a new one.
   Settings > File opening decides where a file opens from Quick Access, a chat
-  link or a terminal link: one dropdown for HTML, Markdown and images, one for
-  every other file (code and text). `ghostex open <file>` follows the HTML,
-  Markdown and images dropdown too; other files it opens in VS Code. Both offer Files (the default), the built-in
+  link, a terminal link or `ghostex open <file>`: one dropdown for HTML,
+  Markdown and images, one for every other file (code and text). Both offer Files (the default), the built-in
   VS Code view, and the editor apps Ghostex knows (VS Code, Cursor, Zed, the
   JetBrains IDEs and the rest); an editor that is not installed on this computer
   is listed but cannot be picked. If you had changed the old Markdown, HTML or

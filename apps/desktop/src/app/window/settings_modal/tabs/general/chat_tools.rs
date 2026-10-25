@@ -489,7 +489,7 @@ fn file_opening_section(
         (
             "otherFileOpenTarget",
             "Other files",
-            "Code and text files, opened from Quick Access, agent chat or the terminal.",
+            "Code and text files, opened from Quick Access, agent chat, the terminal or `ghostex open`.",
         ),
     ] {
         if !g.visible(s, key) {

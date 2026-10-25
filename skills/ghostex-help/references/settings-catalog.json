@@ -1656,7 +1656,7 @@
     {
       "key": "otherFileOpenTarget",
       "title": "Other files",
-      "subtitle": "Choose where every other file (code and text) opens from Quick Access, agent chat and the terminal: Files, VS Code, or an editor app installed on this computer.",
+      "subtitle": "Choose where every other file (code and text) opens from Quick Access, agent chat, the terminal and `ghostex open`: Files, VS Code, or an editor app installed on this computer.",
       "tab": "settings",
       "tabTitle": "General",
       "group": "tools",
@@ -1760,7 +1760,7 @@
     {
       "key": "videoFileOpenTarget",
       "title": "Videos",
-      "subtitle": "Choose whether videos linked in agent chat or the terminal play in Files or open in the system app. Formats Files cannot play, such as .mp4 and .mov, always open in the system app.",
+      "subtitle": "Choose whether videos linked in agent chat or the terminal, or opened with `ghostex open`, play in Files or open in the system app. Formats Files cannot play, such as .mp4 and .mov, always open in the system app.",
       "tab": "settings",
       "tabTitle": "General",
       "group": "tools",
@@ -1808,7 +1808,7 @@
     {
       "key": "audioFileOpenTarget",
       "title": "Audio",
-      "subtitle": "Choose whether audio files linked in agent chat or the terminal play in Files or open in the system app. Formats Files cannot play, such as .m4a, always open in the system app.",
+      "subtitle": "Choose whether audio files linked in agent chat or the terminal, or opened with `ghostex open`, play in Files or open in the system app. Formats Files cannot play, such as .m4a, always open in the system app.",
       "tab": "settings",
       "tabTitle": "General",
       "group": "tools",
