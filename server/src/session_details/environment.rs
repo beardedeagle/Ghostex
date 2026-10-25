@@ -18,12 +18,15 @@ fn folder_label(folder: &str, home: &Path) -> String {
     }
 }
 
-/// `{location: {kind, label}, project, folder, folderLabel, worktree, account}`.
+/// `{location: {kind, label}, project, folder, folderLabel, worktree, account, accountEmail,
+/// accountName}`. `account` is the "account 5 (ST)" label; a Claude session's account also
+/// carries the email Ghostex knows for that cswap slot, which the panel shows instead.
 pub(super) fn read_environment(
     session: &Value,
     project: Option<&Value>,
     folder: Option<&str>,
     home: &Path,
+    claude: bool,
 ) -> Value {
     let location = match crate::agentbox::session_agentbox(session) {
         Some(agentbox) => json!({
@@ -39,16 +42,19 @@ pub(super) fn read_environment(
     // A linked worktree's `.git` is a file pointing at the main checkout.
     let worktree = folder.is_some_and(|folder| Path::new(folder).join(".git").is_file())
         || project.is_some_and(|project| project.pointer("/worktree/parentProjectId").is_some());
-    let account = match (
-        read_runtime_text(session, "accountSlot"),
-        read_runtime_text(session, "accountName"),
-    ) {
+    let slot = read_runtime_text(session, "accountSlot");
+    let name = read_runtime_text(session, "accountName");
+    let account = match (&slot, &name) {
         (None, None) => None,
         (slot, name) => Some(crate::accounts::launch::account_label(
             slot.as_deref().unwrap_or_default(),
             name.as_deref().unwrap_or_default(),
         )),
     };
+    let email = slot
+        .as_deref()
+        .filter(|_| claude)
+        .and_then(crate::session_chat_notice::claude_slot_email);
     json!({
         "location": location,
         "project": project_name,
@@ -56,5 +62,7 @@ pub(super) fn read_environment(
         "folderLabel": folder.map(|folder| folder_label(folder, home)),
         "worktree": worktree,
         "account": account,
+        "accountEmail": email,
+        "accountName": name,
     })
 }

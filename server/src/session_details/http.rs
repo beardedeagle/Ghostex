@@ -114,8 +114,13 @@ fn read_details(
     let claude = agent.as_deref() == Some("claude");
     let folder = crate::session_git_status::effective_session_git_cwd(&session, project.as_ref());
     let home = state.paths.home_dir.clone();
-    let environment =
-        super::environment::read_environment(&session, project.as_ref(), folder.as_deref(), &home);
+    let environment = super::environment::read_environment(
+        &session,
+        project.as_ref(),
+        folder.as_deref(),
+        &home,
+        claude,
+    );
     let changes = folder.as_deref().and_then(super::changes::read_changes);
     let mut result = json!({
         "agent": agent,

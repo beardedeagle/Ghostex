@@ -123,7 +123,55 @@ fn loading_section(id: &str, title: &str, collapsed: &[String], rows: usize) -> 
 /// counts it for the first time.
 const BREAKDOWN_SKELETON_ROWS: usize = 11;
 
-fn environment(data: &Value) -> Option<Value> {
+/// How many characters the account row fits on its one line in the panel's width.
+const ACCOUNT_ROW_CHARS: usize = 34;
+
+/// `email` cut to `max` characters by dropping the middle of its name, so its domain stays
+/// (`sharptabs.co…@gmail.com`), or its middle when even the domain is too long.
+fn shorten_email(email: &str, max: usize) -> String {
+    let characters: Vec<char> = email.chars().collect();
+    if characters.len() <= max {
+        return email.to_string();
+    }
+    if let Some((name, domain)) = email.rsplit_once('@') {
+        let room = max.saturating_sub(domain.chars().count() + 2);
+        if room >= 4 {
+            let head: String = name.chars().take(room).collect();
+            return format!("{head}\u{2026}@{domain}");
+        }
+    }
+    let head = (max - 1) / 2;
+    let tail = max - 1 - head;
+    let start: String = characters[..head].iter().collect();
+    let end: String = characters[characters.len() - tail..].iter().collect();
+    format!("{start}\u{2026}{end}")
+}
+
+/// CDXC:SessionDetails 2026-10-25 DECISION:
+/// User: the account row shows the account's email with its short tag ("sharptabs.com@gmail.com (ST)") instead of "account 5 (ST)", which stays only while Ghostex knows no email for that account. A long email loses the middle of its name so the row stays one line with its tag, and the tooltip holds the whole email. Hide Account Emails masks it, like the chat's other account text.
+fn account_row(environment: &Value, hide_emails: bool) -> Option<Value> {
+    let Some(email) = text(environment, "/accountEmail") else {
+        return text(environment, "/account")
+            .map(|account| json!({"icon": "user", "text": account}));
+    };
+    let tag = text(environment, "/accountName").filter(|name| !name.eq_ignore_ascii_case(&email));
+    let email = crate::menus::native_accounts::account_text(hide_emails, &email);
+    let room = match &tag {
+        Some(tag) => ACCOUNT_ROW_CHARS.saturating_sub(tag.chars().count() + 3),
+        None => ACCOUNT_ROW_CHARS,
+    };
+    let shown = shorten_email(&email, room.max(12));
+    Some(json!({
+        "icon": "user",
+        "text": match tag {
+            Some(tag) => format!("{shown} ({tag})"),
+            None => shown,
+        },
+        "tooltip": email,
+    }))
+}
+
+fn environment(data: &Value, hide_emails: bool) -> Option<Value> {
     let environment = data.get("environment")?;
     let mut rows = Vec::new();
     let location = text(environment, "/location/label").unwrap_or_else(|| "This computer".into());
@@ -144,8 +192,8 @@ fn environment(data: &Value) -> Option<Value> {
     if let Some(branch) = text(data, "/changes/branch") {
         rows.push(json!({"icon": "branch", "text": branch}));
     }
-    if let Some(account) = text(environment, "/account") {
-        rows.push(json!({"icon": "user", "text": account}));
+    if let Some(row) = account_row(environment, hide_emails) {
+        rows.push(row);
     }
     Some(json!({ "rows": rows }))
 }
@@ -659,7 +707,7 @@ pub fn document(state: &ChatState, context: &ChatContext) -> Value {
     // User: "when i open the session details sidebar pls make it show shimmer skeleton for the parts that are still loading". Until the panel's first answer arrives, each card that answer fills shows its title over skeleton rows (Context sketches its breakdown while Claude counts it), drawn in the chat's own skeleton tint and pulse.
     let waiting = data.is_none() && details.error.is_none();
     let mut sections = Vec::new();
-    if let Some(body) = data.and_then(environment) {
+    if let Some(body) = data.and_then(|data| environment(data, state.core.hide_account_emails)) {
         sections.push(section("environment", "Environment", collapsed, body));
     } else if waiting {
         sections.push(loading_section("environment", "Environment", collapsed, 4));

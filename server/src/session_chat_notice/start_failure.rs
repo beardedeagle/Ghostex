@@ -124,7 +124,7 @@ static CLAUDE_SLOT_EMAILS: std::sync::LazyLock<Mutex<HashMap<String, String>>> =
 /// WHY: a cswap read that fails leaves the snapshot without its Claude rows for a couple of
 /// minutes, and a title without the email made the card a new instance, which brought back a
 /// card the user had dismissed.
-fn claude_slot_email(slot: &str) -> Option<String> {
+pub(crate) fn claude_slot_email(slot: &str) -> Option<String> {
     let current = crate::accounts::runtime::current_snapshot()
         .accounts
         .into_iter()
