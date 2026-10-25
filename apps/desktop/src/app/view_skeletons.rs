@@ -1,4 +1,3 @@
-use crate::app::helpers::ThrottledAnimationExt as _;
 use crate::app::helpers::*;
 use crate::app::model::*;
 use crate::*;

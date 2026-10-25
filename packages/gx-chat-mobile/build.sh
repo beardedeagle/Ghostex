@@ -17,7 +17,7 @@
 #   android/src/main/java/dev/ghostex/gxchatcore/uniffi/gx_chat_mobile.kt   UniFFI Kotlin bindings
 #   android/src/main/assets/fonts/NotoColorEmoji.ttf   (--gpui only) colour emoji for the transcript
 #
-# Needs: rustup (the crate pins 1.95.0 and its targets in rust-toolchain.toml), Xcode for iOS,
+# Needs: rustup (the crate pins 1.99.1 and its targets in rust-toolchain.toml), Xcode for iOS,
 # cargo-ndk (`cargo install cargo-ndk`) and an Android NDK for Android. Run it once before
 # `bunx expo run:ios` / `run:android`, and again after gx-chat-core changes.
 set -eu

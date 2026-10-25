@@ -18,7 +18,7 @@ Its README covers the toolchain it needs (`wasm-bindgen-cli`, Zig 0.16) and the 
 ### Building from source
 
 `cargo xtask start` builds and launches the desktop app. On macOS, `cargo xtask build` only packages it.
-The desktop crate (`apps/desktop/`) and the gxserver crate (`server/`) both pin Rust 1.95.0 in
+The desktop crate (`apps/desktop/`) and the gxserver crate (`server/`) both pin Rust 1.99.1 in
 their `rust-toolchain.toml` files. Besides Bun, Rust, CMake, Ninja, and Zig 0.16, local
 Rust builds require **sccache**:
 
