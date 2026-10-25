@@ -203,6 +203,10 @@ edit it keeps following the other File opening settings. In
 Ghostex Web the right-panel button in the header shows Changes beside the chat.
 Hide it with `changesViewTabHidden`; give it a key with the **Switch to Changes**
 hotkey (`switchChangesView`).
+On the phone, **Changes** in a session's ⋯ menu or its long-press menu opens the
+same diff for that session's project, read-only: Against main or Uncommitted, the
+file list with its counts, headers that stay pinned and fold when tapped, and pull
+to refresh; hold a line to copy it.
 
 Right-click a view tab to choose where that view appears and what happens to it.
 **Reload** refreshes the clicked view, **Sleep** unloads it while keeping its tab (Code also stops its editor
