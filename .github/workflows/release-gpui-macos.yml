@@ -94,7 +94,7 @@ jobs:
         uses: mozilla-actions/sccache-action@v0.0.11
       - uses: oven-sh/setup-bun@v2
         with:
-          bun-version: 1.4.0
+          bun-version: 1.4.4
       # CDXC:Release 2026-09-15 WHY:
       # Only the code-server identity input is restored here. The VS Code tree,
       # its `npm ci` (4 to 6 minutes) and the ripgrep seed were only needed to

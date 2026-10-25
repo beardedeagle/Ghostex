@@ -148,7 +148,7 @@ jobs:
           submodules: false
       - uses: oven-sh/setup-bun@v2
         with:
-          bun-version: 1.4.0
+          bun-version: 1.4.4
       - name: Decide whether SignPath signs this build
         id: signpath
         shell: bash
@@ -674,7 +674,7 @@ jobs:
           submodules: false
       - uses: oven-sh/setup-bun@v2
         with:
-          bun-version: 1.4.0
+          bun-version: 1.4.4
       # Same Node.js as jobs.build, which pins it from the code-server checkout.
       - name: Restore code-server source identity input
         run: git submodule update --init --depth=1 -- .dependencies/code-server

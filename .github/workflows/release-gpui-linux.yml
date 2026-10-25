@@ -101,7 +101,7 @@ jobs:
           submodules: false
       - uses: oven-sh/setup-bun@v2
         with:
-          bun-version: 1.4.0
+          bun-version: 1.4.4
       # sccache with the GitHub Actions cache backend. The registry cache below
       # only stores crate *sources*; every `cargo build --release` on this
       # runner was a cold compile, ~50% of the 31-minute critical path on 8.5.0.

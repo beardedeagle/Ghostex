@@ -111,7 +111,7 @@ jobs:
 
       - uses: oven-sh/setup-bun@v2
         with:
-          bun-version: 1.4.0
+          bun-version: 1.4.4
       # The desktop and gxserver crates set rustc-wrapper = sccache in their .cargo/config.toml, so cargo fails without it on PATH.
       - name: Install sccache
         uses: mozilla-actions/sccache-action@v0.0.11

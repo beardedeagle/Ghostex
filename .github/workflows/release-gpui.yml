@@ -309,7 +309,7 @@ jobs:
           submodules: false
       - uses: oven-sh/setup-bun@v2
         with:
-          bun-version: 1.4.0
+          bun-version: 1.4.4
       # release:test reads zmx's build.zig.zon for the Zig pin assertion.
       - name: Restore release-test prerequisites
         run: |

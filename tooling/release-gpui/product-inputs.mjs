@@ -24,7 +24,7 @@ export const TOOLCHAIN = Object.freeze({
   androidBuildTools: '36.0.0',
   androidNdk: '29.0.14206865',
   androidPlatform: 'android-36',
-  bun: '1.4.0',
+  bun: '1.4.4',
   dotnet: '8.0.x',
   java: '17.0.19+10',
   node: '24.22.1',
