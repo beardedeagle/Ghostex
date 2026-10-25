@@ -15,6 +15,7 @@ use super::transcript::text;
 use super::{appearance::ChatAppearance, state::NativeChatView};
 use crate::app::native_chat::cursor::ChatCursor as _;
 use ghostex_gx_chat_core::TranscriptItem;
+use gpui::prelude::FluentBuilder as _;
 use gpui::{
     AnyElement, Context, InteractiveElement as _, IntoElement, ParentElement as _, SharedString,
     StatefulInteractiveElement as _, Styled as _, Window, div, px,
@@ -199,63 +200,68 @@ impl NativeChatView {
             };
             card.pill(Some(icon), Some(label), tone, p)
         };
-        let mut bar = card
+        // CDXC:SessionChat 2026-10-25 DECISION: User: "make hovering on this [the Worked for header] show same bg change that we get when i hover on this [the Message from card]". The press and its hover live on the row inside the bordered shell, as the Message from card's do (inter_agent_message.rs `agent_card`), so the fill lies over the shell's fill; on the shell itself it replaced that fill and showed no change.
+        let bar = card
             .shell(div(), p)
-            .id(SharedString::from(format!("{id}:summary")))
-            .role(gpui::Role::Button)
-            .aria_label(spoken)
-            .aria_expanded(expanded)
-            .flex()
-            .items_center()
             .w_full()
-            .h(px(card.height * s))
             .flex_shrink_0()
-            .gap(px(10.0 * s))
-            .px(px(card.padding_x * s))
-            .child(
-                card.tile("titlebar/chat-card-clock.svg", p)
-                    .child(card.check_badge(p)),
-            )
-            .child(
-                card.title(div().flex_shrink_0(), p)
-                    .text_color(p.foreground)
-                    .child(label),
-            )
+            .overflow_hidden()
             .child(
                 div()
+                    .id(SharedString::from(format!("{id}:summary")))
+                    .role(gpui::Role::Button)
+                    .aria_label(spoken)
+                    .aria_expanded(expanded)
                     .flex()
-                    .flex_1()
-                    .min_w_0()
-                    .flex_wrap()
-                    .justify_end()
                     .items_center()
-                    .gap(px(6.0 * s))
-                    .children(stats.into_iter().map(|(kind, label)| chip(&kind, label))),
+                    .w_full()
+                    .h(px(card.header_height(s)))
+                    .gap(px(10.0 * s))
+                    .px(px(card.padding_x * s))
+                    .child(
+                        card.tile("titlebar/chat-card-clock.svg", p)
+                            .child(card.check_badge(p)),
+                    )
+                    .child(
+                        card.title(div().flex_shrink_0(), p)
+                            .text_color(p.foreground)
+                            .child(label),
+                    )
+                    .child(
+                        div()
+                            .flex()
+                            .flex_1()
+                            .min_w_0()
+                            .flex_wrap()
+                            .justify_end()
+                            .items_center()
+                            .gap(px(6.0 * s))
+                            .children(stats.into_iter().map(|(kind, label)| chip(&kind, label))),
+                    )
+                    .when(expandable, |row| {
+                        let id = id.to_string();
+                        let action = deferred
+                            .as_ref()
+                            .filter(|work| work.is_object())
+                            .map(|work| json!({"type":"loadWork","id":turn,"work":work}));
+                        row.chat_cursor_pointer()
+                            .hover(|style| style.bg(card_hover_fill(p)))
+                            .on_click(cx.listener(move |this, _, _, cx| {
+                                this.anchor_disclosure_toggle(&id, !expanded);
+                                if expanded {
+                                    this.expanded.remove(&id);
+                                    this.collapsed.insert(id.clone());
+                                } else {
+                                    this.collapsed.remove(&id);
+                                    this.expanded.insert(id.clone());
+                                    if let Some(action) = &action {
+                                        this.invoke(action.clone(), cx);
+                                    }
+                                }
+                                cx.notify();
+                            }))
+                    }),
             );
-        if expandable {
-            let id = id.to_string();
-            let action = deferred
-                .as_ref()
-                .filter(|work| work.is_object())
-                .map(|work| json!({"type":"loadWork","id":turn,"work":work}));
-            bar = bar
-                .chat_cursor_pointer()
-                .hover(|style| style.bg(card_hover_fill(p)))
-                .on_click(cx.listener(move |this, _, _, cx| {
-                    this.anchor_disclosure_toggle(&id, !expanded);
-                    if expanded {
-                        this.expanded.remove(&id);
-                        this.collapsed.insert(id.clone());
-                    } else {
-                        this.collapsed.remove(&id);
-                        this.expanded.insert(id.clone());
-                        if let Some(action) = &action {
-                            this.invoke(action.clone(), cx);
-                        }
-                    }
-                    cx.notify();
-                }));
-        }
         bar.into_any_element()
     }
 
