@@ -131,14 +131,15 @@ impl GhostexGpuiApp {
     /// `_blank`) and link gestures (middle-click, Cmd/Ctrl-click, "Open link in new tab"; the CEF
     /// handlers consume them once this route has them). A VS Code window on the Code view's own
     /// origin becomes a window tab while `codeServerNewWindowsAsTabs` is on and is dropped
-    /// otherwise, so the page stays as it is; any other web page opens in a new Browser tab
-    /// through the Browser's own popup route, in the background for middle-click and
-    /// Cmd/Ctrl-click. Only http(s) goes to the Browser: other schemes from a Code page belong to
-    /// its own process (`blob:`, `data:`), and app links are handed to the OS before this
+    /// otherwise, so the page stays as it is; any other web page opens where a terminal link
+    /// would: a remote project's loopback address on its machine, else the embedded Browser (a new
+    /// tab, in the background for middle-click and Cmd/Ctrl-click) or the system browser, as Open
+    /// links in says. Only http(s) opens: other schemes from a Code page belong to its own process
+    /// (`blob:`, `data:`), and app links are handed to the OS before this
     /// (`dispatch_external_app_popup`).
     ///
-    /// CDXC:CodeEditor 2026-10-25 WHY:
-    /// A link a VS Code page opens in a new tab or window (middle-click, Cmd/Ctrl-click, "Open link in new tab") never replaces the editor, with the setting on or off. A VS Code window on the view's own origin becomes a window tab while the setting is on and leaves the page as it is while it is off; native sign-in popups stay off for VS Code.
+    /// CDXC:CodeEditor 2026-10-25 DECISION:
+    /// User (Q567): keep the new link behaviour in the VS Code view: Cmd/Ctrl-click and middle-click on a web link open it instead of nothing, even with Open VS Code windows as tabs off, and it follows Settings > Open links in (`webLinkOpenTarget`) and the project's remote machine, the same way terminal links do (`open_gpui_engine_terminal_action_url`). A VS Code window on the view's own origin becomes a window tab while that setting is on and leaves the page as it is while it is off; native sign-in popups stay off for VS Code.
     pub(crate) fn code_window_popup_open_handler(
         &self,
         code_view_url: &str,
@@ -153,6 +154,9 @@ impl GhostexGpuiApp {
             .map(|url| url.origin());
         let windows_as_tabs = self.code_windows_as_tabs_active();
         let project_id = self.agents_workspace_project_id.clone();
+        let remote_project = project_id
+            .as_deref()
+            .and_then(gpui_remote_project_reference_from_project_id);
         let app = cx.entity().downgrade();
         let async_cx = cx.to_async();
         let foreground = cx.foreground_executor().clone();
@@ -165,6 +169,35 @@ impl GhostexGpuiApp {
                     .as_ref()
                     .and_then(|origin| code_window_location(&target, origin));
                 let Some(location) = location else {
+                    // The view's own origin (`/proxy/<port>/`) is this computer's, even for a
+                    // remote project, whose editor reaches this computer through a tunnel.
+                    let own_origin = origin
+                        .as_ref()
+                        .is_some_and(|origin| target.origin() == *origin);
+                    if !own_origin
+                        && let Some(remote_project) = remote_project.clone()
+                        && gpui_remote_link_is_loopback(&requested_url)
+                    {
+                        let app = app.clone();
+                        let mut async_cx = async_cx.clone();
+                        foreground
+                            .spawn(async move {
+                                let _ = app.update_in(&mut async_cx, |this, _window, cx| {
+                                    this.open_remote_machine_loopback_link(
+                                        &requested_url,
+                                        remote_project,
+                                        cx,
+                                    );
+                                });
+                            })
+                            .detach();
+                        return;
+                    }
+                    if !shared_settings::shared_sidebar_settings_snapshot().web_links_open_in_app()
+                    {
+                        let _ = gpui_open_terminal_action_url(&requested_url);
+                        return;
+                    }
                     open_in_browser(requested_url, placement);
                     return;
                 };

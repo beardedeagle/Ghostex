@@ -275,10 +275,13 @@ view from the strip.
   tab in a row above the VS Code page, so several projects or workspaces stay
   open at once. A folder that already has a window brings that window's tab to
   the front. The windows belong to the project, close with its VS Code tab, and
-  are not kept after quitting Ghostex. The editor and the web runtime (see
-  Browser) are both optional installs; the VS Code view offers each one the first
-  time it opens.
-  Settings: `codeServerLinkVscodeUserConfig`, `codeServerNewWindowsAsTabs`.
+  are not kept after quitting Ghostex. Middle-click or Cmd/Ctrl-click on a web
+  link in VS Code opens it where Open links in says (a Browser tab or the system
+  browser) without replacing the editor; a remote project's localhost link opens
+  on that computer. The editor and the web runtime (see Browser) are both
+  optional installs; the VS Code view offers each one the first time it opens.
+  Settings: `codeServerLinkVscodeUserConfig`, `codeServerNewWindowsAsTabs`,
+  `webLinkOpenTarget`.
 - **Browser**: embedded Chromium tabs with profiles, splits, annotations,
   DevTools, and agent control through the `$ghostex-embedded-browser-use`
   skill. Its tabs sit in the view panel's tab strip, in the same row as the view
