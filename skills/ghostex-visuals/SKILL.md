@@ -377,7 +377,10 @@ chat instead.
 For an answer the kit can't ask for, such as a ranking or a spot on a
 mockup, a page can send its own: `ghostex.submit(answers)` posts any JSON
 under 64 KiB and returns a promise that rejects with an `Error` saying why it
-wasn't sent; `ghostex.answered` and `ghostex.answers` tell a reopened page what
+wasn't sent. While Ghostex can't be reached (a dropped phone link, a restart)
+newer versions keep trying instead of rejecting and call an optional second
+argument, `ghostex.submit(answers, onRetry)`, with a message to show each
+time; `ghostex.answered` and `ghostex.answers` tell a reopened page what
 was sent; an element with `data-gx-answered` is where the Answered note goes.
 A page takes one set of answers either way.
 
