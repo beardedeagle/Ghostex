@@ -575,6 +575,55 @@ thread_local! {
     /// The tooltip that opens right under an element rather than at the pointer, and that
     /// element's bounds in its window (`anchor_tooltip_below`).
     static TOOLTIP_ANCHOR: RefCell<Option<(EntityId, Bounds<Pixels>)>> = RefCell::default();
+    /// Every window that hands its tooltips to the host, and where it is on screen, as of its
+    /// last render (`clamp_into_app_window`).
+    static WINDOW_FRAMES: RefCell<std::collections::HashMap<gpui::WindowId, Bounds<Pixels>>> =
+        RefCell::default();
+}
+
+/// Keeps a tooltip `owner` presents inside the app window: the largest window whose frame holds
+/// the owner's (the main window, for a child window over it such as the floating Files list or a
+/// sidebar menu), or the owner itself when none does (a modal of its own). `bounds` is in the
+/// owner's coordinates, before and after.
+///
+/// CDXC:Tooltips 2026-10-25 DECISION:
+/// User, of the Files Search summary's (i) tooltip running off the window: "it should be below and to the left of that hover trigger", and keep every tooltip inside the window. A tooltip is placed against its own window's edges only for the side it opens on; this keeps it inside the app window, so one opened in the narrow floating Files list is no longer pinned to that list's left edge and pushed past the main window's right edge.
+fn clamp_into_app_window(owner: gpui::WindowId, bounds: Bounds<Pixels>) -> Bounds<Pixels> {
+    WINDOW_FRAMES.with(|frames| {
+        let frames = frames.borrow();
+        let Some(owner_frame) = frames.get(&owner).copied() else {
+            return bounds;
+        };
+        let holds = |outer: &Bounds<Pixels>, inner: &Bounds<Pixels>| {
+            let slack = gpui::px(1.0);
+            outer.left() <= inner.left() + slack
+                && outer.top() <= inner.top() + slack
+                && outer.right() + slack >= inner.right()
+                && outer.bottom() + slack >= inner.bottom()
+        };
+        let container = frames
+            .iter()
+            .filter(|(id, frame)| **id != owner && holds(frame, &owner_frame))
+            .map(|(_, frame)| *frame)
+            .max_by(|a, b| {
+                (f32::from(a.size.width) * f32::from(a.size.height))
+                    .total_cmp(&(f32::from(b.size.width) * f32::from(b.size.height)))
+            })
+            .unwrap_or(owner_frame);
+        let margin = gpui::px(8.0);
+        let screen_x = owner_frame.left() + bounds.left();
+        let screen_y = owner_frame.top() + bounds.top();
+        let x = screen_x
+            .min(container.right() - margin - bounds.size.width)
+            .max(container.left() + margin);
+        let y = screen_y
+            .min(container.bottom() - margin - bounds.size.height)
+            .max(container.top());
+        Bounds::new(
+            gpui::point(x - owner_frame.left(), y - owner_frame.top()),
+            bounds.size,
+        )
+    })
 }
 
 /// Shows the tooltip `view` (once it is handed to the tooltip host) right under `element`, left
@@ -612,6 +661,11 @@ pub(crate) fn host_window_tooltips_always(window: &mut Window, cx: &mut App) {
 /// CDXC:Theming 2026-09-27 WHY:
 /// The user saw sidebar tooltips "appearing and disappearing multiple times per second when transparency is enabled". Every window with a presenter reports each frame it draws, `None` when it shows no tooltip, and that `None` hid the one shared tooltip host even when the tooltip belonged to another window; any other window redrawing (a Docs window, a frosted chat control, a modal) took the main window's tooltip down and the next main-window frame put it back. A window now hides the host only while the host shows its own tooltip.
 pub(crate) fn sync_frosted_tooltip_presenter(window: &mut Window, cx: &mut App) {
+    WINDOW_FRAMES.with(|frames| {
+        frames
+            .borrow_mut()
+            .insert(window.window_handle().window_id(), window.bounds())
+    });
     let wanted = frosted_hosting_active()
         || (cfg!(any(target_os = "macos", target_os = "windows"))
             && TOOLTIPS_ALWAYS_HOSTED.with(|hosted| {
@@ -638,6 +692,7 @@ pub(crate) fn sync_frosted_tooltip_presenter(window: &mut Window, cx: &mut App) 
                     }
                     _ => bounds,
                 });
+                let bounds = clamp_into_app_window(parent.window_id(), bounds);
                 show_frosted_host(
                     FrostedHostKind::Tooltip,
                     parent,
@@ -686,6 +741,7 @@ pub(crate) fn register_frosted_tooltip_root_plugin(cx: &mut App) {
         let parent = window.window_handle();
         FrostedTooltipRootPlugin {
             _release: cx.on_release(move |_, cx| {
+                WINDOW_FRAMES.with(|frames| frames.borrow_mut().remove(&parent.window_id()));
                 hide_frosted_host_over(FrostedHostKind::Tooltip, parent, cx);
                 super::modal_popover_host::forget_modal_popover_over(parent, cx);
             }),

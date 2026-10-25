@@ -70,6 +70,22 @@ pub(crate) fn header_panel_toggle_button(
         )
 }
 
+/// Toggle sidebar and Toggle Agents Panel show in the header and, with an icon colour, in the
+/// sidebar's top row, where their tooltip is the sidebar's frosted bubble like every other sidebar
+/// tooltip (CDXC:Tooltips 2026-10-25 DECISION in native_docs/project_search_view.rs).
+fn panel_toggle_tooltip(
+    label: &gpui::SharedString,
+    in_sidebar: bool,
+    window: &mut gpui::Window,
+    cx: &mut gpui::App,
+) -> gpui::AnyView {
+    if in_sidebar {
+        crate::app::native_sidebar::link_chips::sidebar_style_tooltip(label.to_string(), window, cx)
+    } else {
+        titlebar_tooltip(label.clone(), window, cx)
+    }
+}
+
 impl GhostexGpuiApp {
     /// CDXC:Titlebar 2026-09-21 DECISION:
     /// User: the command terminal and view panel toggles never move from the top right of the app
@@ -159,7 +175,8 @@ impl GhostexGpuiApp {
         )
         .managed_tooltip_with_placement(ManagedTooltipPlacement::Right, {
             let tooltip = titlebar_tooltip_label("Toggle sidebar", "toggleSidebarCollapsed");
-            move |window, cx| titlebar_tooltip(tooltip.clone(), window, cx)
+            let in_sidebar = icon_color.is_some();
+            move |window, cx| panel_toggle_tooltip(&tooltip, in_sidebar, window, cx)
         })
     }
 
@@ -203,8 +220,9 @@ impl GhostexGpuiApp {
                 }),
             )
         })
-        .managed_tooltip_with_placement(ManagedTooltipPlacement::Right, move |window, cx| {
-            titlebar_tooltip(tooltip.clone(), window, cx)
+        .managed_tooltip_with_placement(ManagedTooltipPlacement::Right, {
+            let in_sidebar = icon_color.is_some();
+            move |window, cx| panel_toggle_tooltip(&tooltip, in_sidebar, window, cx)
         })
     }
 

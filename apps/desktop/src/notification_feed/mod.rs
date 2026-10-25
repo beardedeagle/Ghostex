@@ -38,7 +38,7 @@ use crate::app::native_sidebar::navigation::SIDEBAR_TOP_ROW_BUTTON_MIN_WIDTH;
 use crate::{
     GhostexGpuiApp, GpuiTitlebarPopupKind, NOTIFICATIONS_TITLEBAR_BUTTON_HIDDEN_SETTINGS_KEY,
     shared_settings, titlebar_active_text_color, titlebar_background, titlebar_svg_icon,
-    titlebar_tooltip, titlebar_tooltip_label,
+    titlebar_tooltip_label,
 };
 
 const NOTIFICATION_BELL_ICON: &str = "titlebar/bell.svg";
@@ -567,7 +567,14 @@ impl GhostexGpuiApp {
             .when(!open, |this| {
                 this.managed_tooltip_with_placement(
                     ManagedTooltipPlacement::Right,
-                    move |window, cx| titlebar_tooltip(tooltip.clone(), window, cx),
+                    // The sidebar's frosted bubble, like every sidebar tooltip.
+                    move |window, cx| {
+                        crate::app::native_sidebar::link_chips::sidebar_style_tooltip(
+                            tooltip.to_string(),
+                            window,
+                            cx,
+                        )
+                    },
                 )
             })
             .on_prepaint(move |bounds, _window, _cx| {

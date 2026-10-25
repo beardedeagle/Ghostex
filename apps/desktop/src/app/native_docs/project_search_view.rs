@@ -11,6 +11,7 @@ use gpui::{
     Styled as _, StyledText, Transformation, Window, div, px, radians, svg, uniform_list,
 };
 use gpui_component::Sizable as _;
+use gpui_component::tooltip::{ManagedTooltipExt as _, ManagedTooltipPlacement};
 use gpui_component::input::{Input, InputState};
 
 use super::files_list::{ROW_STRIP_HEIGHT, file_icon, header_icon, header_tile};
@@ -573,7 +574,12 @@ impl GhostexGpuiApp {
                                 13.0,
                                 p.subtle,
                             ))
-                            .tooltip(move |window, cx| search_card_tooltip(note, 6.0, window, cx)),
+                            // Below the icon, right edges aligned, opening leftwards (CDXC:Tooltips
+                            // 2026-10-25 DECISION in window/frosted_host.rs).
+                            .managed_tooltip_with_placement(
+                                ManagedTooltipPlacement::BelowLeft,
+                                move |window, cx| search_card_tooltip(note, 4.0, window, cx),
+                            ),
                     )
                 })
                 .into_any_element()
