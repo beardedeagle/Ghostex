@@ -443,6 +443,7 @@ impl ProjectScopedWorkareaAvailability {
             TitlebarMode::Kanban,
             TitlebarMode::Automate,
             TitlebarMode::Manage,
+            TitlebarMode::Changes,
             TitlebarMode::Terminal,
         ];
 
@@ -459,6 +460,7 @@ impl ProjectScopedWorkareaAvailability {
                             | TitlebarMode::Kanban
                             | TitlebarMode::Automate
                             | TitlebarMode::Manage
+                            | TitlebarMode::Changes
                             | TitlebarMode::Terminal
                     )
                 {

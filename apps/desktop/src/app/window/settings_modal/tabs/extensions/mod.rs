@@ -44,6 +44,8 @@ use std::collections::HashSet;
 use std::rc::Rc;
 use std::time::Duration;
 use view_editor::ViewEditorState;
+#[allow(unused_imports)]
+pub(crate) use views_data::titlebar_view_order_rank;
 
 /// Creates the Extensions page view.
 pub(crate) fn extensions_tab_view(

@@ -158,12 +158,13 @@ impl GhostexGpuiApp {
             .get("titlebarViewOrder")
             .and_then(serde_json::Value::as_array)
         {
+            let order: Vec<&str> = order.iter().filter_map(serde_json::Value::as_str).collect();
             items.sort_by_cached_key(|item| {
-                let slug = item.mode.element_slug();
-                order
-                    .iter()
-                    .position(|id| id.as_str() == Some(slug.as_str()))
-                    .unwrap_or(usize::MAX)
+                crate::app::window::settings_modal::tabs::extensions::titlebar_view_order_rank(
+                    &order,
+                    &item.mode.element_slug(),
+                )
+                .unwrap_or(usize::MAX)
             });
         }
         if items.len() == 1 && items[0].mode == TitlebarMode::Agents {

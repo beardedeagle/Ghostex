@@ -164,7 +164,8 @@ the top creates a Linear ticket or a GitHub issue (see Create Linear Ticket
 under Git and worktrees) and the list picks it up right away. The Issues view is
 part of the desktop app; the web version opens a chip's link instead.
 
-**Changes** shows what changed in the project as one diff you scroll through.
+**Changes** (on by default, listed right after Files) shows what changed in the
+project as one diff you scroll through.
 **Against main** (the default) shows everything the branch changed, committed or
 not, compared with where it left the default branch; **Uncommitted** shows only
 what is not committed yet. New files are included. The file list above the diff
