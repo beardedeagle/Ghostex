@@ -7,6 +7,9 @@
 mod announcements;
 mod conversation;
 mod dictation;
+mod feature;
+#[cfg(test)]
+mod feature_tests;
 mod focus;
 #[cfg(test)]
 mod focus_tests;

@@ -93,6 +93,16 @@ pub(crate) async fn handle_voice(
     ws.on_upgrade(move |socket| async move {
         match mode.as_str() {
             "dictation" => dictation::run(&state, socket, language).await,
+            // Refused before anything is billed, and a reattach too: the watcher is ending the
+            // calls that were open when it was turned off (`feature.rs`).
+            "conversation" if !super::feature::voice_agent_on(&state.paths) => {
+                fail(
+                    &mut { socket },
+                    super::feature::TURNED_OFF,
+                    &super::feature::voice_agent_off_message(),
+                )
+                .await
+            }
             "conversation" => {
                 let start = Start {
                     provider,

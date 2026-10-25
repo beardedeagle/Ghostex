@@ -4,8 +4,8 @@ use crate::rows::{row, section, Page, Section};
 /// Settings › Voice agent: the provider, its voice and its API key for the manager voice agent,
 /// and the xAI key Grok dictation uses.
 ///
-/// CDXC:VoiceMode 2026-10-20 DECISION:
-/// User: the voice agent is built into the app, not an extension, so it is a plain Settings page and not a built-in extension card with an on/off switch.
+/// CDXC:VoiceMode 2026-10-25 DECISION:
+/// User: "voice agent should be an extension so ppl can disable it's button and not see it top of the app if they want". Supersedes the 2026-10-20 "built into the app, not an extension": the voice agent is a built-in extension (official_extensions.rs), on by default. This page stays while it is off, keeping the xAI key Dictate uses and the Dictation history; its call rows (provider, voices, speed, call mode, memory, the OpenAI key) are the extension's `settingKeys` and hide.
 /// CDXC:VoiceMode 2026-10-20 DECISION:
 /// User: "on the voice mode screen, the user should be able to click on Eve to change the voice, and click buttons to change the voice agent's speed, with options 1, 1.2, 1.4, 1.6, 1.8, and 2." `voiceAgentSpeed` (default 1) is that speed; the voice panel's speed menu, the phone's speed buttons and this row save the same setting.
 /// CDXC:VoiceMode 2026-10-24 DECISION:

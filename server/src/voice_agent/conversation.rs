@@ -86,6 +86,8 @@ pub(super) enum Input {
         played_ms: u64,
     },
     End,
+    /// The voice agent was turned off on Settings > Extensions (`feature.rs`): the call ends.
+    TurnedOff,
     /// The user picked another voice for the current provider.
     Voice(String),
     /// How fast the attached client plays the agent's audio (1.0 is as the provider sent it).
@@ -571,6 +573,12 @@ impl Conversation {
                 return Err(Ended::Reason(
                     "user",
                     "You ended the conversation.".to_string(),
+                ));
+            }
+            Input::TurnedOff => {
+                return Err(Ended::Reason(
+                    super::feature::TURNED_OFF,
+                    super::feature::voice_agent_off_message(),
                 ));
             }
             Input::Announce(announcements) => {

@@ -334,7 +334,13 @@ pub(super) fn call_ended(state: Arc<AppState>, mut log: CallLog) {
 
 /// Makes the summary of the call that was still pending when gxserver last stopped (a restart
 /// during or right after a call). Only the newest one counts; older ones are dropped.
+///
+/// While the voice agent is turned off nothing is summarized; the pending call stays on disk for
+/// a start with it on (`feature.rs`).
 pub(crate) fn recover_after_restart(state: &Arc<AppState>) {
+    if !super::feature::voice_agent_on(&state.paths) {
+        return;
+    }
     let mut pending: Vec<(std::time::SystemTime, PathBuf)> = pending_files(&state.paths)
         .into_iter()
         .map(|path| {

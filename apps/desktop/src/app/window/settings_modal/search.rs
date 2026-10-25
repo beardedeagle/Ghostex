@@ -311,7 +311,14 @@ impl TabSearch {
 }
 
 /// `getExtraSettingsTabSearch(query, tab, debuggingMode)`.
-pub(crate) fn extra_tab_search(query: &str, tab: &str, debugging_mode: bool) -> TabSearch {
+/// `hidden_keys` are rows a search leaves out on every page (a built-in extension's rows while it
+/// is off, such as the voice agent's call rows on Settings > Voice agent).
+pub(crate) fn extra_tab_search(
+    query: &str,
+    tab: &str,
+    debugging_mode: bool,
+    hidden_keys: &[&str],
+) -> TabSearch {
     let catalog = settings_catalog();
     let Some(definition) = catalog.extra_tab(tab) else {
         return TabSearch::default();
@@ -329,15 +336,17 @@ pub(crate) fn extra_tab_search(query: &str, tab: &str, debugging_mode: bool) -> 
         } else {
             section.settings.clone()
         };
-        // Rows this platform does not have (SpaceO's off macOS) never match a search.
+        // Rows this platform does not have (SpaceO's off macOS), and rows of a built-in extension
+        // that is off, never match a search.
         let rows: Vec<SettingRowDef> = rows
             .into_iter()
             .filter(|row| {
-                !ghostex_settings_catalog::availability::row_hidden(
-                    ghostex_settings_catalog::Platform::current(),
-                    &row.key,
-                    |_| None,
-                )
+                !hidden_keys.contains(&row.key.as_str())
+                    && !ghostex_settings_catalog::availability::row_hidden(
+                        ghostex_settings_catalog::Platform::current(),
+                        &row.key,
+                        |_| None,
+                    )
             })
             .collect();
         let title = if rows.is_empty() {

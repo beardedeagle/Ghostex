@@ -342,7 +342,7 @@ impl GhostexGpuiApp {
                 this
             })
             // The Voice button leads the split buttons (CDXC:VoiceMode in voice_agent/header_button.rs).
-            .when(crate::app::voice_agent::VOICE_AGENT_AVAILABLE, |this| {
+            .when(crate::app::voice_agent::voice_agent_on(), |this| {
                 this.child(self.render_workarea_header_voice_button(cx))
             })
             .when(

@@ -44,7 +44,7 @@ mod stretch;
 mod test_mic;
 pub(crate) mod typing;
 
-pub(crate) use conversation::{VOICE_AGENT_AVAILABLE, VoiceAgent};
+pub(crate) use conversation::{VoiceAgent, voice_agent_on};
 pub(crate) use dictation::{
     Dictate, DictateEvent, DictatePhase, clock as dictation_clock, previous_recording,
     refresh_previous,

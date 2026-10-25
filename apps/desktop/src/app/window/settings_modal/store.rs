@@ -684,6 +684,7 @@ impl SettingsStore {
             ghostex_settings_catalog::Platform::current(),
             |key| Some(self.string(key)),
         ));
+        let tab_hidden_keys = hidden_keys.clone();
         if self.general_search.query != self.search_query
             || self.general_search.show_advanced != show_advanced
             || self.general_search.show_experimental != show_experimental
@@ -704,7 +705,12 @@ impl SettingsStore {
             .map(|tab| {
                 (
                     tab.id.clone(),
-                    extra_tab_search(&self.search_query, &tab.id, debugging_mode),
+                    extra_tab_search(
+                        &self.search_query,
+                        &tab.id,
+                        debugging_mode,
+                        &tab_hidden_keys,
+                    ),
                 )
             })
             .collect();

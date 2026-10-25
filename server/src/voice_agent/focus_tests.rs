@@ -25,7 +25,7 @@ const WAIT: Duration = Duration::from_secs(5);
 
 /// A gxserver state in a temporary home whose loopback port answers nothing, so the tools that
 /// read a chat fail fast instead of reaching a real gxserver.
-fn test_state(temp: &tempfile::TempDir) -> Arc<AppState> {
+pub(super) fn test_state(temp: &tempfile::TempDir) -> Arc<AppState> {
     let paths = crate::paths::get_gxserver_paths(Some(temp.path().to_path_buf()));
     let storage = crate::storage::initialize_gxserver_storage(&paths).expect("storage");
     let mut config = crate::config::create_default_gxserver_config().expect("config");
@@ -117,10 +117,10 @@ fn scope(reference: &str) -> FocusScope {
     FocusScope::from_sessions(&sessions(), reference).expect("scope")
 }
 
-struct Call {
-    id: String,
-    state: Arc<AppState>,
-    tx: mpsc::UnboundedSender<Input>,
+pub(super) struct Call {
+    pub(super) id: String,
+    pub(super) state: Arc<AppState>,
+    pub(super) tx: mpsc::UnboundedSender<Input>,
     /// What gxserver sent the provider.
     provider: mpsc::UnboundedReceiver<Value>,
     /// Events the fake provider sends gxserver.
@@ -131,7 +131,7 @@ struct Call {
 
 impl Call {
     /// Starts a conversation about `focus` (or all sessions) and attaches a client.
-    async fn start(focus: Option<FocusScope>, client_remote: bool) -> Self {
+    pub(super) async fn start(focus: Option<FocusScope>, client_remote: bool) -> Self {
         let temp = tempfile::tempdir().expect("temp");
         let state = test_state(&temp);
         let listener = TcpListener::bind("127.0.0.1:0").await.expect("listener");
@@ -207,7 +207,7 @@ impl Call {
     }
 
     /// The next JSON frame for the client of `kind`, skipping others.
-    async fn client_frame(&mut self, kind: &str) -> Value {
+    pub(super) async fn client_frame(&mut self, kind: &str) -> Value {
         tokio::time::timeout(WAIT, async {
             loop {
                 match self.client.recv().await.expect("client channel") {

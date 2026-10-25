@@ -272,6 +272,21 @@ pub const GHOSTEX_OFFICIAL_EXTENSIONS: J = J::Arr(&[
         ("title", J::Str("Workspaces")),
         ("settingsPages", J::Arr(&[J::Str("workspaces")])),
     ]),
+    // CDXC:VoiceMode 2026-10-25 DECISION:
+    // User: "voice agent should be an extension so ppl can disable it's button and not see it top of the app if they want". This supersedes the 2026-10-20 decision that the voice agent is built in and not an extension (pages/voice_agent.rs). A whole-feature entry like Read aloud, on by default with a new key (`voiceAgentHidden`, default false, like `connectorsHidden`) and not behind Enable Experimental Features, so nothing changes for anyone who has not touched it. Off hides the header's headset and its arrow menu, the voice call rows and the three hotkeys, ends a call that is running, and gxserver refuses new calls (server/src/voice_agent/feature.rs); the phone follows through `builtInFeaturesOff`. Saved voice settings and the remembered conversation are kept.
+    // CDXC:VoiceMode 2026-10-25 WHY: Dictate is a separate feature that uses the same xAI key, so Settings > Voice agent stays in Settings while this is off and keeps its xAI key and Dictation history; only the call rows (`settingKeys`) go. Listing the page in `settingsPages` would strand Dictate's key.
+    // SEE-ALSO: server/src/voice_agent/feature.rs (gxserver's gate), apps/desktop/src/app/voice_agent/conversation.rs (`voice_agent_on`), apps/mobile/app/src/voice/featureSwitch.ts, docs/2026-10-20/voice-mode/voice-agent-client-contract.md.
+    J::Obj(&[
+        ("description", J::Str("Talk with a voice agent about your agent sessions: the headset at the top of the window starts a call, and its arrow starts one about a single session, here and in the phone app. Dictate in the chat box is separate and keeps working when this is off.")),
+        ("category", J::Str("features")),
+        ("id", J::Str("voiceAgent")),
+        ("placement", J::Str("feature")),
+        ("settingsKey", J::Str("voiceAgentHidden")),
+        ("appWide", J::Bool(true)),
+        ("title", J::Str("Voice agent")),
+        ("settingKeys", J::Arr(&[J::Str("voiceAgentProvider"), J::Str("voiceAgentXaiVoice"), J::Str("voiceAgentOpenaiVoice"), J::Str("voiceAgentSpeed"), J::Str("voiceAgentCallMode"), J::Str("voiceAgentMemory"), J::Str("voiceAgentOpenaiKey")])),
+        ("hotkeys", J::Arr(&[J::Str("toggleVoiceAgent"), J::Str("voiceCallAboutSession"), J::Str("holdToTalk")])),
+    ]),
     // CDXC:VoiceMode 2026-10-21 DECISION:
     // User: Read aloud ships as a Ghostex extension, disabled by default (2026-10-20), and (Q23) as a built-in extension, not a Store extension: a Store extension cannot reach the chat composer, a message's actions or the phone. A whole-feature entry like Workspaces, with a new key (`readAloudHidden`, default on = hidden) because the settings file stores every default; off hides the reply action, the ⋯ menu rows, the Voice and Speed rows and the two hotkeys, and keeps their saved values. No `platforms` list: the switch also governs the phone and Ghostex in a browser that talk to this computer, so it exists on Linux too, where the desktop draws no controls (Q25; `readAloudUnavailable` says why).
     // SEE-ALSO: packages/gx-chat-core/src/read_aloud/ (the rules), server/src/ghostex_cli/sessions/mobile_summary.rs (`builtInFeatures`, how the phone learns the switch), docs/2026-10-20/voice-mode/read-aloud-client-contract.md.

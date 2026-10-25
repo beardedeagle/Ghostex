@@ -2907,7 +2907,16 @@ speaks. The call mode is also in the phone's Settings > Voice agent. They save t
 with the same voice at the same speed and in the same mode. It shows
 the same "Last conversation" card with Continue, Start fresh and Forget.
 
-Settings: `voiceAgentProvider`, `voiceAgentXaiVoice`, `voiceAgentOpenaiVoice`, `voiceAgentSpeed`, `voiceAgentCallMode`; the Memory row (`voiceAgentMemory`) forgets the remembered conversation. Hotkeys: Toggle Voice Agent, Voice Call About This Session, Hold to Talk (`holdToTalk`).
+The voice agent is a built-in extension, on by default. Turn it off on
+Settings > Extensions (Voice agent) and the headset and its arrow leave the top
+of the window, the voice agent hotkeys stop working and leave Settings >
+Hotkeys, a call that is running ends, and the phone app hides its headset,
+Voice call about this chat and Voice Call for that computer. Dictate keeps
+working: Settings > Voice agent then shows only the xAI key Dictate uses and
+the Dictation history. Turn it back on and everything returns, with your voice
+settings as you left them.
+
+Settings: `voiceAgentHidden` (off by default, which keeps the voice agent on), `voiceAgentProvider`, `voiceAgentXaiVoice`, `voiceAgentOpenaiVoice`, `voiceAgentSpeed`, `voiceAgentCallMode`; the Memory row (`voiceAgentMemory`) forgets the remembered conversation. Hotkeys: Toggle Voice Agent, Voice Call About This Session, Hold to Talk (`holdToTalk`).
 
 ## Remote machines, web, and mobile
 

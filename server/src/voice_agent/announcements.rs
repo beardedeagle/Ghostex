@@ -1,7 +1,8 @@
 //! Spoken announcements: while any voice conversation is open, every session's state is read every
 //! two seconds and a session that finishes its turn or starts waiting on a question or an approval
 //! is announced to every open conversation; a call about one session keeps only that session's
-//! (`focus.rs`).
+//! (`focus.rs`). Each pass also ends every open call once the voice agent is turned off
+//! (`feature.rs`).
 //!
 //! CDXC:VoiceMode 2026-10-20 DECISION:
 //! User: while a voice conversation is open it speaks up on its own with short announcements when a session finishes its turn or starts waiting on a question or an approval ("Sidebar fix finished").
@@ -40,6 +41,19 @@ pub(super) fn ensure_running(state: &Arc<AppState>) {
                 if registry::count() == 0 || RUNNING.swap(true, Ordering::SeqCst) {
                     return;
                 }
+            }
+            // The voice agent was turned off on Settings > Extensions: every open call ends, and
+            // the watcher stops once they are gone (`feature.rs`).
+            let paths = state.paths.clone();
+            let on = tokio::task::spawn_blocking(move || super::feature::voice_agent_on(&paths))
+                .await
+                .unwrap_or(true);
+            if !on {
+                for tx in registry::senders() {
+                    let _ = tx.send(Input::TurnedOff);
+                }
+                tokio::time::sleep(POLL).await;
+                continue;
             }
             if let Ok(rows) = sessions::list_sessions_async(&state).await {
                 let mut lines: Vec<Announcement> = Vec::new();

@@ -278,7 +278,8 @@ pub(super) fn to_mobile_session_list(result: &Value, settings: &Map<String, Valu
     Value::Object(map)
 }
 
-/// `builtInFeatures`: the ids of this computer's whole-feature built-in extensions that are on.
+/// `builtInFeatures`: the ids of this computer's whole-feature built-in extensions that are on,
+/// and `builtInFeaturesOff` the ones that are off.
 ///
 /// CDXC:VoiceMode 2026-10-21 WHY: the phone reads no settings of the computer, and Read aloud is a built-in extension of the computer the chat lives on, so the phone learns its switch here, in the one poll it already makes per computer. One generic list serves every future built-in feature; a computer too old to send it means every one is off. The rule is the settings catalog's (`enabled_features_with`), so the phone, the desktop and `ghostex settings` agree.
 /// SEE-ALSO: packages/settings-catalog/src/data/official_extensions.rs (`readAloud`), docs/2026-10-20/voice-mode/read-aloud-client-contract.md.
@@ -286,6 +287,11 @@ pub(super) fn insert_built_in_features(map: &mut Map<String, Value>) {
     map.insert(
         "builtInFeatures".to_string(),
         json!(crate::ghostex_cli::built_in_extensions::enabled_built_in_features()),
+    );
+    // CDXC:VoiceMode 2026-10-25 WHY: a feature that is on by default (the voice agent) cannot be read from `builtInFeatures`, where a computer too old to know its switch leaves it out; `builtInFeaturesOff` names it only when this computer has it switched off (`disabled_features_with`).
+    map.insert(
+        "builtInFeaturesOff".to_string(),
+        json!(crate::ghostex_cli::built_in_extensions::disabled_built_in_features()),
     );
 }
 

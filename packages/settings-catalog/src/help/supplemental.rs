@@ -509,6 +509,17 @@ pub(crate) const SUPPLEMENTAL_ROWS: &[Supplemental] = &[
         user_only: false,
     },
     Supplemental {
+        key: "voiceAgentHidden",
+        tab: EXTENSIONS,
+        group: None,
+        section: "official",
+        section_title: "Built-in",
+        title: "Turn off the voice agent",
+        subtitle: "Turn off the voice agent everywhere: the headset at the top of the window and its arrow menu, voice calls about one session, the call rows on Settings > Voice agent and the voice agent hotkeys, on this computer and in the phone app connected to it. A call that is running ends. Dictate keeps working, and the xAI key stays on Settings > Voice agent. On by default; your voice settings are kept.",
+        options: &[],
+        user_only: false,
+    },
+    Supplemental {
         key: "defaultEditorCommand",
         tab: OPEN_TARGETS,
         group: None,

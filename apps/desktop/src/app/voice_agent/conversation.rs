@@ -29,6 +29,45 @@ pub(crate) const VOICE_AGENT_AVAILABLE: bool = cfg!(any(
     target_os = "linux"
 ));
 
+/// Whether this build has the voice agent and its built-in extension is on (Settings >
+/// Extensions, on by default). The header's Voice button shows and a call starts only then; the
+/// settings hook ends a call that is open when it is turned off (`apply_voice_agent_settings`).
+/// Dictate does not ask: it is a separate feature.
+///
+/// CDXC:VoiceMode 2026-10-25 SEE-ALSO: packages/settings-catalog/src/data/official_extensions.rs (the user decision), server/src/voice_agent/feature.rs (gxserver refuses calls while it is off).
+pub(crate) fn voice_agent_on() -> bool {
+    voice_agent_on_in(shared_settings::shared_sidebar_settings_snapshot().object())
+}
+
+/// [`voice_agent_on`] over a settings object.
+fn voice_agent_on_in(settings: &serde_json::Map<String, Value>) -> bool {
+    VOICE_AGENT_AVAILABLE
+        && ghostex_settings_catalog::built_in_extensions::on_with(
+            ghostex_settings_catalog::built_in_extensions::VOICE_AGENT,
+            |key| settings.get(key).and_then(Value::as_bool),
+        )
+}
+
+/// What the settings hook does with the call once the voice agent is turned off.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum TurnedOffStep {
+    /// It is on, nothing is open, or a hang-up is already waiting for `ended`.
+    Nothing,
+    /// A call is opening or open: hang up, and the panel closes with gxserver's `ended`.
+    HangUp,
+    /// The panel shows a call that is over: close it.
+    ClosePanel,
+}
+
+fn turned_off_step(on: bool, phase: VoicePhase) -> TurnedOffStep {
+    match phase {
+        _ if on => TurnedOffStep::Nothing,
+        VoicePhase::Idle | VoicePhase::Ending => TurnedOffStep::Nothing,
+        VoicePhase::Starting | VoicePhase::Live => TurnedOffStep::HangUp,
+        VoicePhase::Ended => TurnedOffStep::ClosePanel,
+    }
+}
+
 /// How long Hang up waits for gxserver's `ended` before letting go of the conversation itself.
 const HANG_UP_GRACE: std::time::Duration = std::time::Duration::from_secs(3);
 /// The panel keeps this many rows; older ones scroll away for good.
@@ -269,7 +308,7 @@ impl GhostexGpuiApp {
         about: Option<VoiceCallTarget>,
         cx: &mut gpui::Context<Self>,
     ) {
-        if !VOICE_AGENT_AVAILABLE || self.voice_agent.active() {
+        if !voice_agent_on() || self.voice_agent.active() {
             return;
         }
         let machine = about
@@ -855,6 +894,17 @@ impl GhostexGpuiApp {
         settings: &serde_json::Map<String, Value>,
         cx: &mut gpui::Context<Self>,
     ) {
+        // Turned off on Settings > Extensions: the open call hangs up and its panel closes (gxserver
+        // ends it too, `feature.rs`), and a call waiting for a hang-up never starts.
+        let on = voice_agent_on_in(settings);
+        if !on {
+            self.voice_agent.call_after_hang_up = None;
+        }
+        match turned_off_step(on, self.voice_agent.phase) {
+            TurnedOffStep::Nothing => {}
+            TurnedOffStep::HangUp => return self.hang_up_voice_agent(cx),
+            TurnedOffStep::ClosePanel => return self.close_voice_agent_panel(cx),
+        }
         let speed = voice_agent_speed_setting(settings);
         let push_to_talk = push_to_talk_setting(settings);
         let agent = &mut self.voice_agent;
@@ -1117,5 +1167,40 @@ fn ended_sentence(reason: &str, message: Option<&str>) -> String {
             .filter(|message| !message.is_empty())
             .unwrap_or("The conversation ended.")
             .to_string(),
+    }
+}
+
+#[cfg(test)]
+mod turned_off_tests {
+    use super::*;
+
+    fn settings(voice_agent_hidden: Option<bool>) -> serde_json::Map<String, Value> {
+        let mut settings = serde_json::Map::new();
+        if let Some(hidden) = voice_agent_hidden {
+            settings.insert("voiceAgentHidden".to_string(), json!(hidden));
+        }
+        settings
+    }
+
+    #[test]
+    fn the_voice_button_and_calls_follow_the_switch() {
+        assert_eq!(voice_agent_on_in(&settings(None)), VOICE_AGENT_AVAILABLE);
+        assert_eq!(
+            voice_agent_on_in(&settings(Some(false))),
+            VOICE_AGENT_AVAILABLE
+        );
+        assert!(!voice_agent_on_in(&settings(Some(true))));
+    }
+
+    #[test]
+    fn turning_it_off_hangs_up_an_open_call_and_closes_a_finished_panel() {
+        use TurnedOffStep::*;
+        for phase in [VoicePhase::Starting, VoicePhase::Live] {
+            assert_eq!(turned_off_step(false, phase), HangUp, "{phase:?}");
+            assert_eq!(turned_off_step(true, phase), Nothing, "{phase:?}");
+        }
+        assert_eq!(turned_off_step(false, VoicePhase::Ended), ClosePanel);
+        assert_eq!(turned_off_step(false, VoicePhase::Ending), Nothing);
+        assert_eq!(turned_off_step(false, VoicePhase::Idle), Nothing);
     }
 }

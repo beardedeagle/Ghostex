@@ -34,6 +34,11 @@ pub const WORKSPACES: &str = "workspaces";
 /// Read aloud (the reply action, Auto-read in the chat's ⋯ menu, the Voice and Speed rows on
 /// Settings > Chat, its two hotkeys); the phone learns it from `builtInFeatures`.
 pub const READ_ALOUD: &str = "readAloud";
+/// The voice agent (the header's headset and its arrow menu, voice calls about one session, the
+/// call rows of Settings > Voice agent, its three hotkeys); on by default. gxserver refuses its
+/// calls while it is off, and the phone learns it from `builtInFeaturesOff`. Dictate is not part
+/// of it.
+pub const VOICE_AGENT: &str = "voiceAgent";
 /// Connectors (Settings > Connectors, the `ghostex connectors` verbs and routes). Gated by Enable
 /// Experimental Features as well as its switch.
 pub const CONNECTORS: &str = "connectors";
@@ -154,6 +159,17 @@ pub fn enabled_features_with(read: impl Fn(&str) -> Option<bool>) -> Vec<&'stati
     features()
         .filter_map(|entry| entry.get("id").and_then(J::as_str))
         .filter(|id| on_with(id, &read))
+        .collect()
+}
+
+/// The ids of every whole-feature entry that is off, the complement of
+/// [`enabled_features_with`]. gxserver sends this to the phone as `builtInFeaturesOff`.
+///
+/// CDXC:VoiceMode 2026-10-25 WHY: a phone treats a feature missing from `builtInFeatures` as off, which suits features that are off by default (Read aloud) but would hide the voice agent, which is on by default, on every computer built before its switch existed. Such a computer sends no `builtInFeaturesOff`, so a phone reads the voice agent as off only when the computer says so.
+pub fn disabled_features_with(read: impl Fn(&str) -> Option<bool>) -> Vec<&'static str> {
+    features()
+        .filter_map(|entry| entry.get("id").and_then(J::as_str))
+        .filter(|id| !on_with(id, &read))
         .collect()
 }
 
