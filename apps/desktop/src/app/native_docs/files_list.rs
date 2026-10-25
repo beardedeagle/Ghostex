@@ -35,8 +35,7 @@ const HEADER_BUTTON_GAP: f32 = 2.0;
 const OPEN_FILE_ROW_HEIGHT: f32 = 28.0;
 const TREE_ROW_HEIGHT: f32 = 34.0;
 const TREE_INDENT: f32 = 18.0;
-/// `.manage-file-name`: 15.55px at weight 300.
-const NAME_SIZE: f32 = 15.55;
+const NAME_SIZE: f32 = crate::ui_fonts::FILES_NAME_SIZE;
 
 thread_local! {
     /// Where the header's menu buttons are, so their menus open below them.

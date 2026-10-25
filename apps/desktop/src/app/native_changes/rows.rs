@@ -39,14 +39,14 @@ pub(crate) fn status_badge(s: &ChangesStyle, status: FileStatus) -> AnyElement {
     };
     div()
         .flex_none()
-        .size(px(15.0))
-        .rounded(px(3.0))
+        .size(px(CODE_SIZE + 4.0))
+        .rounded(px(4.0))
         .flex()
         .items_center()
         .justify_center()
         .bg(hsla(rgba_of(color, 0.14)))
         .text_color(hsla(color))
-        .text_size(px(10.0))
+        .text_size(px(SMALL_SIZE - 1.0))
         .font_weight(FontWeight::BOLD)
         .child(status.letter())
         .into_any_element()
@@ -57,7 +57,7 @@ pub(crate) fn stat(s: &ChangesStyle, additions: usize, deletions: usize) -> AnyE
         .flex_none()
         .gap(px(5.0))
         .font_family(MODAL_MONO_FONT)
-        .text_size(px(11.0))
+        .text_size(px(CODE_SIZE))
         .child(
             div()
                 .text_color(hsla(s.plus))
@@ -74,8 +74,8 @@ pub(crate) fn stat(s: &ChangesStyle, additions: usize, deletions: usize) -> AnyE
 pub(crate) fn checkbox(s: &ChangesStyle, checked: bool) -> AnyElement {
     div()
         .flex_none()
-        .size(px(13.0))
-        .rounded(px(3.0))
+        .size(px(CODE_SIZE + 2.0))
+        .rounded(px(4.0))
         .border_1()
         .border_color(hsla(if checked {
             s.accent
@@ -89,7 +89,7 @@ pub(crate) fn checkbox(s: &ChangesStyle, checked: bool) -> AnyElement {
         .when(checked, |this| {
             this.child(modal_icon(
                 ICON_TICK,
-                9.0,
+                CODE_SIZE - 3.0,
                 if s.p.light {
                     gpui::rgb(0xffffff)
                 } else {
@@ -205,6 +205,7 @@ pub(crate) fn number_cell(
         .pr(px(6.0))
         .flex()
         .justify_end()
+        .text_size(px(NUMBER_SIZE))
         .text_color(hsla(color))
         .when_some(background, |this, bg| this.bg(hsla(bg)))
         .child(number.map(|n| n.to_string()).unwrap_or_default())
@@ -273,7 +274,7 @@ impl ChangesView {
                 div()
                     .px(px(16.0))
                     .py(px(8.0))
-                    .text_size(px(12.0))
+                    .text_size(px(CODE_SIZE))
                     .text_color(hsla(s.muted))
                     .child(label)
                     .into_any_element()
@@ -317,8 +318,19 @@ impl ChangesView {
         let open_path = path.clone();
         let viewed_path = path.clone();
         let revert_path = path.clone();
+        // CDXC:Changes 2026-10-25 DECISION: User: "please hide these buttons until i hover on a file". Copy path, Open in Files and Viewed show while the pointer is over the file's header or the keyboard is in that file; Viewed stays visible on a file already marked viewed so its state still reads.
+        let group: SharedString = format!("changes-file-group-{sticky}-{path}").into();
+        let focused =
+            self.cursor.is_some() && self.current_file().as_deref() == Some(path.as_str());
+        let on_hover = move |this: gpui::Stateful<gpui::Div>, group: &SharedString| {
+            this.when(!focused, |this| {
+                this.opacity(0.0)
+                    .group_hover(group.clone(), |this| this.opacity(1.0))
+            })
+        };
         h_flex()
             .id(id)
+            .group(group.clone())
             .w_full()
             .h(px(FILE_HEADER_HEIGHT))
             .px(px(8.0))
@@ -327,7 +339,7 @@ impl ChangesView {
             .border_b_1()
             .border_color(hsla(s.hairline))
             .when(!sticky, |this| this.border_t_1())
-            .text_size(px(12.0))
+            .text_size(px(UI_SIZE))
             .cursor_pointer()
             .hover(|this| this.bg(hsla(if sticky { s.sticky_hover } else { s.hover })))
             .on_click(cx.listener(move |this, _, _, cx| this.toggle_collapsed(&toggle_path, cx)))
@@ -345,7 +357,7 @@ impl ChangesView {
                 } else {
                     ICON_CHEVRON_DOWN
                 },
-                12.0,
+                ICON_SIZE - 1.0,
                 s.muted,
             ))
             .when(file.uncommitted, |this| {
@@ -425,40 +437,51 @@ impl ChangesView {
                 ))
             })
             .when(!confirming, |this| {
-                this.child(icon_button(
-                    s,
-                    format!("changes-copy-{sticky}-{path}"),
-                    ICON_COPY,
-                    "Copy path",
-                    cx.listener(move |this, _, window, cx| {
-                        cx.stop_propagation();
-                        cx.write_to_clipboard(gpui::ClipboardItem::new_string(copy_path.clone()));
-                        (this.host)(super::view::ChangesRequest::Copied, window, cx);
-                    }),
-                ))
-                .child(icon_button(
-                    s,
-                    format!("changes-open-{sticky}-{path}"),
-                    ICON_OPEN,
-                    "Open in Files",
-                    cx.listener(move |this, _, window, cx| {
-                        cx.stop_propagation();
-                        this.open_in_files(&open_path, None, window, cx);
-                    }),
-                ))
-                .child(
+                this.child(on_hover(
                     h_flex()
+                        .id(SharedString::from(format!(
+                            "changes-file-actions-{sticky}-{path}"
+                        )))
+                        .flex_none()
+                        .gap(px(2.0))
+                        .child(icon_button(
+                            s,
+                            format!("changes-copy-{sticky}-{path}"),
+                            ICON_COPY,
+                            "Copy path",
+                            cx.listener(move |this, _, window, cx| {
+                                cx.stop_propagation();
+                                cx.write_to_clipboard(gpui::ClipboardItem::new_string(
+                                    copy_path.clone(),
+                                ));
+                                (this.host)(super::view::ChangesRequest::Copied, window, cx);
+                            }),
+                        ))
+                        .child(icon_button(
+                            s,
+                            format!("changes-open-{sticky}-{path}"),
+                            ICON_OPEN,
+                            "Open in Files",
+                            cx.listener(move |this, _, window, cx| {
+                                cx.stop_propagation();
+                                this.open_in_files(&open_path, None, window, cx);
+                            }),
+                        )),
+                    &group,
+                ))
+                .child({
+                    let button = h_flex()
                         .id(SharedString::from(format!(
                             "changes-viewed-{sticky}-{path}"
                         )))
                         .flex_none()
-                        .gap(px(4.0))
-                        .px(px(6.0))
-                        .h(px(20.0))
-                        .rounded(px(5.0))
+                        .gap(px(5.0))
+                        .px(px(8.0))
+                        .h(px(BUTTON_HEIGHT))
+                        .rounded(px(6.0))
                         .border_1()
                         .border_color(hsla(s.hairline))
-                        .text_size(px(11.0))
+                        .text_size(px(SMALL_SIZE))
                         .text_color(hsla(if viewed { s.text } else { s.muted }))
                         .hover(|this| this.bg(hsla(s.hover)))
                         .on_click(cx.listener(move |this, _, _, cx| {
@@ -466,8 +489,13 @@ impl ChangesView {
                             this.toggle_viewed(&viewed_path, cx);
                         }))
                         .child(checkbox(s, viewed))
-                        .child("Viewed"),
-                )
+                        .child("Viewed");
+                    if viewed {
+                        button
+                    } else {
+                        on_hover(button, &group)
+                    }
+                })
             })
             .into_any_element()
     }
@@ -509,7 +537,7 @@ impl ChangesView {
                 this.border_l_2().border_color(hsla(s.accent))
             })
             .font_family(MODAL_MONO_FONT)
-            .text_size(px(11.5))
+            .text_size(px(CODE_SIZE - 1.0))
             .child(div().flex_none().w(px(NUMBER_WIDTH * 2.0 + MARKER_WIDTH)))
             .child(
                 div()
@@ -530,7 +558,7 @@ impl ChangesView {
                     .when(confirming, |this| {
                         this.child(
                             div()
-                                .text_size(px(11.5))
+                                .text_size(px(SMALL_SIZE))
                                 .text_color(hsla(s.danger))
                                 .child("Revert this hunk?"),
                         )
@@ -724,7 +752,7 @@ impl ChangesView {
                         .absolute()
                         .top(px(2.0))
                         .left(px(NUMBER_WIDTH * 2.0 - 2.0))
-                        .size(px(16.0))
+                        .size(px(ROW_HEIGHT - 4.0))
                         .rounded(px(4.0))
                         .flex()
                         .items_center()
@@ -742,7 +770,7 @@ impl ChangesView {
                                 this.open_editor(window, cx);
                             }),
                         )
-                        .child(modal_icon(ICON_PLUS, 12.0, gpui::rgb(0xffffff))),
+                        .child(modal_icon(ICON_PLUS, CODE_SIZE, gpui::rgb(0xffffff))),
                 )
             })
             .when(selection_end, |this| {
@@ -817,7 +845,7 @@ impl ChangesView {
             .when(!open, |this| this.opacity(0.75))
             .child(modal_icon(
                 if open { ICON_MESSAGE } else { ICON_CHECK },
-                13.0,
+                ICON_SIZE,
                 edge,
             ))
             .child(
@@ -828,7 +856,7 @@ impl ChangesView {
                     .child(
                         h_flex()
                             .gap(px(6.0))
-                            .text_size(px(11.0))
+                            .text_size(px(SMALL_SIZE))
                             .text_color(hsla(s.muted))
                             .child(comment.range.label.clone())
                             .child(
@@ -843,7 +871,7 @@ impl ChangesView {
                     )
                     .child(
                         div()
-                            .text_size(px(12.5))
+                            .text_size(px(CODE_SIZE))
                             .text_color(hsla(s.text))
                             .child(comment.text.clone()),
                     ),
@@ -903,14 +931,14 @@ impl ChangesView {
             }))
             .child(
                 div()
-                    .text_size(px(11.0))
+                    .text_size(px(SMALL_SIZE))
                     .text_color(hsla(s.muted))
                     .child(label),
             )
             .child(modal_text_area(
                 &s.p,
                 &editor.input,
-                Some(56.0),
+                Some(ROW_HEIGHT * 3.0),
                 false,
                 window,
                 cx,
@@ -921,7 +949,7 @@ impl ChangesView {
                     .child(
                         div()
                             .flex_1()
-                            .text_size(px(11.0))
+                            .text_size(px(SMALL_SIZE))
                             .text_color(hsla(s.faint))
                             .child(
                                 "\u{2318}\u{21b5} adds it to the chat composer \u{b7} Esc cancels",
@@ -983,7 +1011,7 @@ pub(crate) fn is_prose(path: &str) -> bool {
     )
 }
 
-/// A 20px text button; `primary` fills it with the accent.
+/// A text button sized to the view's secondary text; `primary` fills it with the accent.
 pub(crate) fn small_button(
     s: &ChangesStyle,
     id: &'static str,
@@ -994,12 +1022,12 @@ pub(crate) fn small_button(
     div()
         .id(id)
         .flex_none()
-        .h(px(20.0))
-        .px(px(8.0))
-        .rounded(px(5.0))
+        .h(px(BUTTON_HEIGHT))
+        .px(px(10.0))
+        .rounded(px(6.0))
         .flex()
         .items_center()
-        .text_size(px(11.5))
+        .text_size(px(SMALL_SIZE))
         .cursor_pointer()
         // A button inside a diff row must not start a line selection under it.
         .on_mouse_down(MouseButton::Left, |_, _, cx| cx.stop_propagation())
@@ -1029,8 +1057,8 @@ pub(crate) fn icon_button(
     div()
         .id(SharedString::from(id))
         .flex_none()
-        .size(px(22.0))
-        .rounded(px(5.0))
+        .size(px(BUTTON_HEIGHT + 2.0))
+        .rounded(px(6.0))
         .flex()
         .items_center()
         .justify_center()
@@ -1039,6 +1067,6 @@ pub(crate) fn icon_button(
         .on_mouse_down(MouseButton::Left, |_, _, cx| cx.stop_propagation())
         .tooltip(move |window, cx| gpui_component::tooltip::Tooltip::new(tooltip).build(window, cx))
         .on_click(on_click)
-        .child(modal_icon(icon, 13.0, s.muted))
+        .child(modal_icon(icon, ICON_SIZE, s.muted))
         .into_any_element()
 }

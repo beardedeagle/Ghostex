@@ -4,12 +4,26 @@
 use crate::app::window::native_modal_kit::{ModalPalette, css_mix, modal_rgba, rgba_of};
 use gpui::{Rgba, rgb};
 
-pub(crate) const ROW_HEIGHT: f32 = 20.0;
-pub(crate) const FILE_HEADER_HEIGHT: f32 = 32.0;
-pub(crate) const HUNK_HEIGHT: f32 = 24.0;
-pub(crate) const NUMBER_WIDTH: f32 = 40.0;
-pub(crate) const MARKER_WIDTH: f32 = 16.0;
-pub(crate) const CODE_SIZE: f32 = 12.0;
+use crate::ui_fonts::{FILES_LINE_NUMBER_SIZE, FILES_NAME_SIZE, FILES_TEXT_SIZE};
+
+/// CDXC:Changes 2026-10-25 DECISION: User: "please make the font for everything here bigger to match font in files tab". Diff lines use the Files editor's text size, line numbers the size of its line numbers, and file headers, paths, counts and the toolbar the size of its file list's names; every row height, gutter and control below is measured from those three.
+pub(crate) const CODE_SIZE: f32 = FILES_TEXT_SIZE;
+pub(crate) const NUMBER_SIZE: f32 = FILES_LINE_NUMBER_SIZE;
+pub(crate) const UI_SIZE: f32 = FILES_NAME_SIZE;
+/// Secondary text: branch names, hints, comment labels, small buttons.
+pub(crate) const SMALL_SIZE: f32 = CODE_SIZE - 1.0;
+pub(crate) const ICON_SIZE: f32 = CODE_SIZE + 1.0;
+pub(crate) const ROW_HEIGHT: f32 = CODE_SIZE * 5.0 / 3.0;
+pub(crate) const FILE_HEADER_HEIGHT: f32 = UI_SIZE * 2.4;
+pub(crate) const HUNK_HEIGHT: f32 = ROW_HEIGHT + 4.0;
+pub(crate) const NUMBER_WIDTH: f32 = NUMBER_SIZE * 3.75;
+pub(crate) const MARKER_WIDTH: f32 = CODE_SIZE * 4.0 / 3.0;
+/// The toolbar's segmented control and icon toggles.
+pub(crate) const CONTROL_HEIGHT: f32 = UI_SIZE * 2.0;
+/// Text buttons inside rows (Viewed, Revert, Copy, Comment).
+pub(crate) const BUTTON_HEIGHT: f32 = SMALL_SIZE * 2.0;
+/// The commit bar's agent picker and Commit button.
+pub(crate) const COMMIT_BUTTON_HEIGHT: f32 = 32.0;
 
 #[derive(Clone, Copy)]
 pub(crate) struct ChangesStyle {

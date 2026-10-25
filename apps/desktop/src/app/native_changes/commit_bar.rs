@@ -13,7 +13,7 @@ use gpui::{
 use gpui_component::{h_flex, v_flex};
 
 use super::rows::{ICON_CHEVRON_DOWN, small_button};
-use super::style::ChangesStyle;
+use super::style::{CODE_SIZE, COMMIT_BUTTON_HEIGHT, ChangesStyle, ICON_SIZE, SMALL_SIZE};
 use super::view::{ChangesView, CommitAction, Confirm};
 use crate::app::window::native_modal_kit::{hsla, modal_icon, modal_text_area, rgba_of};
 
@@ -70,12 +70,12 @@ impl ChangesView {
             .border_t_1()
             .border_color(hsla(s.hairline))
             .bg(hsla(s.panel))
-            .child(modal_text_area(&s.p, &input, Some(36.0), false, window, cx))
+            .child(modal_text_area(&s.p, &input, Some(40.0), false, window, cx))
             .when(confirming_merge, |this| {
                 this.child(
                     h_flex()
                         .gap(px(6.0))
-                        .text_size(px(12.0))
+                        .text_size(px(SMALL_SIZE))
                         .child(
                             div()
                                 .flex_1()
@@ -94,22 +94,30 @@ impl ChangesView {
                         }))),
                 )
             })
+            // CDXC:Changes 2026-10-25 DECISION: User picked "Both dark, side by side" (Q558): the file count stays on the left; the agent picker and the Commit split button sit together on the right with the same dark toolbar fill, 1px subtle border, 32px height, font and radius, and Commit's menu chevron is part of its split button behind a thin divider.
             .child(
                 h_flex()
                     .gap(px(8.0))
+                    .child(div().text_size(px(SMALL_SIZE)).text_color(hsla(s.muted)).child(files_label))
+                    .when(!self.excluded.is_empty(), |this| {
+                        this.child(
+                            div()
+                                .id("changes-include-all")
+                                .text_size(px(SMALL_SIZE))
+                                .text_color(hsla(s.accent))
+                                .cursor_pointer()
+                                .on_click(cx.listener(|this, _, _, cx| this.include_all(cx)))
+                                .child("Include all"),
+                        )
+                    })
+                    .child(div().flex_1())
                     .child(
-                        h_flex()
+                        dark_button(s)
                             .id("changes-agent")
-                            .flex_none()
-                            .h(px(26.0))
-                            .px(px(8.0))
-                            .gap(px(4.0))
-                            .rounded(px(6.0))
-                            .border_1()
-                            .border_color(hsla(s.hairline))
-                            .text_size(px(12.0))
-                            .cursor_pointer()
-                            .hover(|this| this.bg(hsla(s.hover)))
+                            .px(px(12.0))
+                            .gap(px(6.0))
+                            .rounded(px(8.0))
+                            .hover(|this| this.bg(hsla(s.p.raised_hover)))
                             .tooltip(|window, cx| {
                                 gpui_component::tooltip::Tooltip::new(
                                     "Writes the commit message when you leave it empty",
@@ -123,64 +131,43 @@ impl ChangesView {
                                 cx.notify();
                             }))
                             .child(agent_name)
-                            .child(modal_icon(ICON_CHEVRON_DOWN, 11.0, s.muted)),
+                            .child(modal_icon(ICON_CHEVRON_DOWN, ICON_SIZE - 3.0, s.muted)),
                     )
-                    .child(div().text_size(px(11.5)).text_color(hsla(s.muted)).child(files_label))
-                    .when(!self.excluded.is_empty(), |this| {
-                        this.child(
-                            div()
-                                .id("changes-include-all")
-                                .text_size(px(11.5))
-                                .text_color(hsla(s.accent))
-                                .cursor_pointer()
-                                .on_click(cx.listener(|this, _, _, cx| this.include_all(cx)))
-                                .child("Include all"),
-                        )
-                    })
-                    .child(div().flex_1())
                     .child(
-                        h_flex()
-                            .flex_none()
+                        dark_button(s)
+                            .rounded(px(8.0))
+                            .overflow_hidden()
                             .when(disabled, |this| this.opacity(0.5))
                             .child(
                                 div()
                                     .id("changes-commit")
-                                    .h(px(26.0))
+                                    .h_full()
                                     .px(px(12.0))
                                     .flex()
                                     .items_center()
-                                    .rounded_l(px(6.0))
-                                    .bg(hsla(if s.p.light { gpui::rgb(0x18181b) } else { gpui::rgb(0xe5e5e5) }))
-                                    .text_color(hsla(if s.p.light { gpui::rgb(0xffffff) } else { gpui::rgb(0x111111) }))
-                                    .font_weight(FontWeight::SEMIBOLD)
-                                    .text_size(px(12.0))
                                     .cursor_pointer()
+                                    .hover(|this| this.bg(hsla(s.p.raised_hover)))
                                     .on_click(cx.listener(|this, _, window, cx| this.run_commit(window, cx)))
                                     .child(main_label),
                             )
+                            .child(div().w(px(1.0)).h_full().bg(hsla(s.hairline)))
                             .child(
                                 div()
                                     .id("changes-commit-menu")
-                                    .h(px(26.0))
-                                    .w(px(24.0))
-                                    .ml(px(1.0))
+                                    .h_full()
+                                    .w(px(30.0))
                                     .flex()
                                     .items_center()
                                     .justify_center()
-                                    .rounded_r(px(6.0))
-                                    .bg(hsla(if s.p.light { gpui::rgb(0x18181b) } else { gpui::rgb(0xe5e5e5) }))
                                     .cursor_pointer()
+                                    .hover(|this| this.bg(hsla(s.p.raised_hover)))
                                     .on_mouse_down(MouseButton::Left, |_, _, cx| cx.stop_propagation())
                                     .on_click(cx.listener(|this, _, _, cx| {
                                         this.agent_select.close();
                                         this.commit_menu_open = !this.commit_menu_open;
                                         cx.notify();
                                     }))
-                                    .child(modal_icon(
-                                        ICON_CHEVRON_DOWN,
-                                        12.0,
-                                        if s.p.light { gpui::rgb(0xffffff) } else { gpui::rgb(0x111111) },
-                                    )),
+                                    .child(modal_icon(ICON_CHEVRON_DOWN, ICON_SIZE - 3.0, s.muted)),
                             ),
                     ),
             )
@@ -201,7 +188,7 @@ impl ChangesView {
         let row = |id: &'static str, label: String, detail: &'static str, checked: bool| {
             h_flex()
                 .id(id)
-                .min_h(px(28.0))
+                .min_h(px(34.0))
                 .px(px(8.0))
                 .gap(px(8.0))
                 .rounded(px(5.0))
@@ -215,13 +202,13 @@ impl ChangesView {
                         .py(px(4.0))
                         .child(
                             div()
-                                .text_size(px(12.5))
+                                .text_size(px(CODE_SIZE))
                                 .text_color(hsla(s.text))
                                 .child(label),
                         )
                         .child(
                             div()
-                                .text_size(px(11.0))
+                                .text_size(px(SMALL_SIZE - 1.0))
                                 .text_color(hsla(s.muted))
                                 .child(detail),
                         ),
@@ -247,8 +234,8 @@ impl ChangesView {
             .id("changes-commit-dropdown")
             .absolute()
             .right(px(8.0))
-            .bottom(px(44.0))
-            .w(px(300.0))
+            .bottom(px(COMMIT_BUTTON_HEIGHT + 16.0))
+            .w(px(320.0))
             .p(px(4.0))
             .rounded(px(8.0))
             .border_1()
@@ -306,9 +293,9 @@ impl ChangesView {
         v_flex()
             .id("changes-agent-dropdown")
             .absolute()
-            .left(px(8.0))
-            .bottom(px(44.0))
-            .w(px(200.0))
+            .right(px(8.0))
+            .bottom(px(COMMIT_BUTTON_HEIGHT + 16.0))
+            .w(px(220.0))
             .max_h(px(260.0))
             .overflow_y_scroll()
             .p(px(4.0))
@@ -323,11 +310,11 @@ impl ChangesView {
                 let pick = id.clone();
                 h_flex()
                     .id(SharedString::from(format!("changes-agent-{id}")))
-                    .h(px(26.0))
+                    .h(px(30.0))
                     .px(px(8.0))
                     .gap(px(8.0))
                     .rounded(px(5.0))
-                    .text_size(px(12.5))
+                    .text_size(px(CODE_SIZE))
                     .cursor_pointer()
                     .hover(|this| this.bg(hsla(s.hover)))
                     .text_color(hsla(if checked {
@@ -352,4 +339,17 @@ impl ChangesView {
             }))
             .into_any_element()
     }
+}
+
+/// The commit bar's shared button shape: the app's dark toolbar fill with a subtle border.
+fn dark_button(s: &ChangesStyle) -> gpui::Div {
+    h_flex()
+        .flex_none()
+        .h(px(COMMIT_BUTTON_HEIGHT))
+        .border_1()
+        .border_color(hsla(s.hairline))
+        .bg(hsla(s.p.raised))
+        .text_color(hsla(s.text))
+        .text_size(px(SMALL_SIZE))
+        .font_weight(FontWeight::MEDIUM)
 }

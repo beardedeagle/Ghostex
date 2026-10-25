@@ -1,5 +1,5 @@
-//! Drawing the Changes view: the toolbar, the file list, the stream with its pinned file header,
-//! the file menu and the keys.
+//! Drawing the Changes view: the toolbar with its jump-to-file menu, the stream with its pinned
+//! file header, the file menu and the keys.
 
 use gpui::Focusable as _;
 use gpui::prelude::FluentBuilder as _;
@@ -11,8 +11,10 @@ use gpui::{
 use gpui_component::{h_flex, v_flex};
 
 use super::model::{ChangesScope, Row};
-use super::rows::{ICON_CHEVRON_DOWN, ICON_CHEVRON_RIGHT, checkbox, stat, status_badge};
-use super::style::{ChangesStyle, FILE_HEADER_HEIGHT};
+use super::rows::{ICON_CHEVRON_DOWN, stat, status_badge};
+use super::style::{
+    CODE_SIZE, CONTROL_HEIGHT, ChangesStyle, FILE_HEADER_HEIGHT, ICON_SIZE, SMALL_SIZE, UI_SIZE,
+};
 use super::view::{ChangesRequest, ChangesView, Confirm};
 use crate::app::window::native_modal_kit::{
     MODAL_UI_FONT, hsla, modal_icon, modal_spinner, rgba_of,
@@ -56,6 +58,7 @@ impl Render for ChangesView {
                 MouseButton::Left,
                 cx.listener(|this, _, _, cx| {
                     if this.file_menu.take().is_some()
+                        || std::mem::take(&mut this.jump_open)
                         || this.commit_menu_open
                         || this.agent_select.open
                     {
@@ -80,6 +83,7 @@ impl Render for ChangesView {
             .child(body)
             .children(self.render_commit_bar(&s, window, cx))
             .children(self.render_file_menu(&s, cx))
+            .children(self.render_jump_menu(&s, cx))
             .into_any_element()
     }
 }
@@ -106,10 +110,10 @@ impl ChangesView {
                 div()
                     .id(id)
                     .h_full()
-                    .px(px(9.0))
+                    .px(px(12.0))
                     .flex()
                     .items_center()
-                    .text_size(px(12.0))
+                    .text_size(px(UI_SIZE))
                     .cursor_pointer()
                     .text_color(hsla(if on { s.text } else { s.muted }))
                     .when(on, |this| {
@@ -123,7 +127,7 @@ impl ChangesView {
             div()
                 .id(id)
                 .flex_none()
-                .size(px(26.0))
+                .size(px(CONTROL_HEIGHT))
                 .rounded(px(6.0))
                 .flex()
                 .items_center()
@@ -134,7 +138,11 @@ impl ChangesView {
                 .tooltip(move |window, cx| {
                     gpui_component::tooltip::Tooltip::new(tip).build(window, cx)
                 })
-                .child(modal_icon(icon, 14.0, if on { s.text } else { s.muted }))
+                .child(modal_icon(
+                    icon,
+                    ICON_SIZE + 1.0,
+                    if on { s.text } else { s.muted },
+                ))
         };
         let all_collapsed = self.all_collapsed();
         // A narrow panel wraps the switches onto a second row rather than clipping them.
@@ -142,7 +150,7 @@ impl ChangesView {
             .flex_none()
             .flex_wrap()
             .w_full()
-            .min_h(px(38.0))
+            .min_h(px(CONTROL_HEIGHT + 12.0))
             .px(px(8.0))
             .py(px(6.0))
             .gap(px(6.0))
@@ -152,7 +160,7 @@ impl ChangesView {
             .child(
                 h_flex()
                     .flex_none()
-                    .h(px(26.0))
+                    .h(px(CONTROL_HEIGHT))
                     .rounded(px(6.0))
                     .overflow_hidden()
                     .border_1()
@@ -175,13 +183,13 @@ impl ChangesView {
                 this.child(
                     h_flex()
                         .min_w_0()
-                        .max_w(px(240.0))
+                        .max_w(px(280.0))
                         .flex_shrink(1.0)
-                        .gap(px(4.0))
+                        .gap(px(5.0))
                         .overflow_hidden()
-                        .text_size(px(11.5))
+                        .text_size(px(SMALL_SIZE))
                         .text_color(hsla(s.muted))
-                        .child(modal_icon(ICON_BRANCH, 12.0, s.muted))
+                        .child(modal_icon(ICON_BRANCH, ICON_SIZE - 1.0, s.muted))
                         .child(
                             div()
                                 .min_w_0()
@@ -264,40 +272,48 @@ impl ChangesView {
                 toggle("changes-refresh", ICON_REFRESH, false, "Refresh")
                     .on_click(cx.listener(|this, _, _, cx| this.load(false, cx))),
             )
+            // CDXC:Changes 2026-10-25 DECISION: User: "please remove the files list at the top here no need it's duplicate of the stuff below". The file headers in the stream carry the checkboxes and counts; the file count opens a menu that jumps to a file.
             .when(file_count > 0, |this| {
+                let anchor = cx.entity().downgrade();
                 this.child(
                     h_flex()
-                        .id("changes-list-toggle")
+                        .id("changes-jump-toggle")
+                        .relative()
                         .flex_none()
-                        .h(px(26.0))
-                        .px(px(8.0))
-                        .gap(px(4.0))
+                        .h(px(CONTROL_HEIGHT))
+                        .px(px(10.0))
+                        .gap(px(5.0))
                         .rounded(px(6.0))
                         .cursor_pointer()
-                        .text_size(px(12.0))
+                        .text_size(px(UI_SIZE))
                         .text_color(hsla(s.muted))
+                        .when(self.jump_open, |this| this.bg(hsla(s.selected)))
                         .hover(|this| this.bg(hsla(s.hover)))
                         .tooltip(|window, cx| {
-                            gpui_component::tooltip::Tooltip::new("Show or hide the file list")
+                            gpui_component::tooltip::Tooltip::new("Jump to a file")
                                 .build(window, cx)
                         })
+                        .on_mouse_down(MouseButton::Left, |_, _, cx| cx.stop_propagation())
                         .on_click(cx.listener(|this, _, _, cx| {
-                            this.list_open = !this.list_open;
+                            this.jump_open = !this.jump_open;
+                            this.file_menu = None;
                             cx.notify();
                         }))
+                        .child(
+                            canvas(
+                                move |bounds, _, cx| {
+                                    let _ = anchor.update(cx, |this, _| this.jump_anchor = bounds);
+                                },
+                                |_, _, _, _| {},
+                            )
+                            .absolute()
+                            .size_full(),
+                        )
                         .child(format!(
                             "{file_count} {}",
                             if file_count == 1 { "file" } else { "files" }
                         ))
-                        .child(modal_icon(
-                            if self.list_open {
-                                ICON_CHEVRON_DOWN
-                            } else {
-                                ICON_CHEVRON_RIGHT
-                            },
-                            11.0,
-                            s.muted,
-                        )),
+                        .child(modal_icon(ICON_CHEVRON_DOWN, ICON_SIZE - 2.0, s.muted)),
                 )
             })
             .into_any_element()
@@ -339,15 +355,12 @@ impl ChangesView {
             .flex_1()
             .min_h_0()
             .w_full()
-            .when(self.list_open, |this| {
-                this.child(self.render_file_list(s, cx))
-            })
             .when(truncated, |this| {
                 this.child(
                     div()
                         .px(px(12.0))
                         .py(px(4.0))
-                        .text_size(px(11.5))
+                        .text_size(px(SMALL_SIZE))
                         .text_color(hsla(s.badge_modified))
                         .child(
                             "The diff is too large to show completely; some files are left out.",
@@ -358,79 +371,82 @@ impl ChangesView {
             .into_any_element()
     }
 
-    fn render_file_list(&mut self, s: &ChangesStyle, cx: &mut Context<Self>) -> AnyElement {
-        let Some(data) = &self.data else {
-            return div().into_any_element();
-        };
+    /// The file count's menu: every file with its badge, folder and counts; picking one scrolls
+    /// the stream to its header.
+    fn render_jump_menu(&mut self, s: &ChangesStyle, cx: &mut Context<Self>) -> Option<AnyElement> {
+        if !self.jump_open {
+            return None;
+        }
+        let data = self.data.as_ref()?;
         let current = self.current_file();
-        let files: Vec<_> = data.files.iter().cloned().collect();
-        let rows = files.into_iter().map(|file| {
-            let path = file.path.clone();
-            let scroll_path = path.clone();
-            let check_path = path.clone();
-            let included = file.uncommitted && !self.excluded.contains(&path);
-            let viewed = self.viewed.contains_key(&path);
-            h_flex()
-                .id(SharedString::from(format!("changes-list-{path}")))
-                .w_full()
-                .h(px(24.0))
-                .px(px(10.0))
-                .gap(px(6.0))
-                .flex_none()
-                .text_size(px(12.0))
-                .cursor_pointer()
-                .whitespace_nowrap()
-                .when(current.as_deref() == Some(path.as_str()), |this| {
-                    this.bg(hsla(s.selected))
-                })
-                .hover(|this| this.bg(hsla(s.hover)))
-                .when(viewed, |this| this.opacity(0.55))
-                .on_click(cx.listener(move |this, _, _, cx| this.scroll_to_file(&scroll_path, cx)))
-                .when(file.uncommitted, |this| {
-                    this.child(
+        let width = px(360.0);
+        let left = (self.jump_anchor.right() - self.view_origin.x - width).max(px(8.0));
+        let top = self.jump_anchor.bottom() - self.view_origin.y + px(4.0);
+        let rows: Vec<_> = data
+            .files
+            .iter()
+            .map(|file| {
+                let path = file.path.clone();
+                let scroll_path = path.clone();
+                h_flex()
+                    .id(SharedString::from(format!("changes-jump-{path}")))
+                    .flex_none()
+                    .w_full()
+                    .h(px(FILE_HEADER_HEIGHT - 6.0))
+                    .px(px(8.0))
+                    .gap(px(8.0))
+                    .rounded(px(5.0))
+                    .text_size(px(CODE_SIZE))
+                    .whitespace_nowrap()
+                    .cursor_pointer()
+                    .when(current.as_deref() == Some(path.as_str()), |this| {
+                        this.bg(hsla(s.selected))
+                    })
+                    .hover(|this| this.bg(hsla(s.hover)))
+                    .when(self.viewed.contains_key(&path), |this| this.opacity(0.55))
+                    .on_click(cx.listener(move |this, _, _, cx| {
+                        this.jump_open = false;
+                        this.scroll_to_file(&scroll_path, cx);
+                    }))
+                    .child(status_badge(s, file.status))
+                    .child(
                         div()
-                            .id(SharedString::from(format!("changes-list-check-{path}")))
-                            .on_click(cx.listener(move |this, _, _, cx| {
-                                cx.stop_propagation();
-                                this.toggle_included(&check_path, cx);
-                            }))
-                            .child(checkbox(s, included)),
+                            .flex_none()
+                            .text_color(hsla(s.text))
+                            .child(file.file_name().to_string()),
                     )
-                })
-                .when(!file.uncommitted, |this| {
-                    this.child(div().flex_none().w(px(13.0)))
-                })
-                .child(status_badge(s, file.status))
-                .child(
-                    div()
-                        .flex_none()
-                        .text_color(hsla(s.text))
-                        .child(file.file_name().to_string()),
-                )
-                .child(
-                    div()
-                        .min_w_0()
-                        .flex_shrink(1.0)
-                        .overflow_hidden()
-                        .text_ellipsis()
-                        .text_color(hsla(s.muted))
-                        .child(file.folder().trim_end_matches('/').to_string()),
-                )
-                .child(div().flex_1())
-                .child(stat(s, file.additions, file.deletions))
-        });
-        v_flex()
-            .id("changes-file-list")
-            .flex_none()
-            .w_full()
-            .max_h(px(180.0))
-            .overflow_y_scroll()
-            .py(px(3.0))
-            .border_b_1()
-            .border_color(hsla(s.hairline))
-            .bg(hsla(s.panel))
-            .children(rows)
-            .into_any_element()
+                    .child(
+                        div()
+                            .min_w_0()
+                            .flex_shrink(1.0)
+                            .overflow_hidden()
+                            .text_ellipsis()
+                            .text_color(hsla(s.muted))
+                            .child(file.folder().trim_end_matches('/').to_string()),
+                    )
+                    .child(div().flex_1())
+                    .child(stat(s, file.additions, file.deletions))
+            })
+            .collect();
+        Some(
+            v_flex()
+                .id("changes-jump-menu")
+                .absolute()
+                .left(left)
+                .top(top)
+                .w(width)
+                .max_h(px(420.0))
+                .overflow_y_scroll()
+                .p(px(4.0))
+                .rounded(px(8.0))
+                .border_1()
+                .border_color(hsla(s.p.menu_border))
+                .bg(hsla(s.p.menu_background))
+                .shadow_lg()
+                .on_mouse_down(MouseButton::Left, |_, _, cx| cx.stop_propagation())
+                .children(rows)
+                .into_any_element(),
+        )
     }
 
     fn render_stream(&mut self, s: &ChangesStyle, cx: &mut Context<Self>) -> AnyElement {
@@ -482,7 +498,7 @@ impl ChangesView {
                         .border_1()
                         .border_color(hsla(s.hairline))
                         .bg(hsla(s.sticky_bg))
-                        .text_size(px(11.0))
+                        .text_size(px(SMALL_SIZE))
                         .text_color(hsla(s.muted))
                         .cursor_pointer()
                         .on_click(cx.listener(|this, _, _, cx| this.toggle_show_resolved(cx)))
@@ -527,12 +543,12 @@ impl ChangesView {
         let item = |id: &'static str, label: &'static str, danger: bool| {
             div()
                 .id(id)
-                .h(px(26.0))
+                .h(px(FILE_HEADER_HEIGHT - 6.0))
                 .px(px(10.0))
                 .flex()
                 .items_center()
                 .rounded(px(5.0))
-                .text_size(px(12.5))
+                .text_size(px(CODE_SIZE))
                 .cursor_pointer()
                 .text_color(hsla(if danger { s.danger } else { s.text }))
                 .hover(|this| this.bg(hsla(s.hover)))
@@ -545,7 +561,7 @@ impl ChangesView {
                 .absolute()
                 .left(position.x)
                 .top(position.y)
-                .w(px(220.0))
+                .w(px(240.0))
                 .p(px(4.0))
                 .rounded(px(8.0))
                 .border_1()
@@ -659,6 +675,7 @@ impl ChangesView {
             "escape" => {
                 let had = self.selection.take().is_some()
                     || self.file_menu.take().is_some()
+                    || std::mem::take(&mut self.jump_open)
                     || self.confirm.take().is_some()
                     || std::mem::take(&mut self.commit_menu_open);
                 cx.notify();
@@ -681,14 +698,14 @@ fn message(s: &ChangesStyle, title: &str, detail: Option<String>) -> AnyElement 
         .p(px(24.0))
         .child(
             div()
-                .text_size(px(13.0))
+                .text_size(px(UI_SIZE))
                 .text_color(hsla(s.text))
                 .child(title.to_string()),
         )
         .when_some(detail, |this, detail| {
             this.child(
                 div()
-                    .text_size(px(12.0))
+                    .text_size(px(SMALL_SIZE))
                     .text_color(hsla(rgba_of(s.muted, 0.9)))
                     .child(detail),
             )
