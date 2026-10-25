@@ -8,6 +8,68 @@ IMPORTANT: This file was signed by Sparkle. Any modifications to this file requi
         <link>https://github.com/maddada/Ghostex/releases</link>
         <description>Sparkle appcast for Ghostex macOS releases.</description>
         <item>
+            <title>10.34.0</title>
+            <pubDate>Sun, 25 Oct 2026 01:06:54 +0000</pubDate>
+            <sparkle:fullReleaseNotesLink>https://github.com/maddada/Ghostex/releases/tag/v10.34.0</sparkle:fullReleaseNotesLink>
+            <sparkle:version>103400</sparkle:version>
+            <sparkle:shortVersionString>10.34.0</sparkle:shortVersionString>
+            <sparkle:minimumSystemVersion>13.0</sparkle:minimumSystemVersion>
+            <sparkle:hardwareRequirements>arm64</sparkle:hardwareRequirements>
+            <description sparkle:format="markdown"><![CDATA[# Ghostex 10.34.0
+
+## 10.34.0 - 2026-10-25
+
+**Ghostex 10.34.0 is out.** Updating no longer stalls when every session has to restart, Files searches the whole project with Cmd+Shift+F and finds text in any file with Cmd+F, session links stay within the project's own repositories, OpenCode chats follow the terminal's model, and Claude sessions get a Session details panel in beta.
+
+### 🔄 Updating
+
+- **Updating no longer stalls when every session has to restart:** after the 10.33.0 update, a few dozen sessions could hold Ghostex at "starting" for minutes, and now the switch-over takes a couple of seconds, on macOS, Linux and Windows with WSL.
+
+### 📂 Files
+
+- **Cmd+Shift+F searches every file in the project in a Search view like VS Code's** (Ctrl+Shift+F on Windows and Linux), with match case, whole word and regex, files to include and exclude, results grouped by file, F4 to step through them and Esc back to the editor.
+- **Project search skips what isn't your code:** it follows .gitignore, leaves out dependencies, build output, vendored code and large or binary files, and keeps its notes behind an info icon so the results get more room.
+- **Cmd+F finds text in code and text files** with the same panel Markdown files have: whole word, match case, replace and a match count, with every match highlighted.
+- **Long Markdown files scroll smoothly,** several times faster per frame than before.
+- **A filter button in the file list's search box shows only HTML, Markdown, Excalidraw, image or video files,** one type or several at once, with the folders that hold them.
+
+### 🔗 Session links
+
+- **Ghostex only suggests and adds links from the project's own repositories** (its origin, plus upstream for a fork), and links from other repositories added earlier are dropped unless you pinned or added them yourself; Linear tickets are unaffected.
+- **Hovering a link shows the sidebar's see-through tooltip right under it,** with the link's title and a pull request's branch, never cut off by the links card.
+
+### 💡 Tooltips
+
+- **Tooltips across the sidebar and Files use the same see-through bubble and stay inside the window,** from session card and project header buttons to the Search view's info note.
+
+### 🧩 Session details panel
+
+- **A Session details panel shows what a Claude session is working with,** beside the chat when there is room and as a floating card when there isn't: where it runs and on which Claude account (by email), how full its context is with Claude's own breakdown, its task list, connectors, skills, memory files, changes against main with Commit or Create PR, and background commands with a stop button.
+- **It is a beta, on by default:** click the context ring at the top right of the window to show or hide it, and turn it off in Settings > Extensions > Store. Each part shows a pulsing placeholder while it loads, and clicking a skill opens it in Agents Hub. Claude sessions only for now.
+
+### 🎙️ Voice
+
+- **The voice agent is an extension you can turn off** in Settings > Extensions: its button leaves the top of the window, its hotkeys and call entries go away on the computer and the phone, and Dictate keeps working. Its settings now live under Settings > Extensions > Voice agent.
+
+### 🤖 OpenCode
+
+- **An OpenCode chat shows the same model as its terminal,** and messages sent from the chat use it.
+- **Ghostex starts OpenCode 2 even when an older OpenCode comes first on your PATH,** and when OpenCode 2 is missing or can't start, the chat says why and offers Install OpenCode 2 or Restart on OpenCode 2.
+- **OpenCode's long thoughts open in full** instead of being cut off on one line, on the computer, in the browser and on the phone.
+- **Windows: OpenCode installs and updates from Settings,** using Git for Windows.
+
+### 🌐 Remote machines
+
+- **A remote machine's connection notice floats over the top of its list,** so the rows never move: a failed machine shows its reason with Reconnect and Remote Settings and turns only the tab's cloud icon red, and connecting shows a spinner and a one-line pill.
+- **The notice's × shrinks it to a pill that keeps the red mark** and opens the card again on click, and the phone shows the same notice.
+
+### 🩹 Fixes and polish
+
+- **macOS: Option and Shift with the arrows, Delete and Forward Delete edit text in web page fields** instead of typing a blank.
+]]></description>
+            <enclosure url="https://github.com/maddada/Ghostex/releases/download/v10.34.0/ghostex-10.34.0-arm64.dmg" length="47982805" type="application/octet-stream" sparkle:edSignature="ZdeeRA8jOE5epTwvrA6zzARrxJGPqmCjCy+CwZBn3hAHEh0njdhD8GtL4tIGyi8BD4Vya9XM5uAxq/s0lzwWAQ=="/>
+        </item>
+        <item>
             <title>10.33.0</title>
             <pubDate>Sat, 24 Oct 2026 20:57:38 +0000</pubDate>
             <sparkle:fullReleaseNotesLink>https://github.com/maddada/Ghostex/releases/tag/v10.33.0</sparkle:fullReleaseNotesLink>
@@ -426,52 +488,6 @@ IMPORTANT: This file was signed by Sparkle. Any modifications to this file requi
             <enclosure url="https://github.com/maddada/Ghostex/releases/download/v10.29.0/ghostex-10.29.0-arm64.dmg" length="76219508" type="application/octet-stream" sparkle:edSignature="j3Dt19aVCiBcVkeGhSLXcEwqR1A/uLhHY621DuSUWwWx4WAosrkzQs1ForctHTV5J504SbtetSaMAYySLFjTAg=="/>
         </item>
         <item>
-            <title>10.28.0</title>
-            <pubDate>Tue, 20 Oct 2026 07:01:02 +0000</pubDate>
-            <sparkle:fullReleaseNotesLink>https://github.com/maddada/Ghostex/releases/tag/v10.28.0</sparkle:fullReleaseNotesLink>
-            <sparkle:version>102800</sparkle:version>
-            <sparkle:shortVersionString>10.28.0</sparkle:shortVersionString>
-            <sparkle:minimumSystemVersion>13.0</sparkle:minimumSystemVersion>
-            <sparkle:hardwareRequirements>arm64</sparkle:hardwareRequirements>
-            <description sparkle:format="markdown"><![CDATA[# Ghostex 10.28.0
-
-## 10.28.0 - 2026-10-20
-
-**Ghostex 10.28.0 is out.** Talk to your agents out loud with the new voice agent, see at a glance which sessions are waiting on your answers, run OpenCode as an orchestrator, and hear completion sounds on Linux and Windows.
-
-### 🎧 Voice agent
-- **Talk to your agents out loud:** on a Mac, the headset button in the work area header starts a spoken conversation with Ghostex's voice agent. Ask what your sessions are doing or which ones are waiting on you, have it read you a session's last messages, send a prompt, answer a question or approve a permission prompt, or start a new agent, and it tells you when a session finishes its turn.
-- **A panel under the header shows live captions of both sides** and the tools the agent runs, with Mute, Stop talking and Hang up; talking over it stops it, and it hangs up by itself after 5 quiet minutes.
-- **Bring your own key:** pick xAI Grok Voice (the default) or OpenAI GPT Realtime in Settings > Voice agent, choose a voice and paste the provider's key, which is checked before it is saved and stays encrypted on your computer. Not available on Windows or Linux yet.
-- **On your Android phone too:** the headset button in the top bar starts the same conversation with the computer you are looking at, and it keeps going while you switch apps or lock the phone, with a "Voice mode on" notification that has Mute and Hang up.
-- **Dictate is back on the Mac:** the microphone button in the chat box and on the terminal bar turns what you say into text with xAI's speech-to-text and never sends it by itself; on Android it sits in the chat box's toolbar.
-
-### 🔔 Sessions and notifications
-- **Sessions waiting on your answers stand out:** when an agent ends its turn with questions you have not answered, its sidebar row shows the question dot and you get one notification, on the computer and the phone; answering clears it, and `ghostex sessions` shows "answer requested".
-
-### 💬 Chat
-- **The Previous question pill and question links take you to the question itself,** even in a long reply, instead of the end of the message. On the computer and the phone.
-- **Answered questions show their number in the same tile as the card's icon,** lined up under the title.
-
-### 🧭 Orchestrators
-- **OpenCode 2 can be an orchestrator:** pick it in New Orchestrator or run `ghostex orchestrator create --agent opencode` (#261), and the sidebar's Make Orchestrator now offers every agent an orchestrator can run on, on the computer and the phone.
-- **A new OpenCode chat sends its first message** instead of leaving it waiting in the queue.
-
-### 🖥 Terminal
-- **Bold text uses a heavier font** is a new Settings > Terminal switch (on by default, under Show Advanced): turn it off and bold text keeps your normal font weight, so it stands out by color only. Ghostty's `bold-color`, `font-style-bold` and `font-variation-bold` in Ghostex's terminal config work too (#264).
-
-### 🛠 Code view
-- **When another program holds the Code view's port,** the card names it and offers "Close it and retry" instead of "VS Code didn't start in time"; on Windows it asks for permission when it needs to.
-- **A Code editor another computer starts here gets its own port** and ends when that computer disconnects, so a dropped SSH connection no longer blocks your own Code view.
-
-### 🐧 Linux and Windows
-- **Completion and copy sounds play on Linux and Windows:** the packages now include the sounds and the app plays them (#260).
-- **The Linux x64 .rpm installs with dnf again.**
-- **The Resources panel lists your servers on Linux.**
-]]></description>
-            <enclosure url="https://github.com/maddada/Ghostex/releases/download/v10.28.0/ghostex-10.28.0-arm64.dmg" length="115999627" type="application/octet-stream" sparkle:edSignature="OOpXPBe/MrnApY/MQvDLIgshzL652C0gYkwKQAN2qlWK45vxC6/uVqZhmFXLx8UO+OENqaqB06nJ0m+5F9aSBg=="/>
-        </item>
-        <item>
             <title>3.26.1</title>
             <pubDate>Mon, 01 Jun 2026 18:43:20 +0400</pubDate>
             <sparkle:fullReleaseNotesLink>https://github.com/maddada/Ghostex/releases/tag/v3.26.1</sparkle:fullReleaseNotesLink>
@@ -483,6 +499,6 @@ IMPORTANT: This file was signed by Sparkle. Any modifications to this file requi
     </channel>
 </rss>
 <!-- sparkle-signatures:
-edSignature: OGVAnKG5i7Kghc76JqZdnubGM4g2ZPZ0qWimiWWHFTOwpiCb2V+vwwDim92HXrS8e0LZ2jHr+WPzGd1rZgEIAQ==
-length: 38418
+edSignature: ltsOEwCp9f8xtG2bZe4m7mUYXt34FGN90LZry1KZ/Nm/U/3siCVZ4MRdxc+9l3ocU9F9Na6s2B9+ZDFX41gLAg==
+length: 39179
 -->
