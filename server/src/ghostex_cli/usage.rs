@@ -213,12 +213,12 @@ pub fn usage() -> String {
             "Update this or a connected computer's Ghostex app",
         ),
         format_help_command(
-            "create-session [title] [--input text] [--start] [--project-id id] [--group-id id]",
-            "Create a terminal session; --start materializes the live terminal immediately",
+            "create-session [title] [--input text] [--start] [--project-id id] [--group-id id] [--cwd path]",
+            "Create a terminal session; --start materializes the live terminal immediately; --group-id (with --start) puts it in one of the project's session groups (ghostex session-groups lists them); --cwd starts it in another folder while it stays in the project",
         ),
         format_help_command(
             "create-agent <agentId> --project-id id [--group-id id] [--model m] [--effort e] [--first-input-draft text] [--run-on location] [--defer-start] [--replace-empty-sessions] [--allow-hidden]",
-            "Create and start a configured agent session; an agent turned off in Settings > Agents is refused unless --allow-hidden is passed (ghostex agents types lists the visible ones); --model/--effort (Claude, Codex, Antigravity CLI; Pi takes provider/model and a thinking level) apply to this session only; Empryo takes provider/model and starts on it without changing Empryo's default; --first-input-draft stages text in its input without sending; --run-on local|docker|hetzner|vercel|daytona|e2b|digitalocean|docker:<host> runs Claude, Codex, OpenCode or Pi in an agentbox box",
+            "Create and start a configured agent session; --group-id puts it in one of the project's session groups; an agent turned off in Settings > Agents is refused unless --allow-hidden is passed (ghostex agents types lists the visible ones); --model/--effort (Claude, Codex, Antigravity CLI; Pi takes provider/model and a thinking level) apply to this session only; Empryo takes provider/model and starts on it without changing Empryo's default; --first-input-draft stages text in its input without sending; --run-on local|docker|hetzner|vercel|daytona|e2b|digitalocean|docker:<host> runs Claude, Codex, OpenCode or Pi in an agentbox box",
         ),
         format_help_command(
             "board start-work <bead-id> [--agent id [--allow-hidden]] [--model m] [--effort e] [--project-path path|--project-id id] [--json]",
@@ -533,6 +533,30 @@ pub fn usage() -> String {
         format_help_command(
             "tag-session <id> <tag|none>",
             "Set or clear a session tag (built-in tag, or a custom tag by name or id)",
+        ),
+        format_help_command(
+            "session-groups [--project-id id] [--json]",
+            "List the session groups of every project, or of one: group id, title and member session ids. The group verbs below edit them through the running Ghostex app",
+        ),
+        format_help_command(
+            "create-session-group --project-id id [--title title] [--json]",
+            "Make a session group in a project (named Group <n> without --title) and print its group id",
+        ),
+        format_help_command(
+            "rename-session-group --project-id id --group-id id --title title [--json]",
+            "Rename a session group",
+        ),
+        format_help_command(
+            "delete-session-group --project-id id --group-id id [--json]",
+            "Remove a session group; its sessions stay open in the project's own list",
+        ),
+        format_help_command(
+            "move-session-to-group <selector> --group-id id [--json]",
+            "Put a session in one of its own project's session groups",
+        ),
+        format_help_command(
+            "remove-session-from-group <selector> [--json]",
+            "Take a session out of its session group, back to the project's own list",
         ),
         format_help_command(
             "delayed-send <id> (--delay-ms <n> | --when-agent-finishes | --when-all-agents-finish) | --cancel",

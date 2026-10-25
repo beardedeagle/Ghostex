@@ -242,7 +242,8 @@ pub use crate::workspace_groups::{
     owns_group_command, plan_group_command, CustomTagsPush, CustomTagsPushEffect, GroupCommandPlan,
 };
 pub use crate::workspace_groups::{
-    AdoptOutcome, ProjectWorkspaceGroups, WorkspaceGroupsDocument, WorkspaceGroupsEffect,
+    AdoptOutcome, ProjectWorkspaceGroups, SessionGroupOp, SessionGroupOutcome,
+    SessionGroupRequest, WorkspaceGroupsDocument, WorkspaceGroupsEffect,
     WorkspaceGroupsSync, WorkspaceSubgroup, WORKSPACE_GROUPS_SYNC_DELAY_MS,
     WORKSPACE_GROUPS_SYNC_RETRY_DELAY_MS, WORKSPACE_SESSION_GROUP_MAX_COUNT,
 };

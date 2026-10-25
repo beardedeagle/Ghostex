@@ -16,7 +16,7 @@ use std::path::PathBuf;
 use ghostex_gx_core::protocol::RendererCommand;
 use ghostex_gx_core::{
     OpenPathTarget, OpenPathsMode, RendererCommandError, RendererSession, RendererVerb,
-    plan_project_step, plan_renderer_command,
+    SessionGroupOp, plan_project_step, plan_renderer_command,
 };
 use gpui::Window;
 use serde_json::{Value, json};
@@ -249,6 +249,39 @@ impl GhostexGpuiApp {
             }
             // Another device updating this computer's Ghostex (os_integration/app_update_remote_control.rs).
             RendererVerb::AppUpdate(op) => Ok(self.answer_app_update_renderer_command(op, cx)),
+            // The `ghostex` session group verbs, made on the document this app pushes, like a
+            // sidebar gesture (gx-core `workspace_groups/verb_edits.rs`).
+            RendererVerb::SessionGroups(request) => {
+                if !self.gx_store_restore_workspace_groups(cx) {
+                    return Err(RendererCommandError::SessionGroupsLoading);
+                }
+                let outcome = self
+                    .gx_store
+                    .workspace_groups
+                    .sync
+                    .document()
+                    .apply_session_group_request(&request)?;
+                if let Some(document) = outcome.document {
+                    self.gx_store_edit_workspace_groups(document, cx);
+                }
+                let mut answer = json!({ "ok": true });
+                // Only a list prints the groups; an edit answers with the group it touched.
+                if request.op == SessionGroupOp::List {
+                    answer["groups"] = self
+                        .gx_store
+                        .workspace_groups
+                        .sync
+                        .document()
+                        .session_groups_json(request.project_id.as_deref());
+                }
+                if let Some(group_id) = outcome.group_id {
+                    answer["groupId"] = json!(group_id);
+                }
+                if let Some(project_id) = request.project_id {
+                    answer["projectId"] = json!(project_id);
+                }
+                Ok(answer)
+            }
         }
     }
 

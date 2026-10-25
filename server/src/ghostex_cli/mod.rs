@@ -38,6 +38,7 @@ pub mod selector;
 mod session_chat_model;
 mod session_chat_rpc;
 pub(crate) mod session_chat_transcript;
+mod session_groups;
 mod session_links;
 mod session_parking;
 pub mod sessions;
@@ -282,6 +283,12 @@ fn is_known_command(name: &str) -> bool {
         "request-session-rename",
         "sleep-session",
         "tag-session",
+        "session-groups",
+        "create-session-group",
+        "rename-session-group",
+        "delete-session-group",
+        "move-session-to-group",
+        "remove-session-from-group",
         "session-note",
         "saved-prompts",
         "previous-sessions",
@@ -632,6 +639,12 @@ fn run_command(name: &str, args: &[String]) -> CliResult<()> {
             args,
         ),
         "tag-session" => run_bridge_action("tagSession", Parser::SessionTag, plain, args),
+        "session-groups"
+        | "create-session-group"
+        | "rename-session-group"
+        | "delete-session-group"
+        | "move-session-to-group"
+        | "remove-session-from-group" => session_groups::session_groups_command(name, args),
         /*
         CDXC:SessionNotes 2026-08-24:
         Clients that reach gxserver only through this CLI (Ghostex mobile over
