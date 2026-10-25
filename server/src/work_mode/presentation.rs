@@ -146,9 +146,14 @@ pub(crate) fn presentation_session_work(project: &Value, session: &Value) -> Opt
         .linear_issues
         .iter()
         .map(|identifier| {
-            targets
+            match targets
                 .linear_key
-                .and_then(|key| cached_linear_issue(key, identifier))
+                .map(|key| cached_linear_issue_read(key, identifier))
+            {
+                Some(LinearIssueRead::Found(info)) => Some(info),
+                Some(LinearIssueRead::NotFound) => Some(LinearIssueInfo::not_found(identifier)),
+                Some(LinearIssueRead::Unread) | None => None,
+            }
         })
         .collect();
     let linear_issues: Vec<Value> = targets

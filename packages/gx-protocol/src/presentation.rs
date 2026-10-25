@@ -610,10 +610,11 @@ pub struct PresentationWorkLinearIssue {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub title: Option<String>,
     /// Linear's workflow state type: `triage`, `backlog`, `unstarted`, `started`, `completed` or
-    /// `canceled`. Absent until Linear answered (no API key, or not fetched yet).
+    /// `canceled`, or `notFound` when Linear has no such ticket. Absent until Linear answered (no
+    /// API key, or not fetched yet).
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub state_type: Option<String>,
-    /// The team's own name for the state, e.g. "In Review".
+    /// The team's own name for the state, e.g. "In Review", or "Not found".
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub state_name: Option<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]

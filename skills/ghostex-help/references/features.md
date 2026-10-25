@@ -3535,7 +3535,9 @@ pinned chips sit on a line under the name and the badge counts the rest). Click 
 `ghostex link pin <link>` and `ghostex link unpin <link>` do the same. The pin and the
 × show when the pointer is on a link (a pinned link always shows its filled pin). Each
 link keeps what was last read about it, so its title and state show right away after
-Ghostex restarts; a link not read yet says Loading… until its state is known.
+Ghostex restarts; a link not read yet says Loading… until its state is known. A Linear
+ticket Linear no longer has (deleted, or not visible to your key) shows grey as Not
+found under Merged / Closed.
 Right after a removal its row reads Removed · Undo for a few seconds, and every
 removed link stays under a Removed group, folded until you open it, at the bottom of the list
 (on the phone's sheet too) with Restore, which puts it back as it was and lets it

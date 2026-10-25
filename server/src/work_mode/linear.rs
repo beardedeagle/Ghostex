@@ -2,7 +2,7 @@
 //! presentation projection only reads.
 
 use std::collections::hash_map::DefaultHasher;
-use std::collections::{HashMap, HashSet, VecDeque};
+use std::collections::{HashMap, VecDeque};
 use std::hash::{Hash, Hasher};
 use std::sync::{Mutex, OnceLock};
 use std::time::{Duration, Instant};
@@ -41,6 +41,22 @@ pub(crate) struct LinearIssueInfo {
     pub(crate) pull_request_urls: Vec<String>,
 }
 
+impl LinearIssueInfo {
+    /// How an issue Linear says does not exist is published: state `notFound`, "Not found".
+    pub(crate) fn not_found(identifier: &str) -> Self {
+        Self {
+            identifier: identifier.to_string(),
+            title: None,
+            url: None,
+            state_type: Some("notFound".to_string()),
+            state_name: Some("Not found".to_string()),
+            project_name: None,
+            project_url: None,
+            pull_request_urls: Vec::new(),
+        }
+    }
+}
+
 struct Cached<T> {
     value: T,
     fetched_at: Instant,
@@ -52,8 +68,9 @@ struct LinearCache {
     failed_at: HashMap<u64, Instant>,
     /// `None` = Linear said there is no such issue.
     issues: HashMap<(u64, String), Cached<Option<LinearIssueInfo>>>,
-    /// Issues a batch left out, each waiting for a read of its own (`refresh_linear_issues`).
-    left_out: HashSet<(u64, String)>,
+    /// Issues a batch left out, each waiting for a read of its own (`refresh_linear_issues`), with
+    /// when that read last got an answer it could not use (the issue alone then backs off).
+    left_out: HashMap<(u64, String), Option<Instant>>,
     /// Which key each project's calls use, refreshed by the background pass so the projection
     /// never reads the credentials file.
     project_keys: HashMap<String, u64>,
@@ -176,6 +193,20 @@ pub(super) fn linear_graphql(
     query: &str,
     variables: Value,
 ) -> Result<Value, String> {
+    let body = linear_graphql_answer(api_key, query, variables)?;
+    if body.get("data").is_none_or(Value::is_null) {
+        let message = body
+            .pointer("/errors/0/message")
+            .and_then(Value::as_str)
+            .unwrap_or("Linear returned no data.");
+        return Err(message.to_string());
+    }
+    Ok(body)
+}
+
+/// One GraphQL call's answer, GraphQL errors included; `Err` only when Linear could not be asked
+/// or refused the key.
+fn linear_graphql_answer(api_key: &str, query: &str, variables: Value) -> Result<Value, String> {
     let api_key = api_key.trim();
     // Personal API keys go in as they are; OAuth tokens need the Bearer scheme.
     let authorization = if api_key.starts_with("lin_oauth_") {
@@ -203,13 +234,6 @@ pub(super) fn linear_graphql(
         }
         Err(error) => return Err(format!("Could not reach Linear: {error}")),
     };
-    if body.get("data").is_none_or(Value::is_null) {
-        let message = body
-            .pointer("/errors/0/message")
-            .and_then(Value::as_str)
-            .unwrap_or("Linear returned no data.");
-        return Err(message.to_string());
-    }
     Ok(body)
 }
 
@@ -284,7 +308,7 @@ pub(crate) fn refresh_linear_team_keys(api_key: &str) -> bool {
 /// Linear said do not exist later.
 ///
 /// CDXC:SessionLinks 2026-10-25 WHY:
-/// Tickets used to be read 25 at a time as aliased `issue(id:)` fields, but that field cannot be null, so one deleted ticket made Linear answer `data: null` with "Entity not found: Issue" for its whole batch (naming only the first missing alias): the key backed off for 5 minutes, that batch and every one after it were never cached, and the same batch failed again after the backoff (2026-10-25: 104 of 165 links "Loading…" behind one deleted ticket). The batch is now `issues(filter: { id: { in } })`, which matches identifiers, lowercase ones, UUIDs, archived and trashed tickets as `issue(id:)` does and leaves a missing one out instead. It does not match the old identifier of a ticket moved to another team, which `issue(id:)` still resolves, so a ticket the batch leaves out waits (`left_out`, across passes, never batched again meanwhile) to be asked about alone before it counts as not found. A pass spends its budget on never-read tickets, then the waiting ones, then refreshes of tickets read before; when batches alone used up the budget, a waiting ticket was never asked.
+/// Tickets used to be read 25 at a time as aliased `issue(id:)` fields, but that field cannot be null, so one deleted ticket made Linear answer `data: null` with "Entity not found: Issue" for its whole batch (naming only the first missing alias): the key backed off for 5 minutes, that batch and every one after it were never cached, and the same batch failed again after the backoff (2026-10-25: 104 of 165 links "Loading…" behind one deleted ticket). The batch is now `issues(filter: { id: { in } })`, which matches identifiers, lowercase ones, UUIDs, archived and trashed tickets as `issue(id:)` does and leaves a missing one out instead. It does not match the old identifier of a ticket moved to another team, which `issue(id:)` still resolves, so a ticket the batch leaves out waits (`left_out`, across passes, never batched again meanwhile) to be asked about alone before it counts as not found. A pass spends its budget on never-read tickets, then the waiting ones, then refreshes of tickets read before; when batches alone used up the budget, a waiting ticket was never asked. A ticket already read alone and found missing that a batch leaves out again stays not found without another read of its own, so deleted tickets cost nothing past their place in a batch and cannot hold up refreshes of the others; and an answer to that read that is neither the ticket nor "Entity not found" backs off that ticket alone, not the key.
 pub(crate) fn refresh_linear_issues(
     api_key: &str,
     identifiers: &[String],
@@ -305,8 +329,10 @@ pub(crate) fn refresh_linear_issues(
         let (mut unread, mut waiting, mut due) = (Vec::new(), VecDeque::new(), Vec::new());
         for identifier in wanted {
             let key = (fingerprint, identifier);
-            if cache.left_out.contains(&key) {
-                waiting.push_back(key.1);
+            if let Some(failed_at) = cache.left_out.get(&key) {
+                if failed_at.is_none_or(|at| at.elapsed() >= LINEAR_FAILURE_BACKOFF) {
+                    waiting.push_back(key.1);
+                }
                 continue;
             }
             match cache.issues.get(&key) {
@@ -398,39 +424,56 @@ fn read_linear_issue_batch(
             },
         );
     }
-    cache.left_out.extend(
-        left_out
-            .iter()
-            .map(|identifier| (fingerprint, identifier.clone())),
-    );
-    Some(left_out)
+    // One already read alone and found missing is not asked about alone again: still left out, it
+    // is still missing.
+    let mut waiting = Vec::new();
+    for identifier in left_out {
+        let key = (fingerprint, identifier);
+        match cache.issues.get_mut(&key) {
+            Some(cached) if cached.value.is_none() => cached.fetched_at = fetched_at,
+            _ => {
+                cache.left_out.insert(key.clone(), None);
+                waiting.push(key.1);
+            }
+        }
+    }
+    Some(waiting)
 }
 
-/// Linear's whole answer to `issue(id:)` for an issue that does not exist (measured 2026-10-25).
-const LINEAR_ISSUE_NOT_FOUND: &str = "Entity not found: Issue";
+/// How Linear's answer to `issue(id:)` for an issue that does not exist starts ("Entity not found:
+/// Issue", measured 2026-10-25).
+const LINEAR_ISSUE_NOT_FOUND: &str = "Entity not found";
 
 /// One request for an issue a batch left out: the moved issue its old identifier names, or Linear's
-/// "Entity not found: Issue", cached as `None`. `false` when the request failed or the answer was
-/// anything else; the key then backs off and the issue keeps waiting.
+/// "Entity not found: Issue", cached as `None`. Any other answer backs off this issue alone, which
+/// keeps waiting; `false` when Linear could not be asked, and the key then backs off.
 fn read_linear_issue_alone(api_key: &str, fingerprint: u64, identifier: &str) -> bool {
     let query = format!("query($id: String!) {{ issue(id: $id) {{ {LINEAR_ISSUE_FIELDS} }} }}");
-    let value = match linear_graphql(api_key, &query, json!({ "id": identifier })) {
-        Ok(body) => body
+    let answer = linear_graphql_answer(api_key, &query, json!({ "id": identifier }));
+    let value = answer.as_ref().ok().and_then(|body| {
+        if let Some(issue) = body
             .pointer("/data/issue")
             .filter(|issue| issue.get("identifier").is_some_and(Value::is_string))
-            .map(|issue| Some(parse_issue(identifier, issue)))
-            .ok_or(()),
-        Err(message) if message == LINEAR_ISSUE_NOT_FOUND => Ok(None),
-        Err(_) => Err(()),
-    };
+        {
+            return Some(Some(parse_issue(identifier, issue)));
+        }
+        body.pointer("/errors/0/message")
+            .and_then(Value::as_str)
+            .is_some_and(|message| message.starts_with(LINEAR_ISSUE_NOT_FOUND))
+            .then_some(None)
+    });
     let Ok(mut cache) = cache().lock() else {
         return false;
     };
-    let Ok(value) = value else {
+    let key = (fingerprint, identifier.to_string());
+    if answer.is_err() {
         cache.failed_at.insert(fingerprint, Instant::now());
         return false;
+    }
+    let Some(value) = value else {
+        cache.left_out.insert(key, Some(Instant::now()));
+        return true;
     };
-    let key = (fingerprint, identifier.to_string());
     cache.left_out.remove(&key);
     cache.issues.insert(
         key,
