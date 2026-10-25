@@ -252,6 +252,7 @@ impl NativeChatView {
         let collapsed = section["collapsed"] == true;
         let toggle = serde_json::json!({"type": "sessionDetailsSection", "section": id});
         let trailing: Option<AnyElement> = match id.as_str() {
+            "context" => Some(self.refresh_button(section, p, cx)),
             "connectors" => section["manage"].is_object().then(|| {
                 let action = section["manage"].clone();
                 self.link_button("session-details-manage", "Manage", action, p, cx)
@@ -313,6 +314,8 @@ impl NativeChatView {
             .into_any_element()
     }
 
+    /// CDXC:SessionDetails 2026-10-25 DECISION:
+    /// User: "move the refresh back up it looks weird here. just take it back where it was before last turn". Refresh Context Breakdown sits at the end of the Context card's title row; this supersedes the same day's move to the breakdown's status line.
     fn refresh_button(
         &mut self,
         section: &Value,
@@ -687,30 +690,20 @@ impl NativeChatView {
             );
         }
         let status = str_of(section, "status");
-        // CDXC:SessionDetails 2026-10-25 DECISION:
-        // User: "move the refresh button down here. i dont want people to think that refresh is for the top context 45% used thingy because i know that doesn't need to be refreshed manually". The button ends the breakdown's own status line ("Breakdown from 21m ago"), not the card's title row, since only the breakdown is counted again.
-        let refresh = self.refresh_button(section, p, cx);
         column
             .child(
                 div()
                     .h(px(NOTE_HEIGHT * s))
                     .flex()
-                    .items_center()
-                    .gap(px(6.0 * s))
-                    .child(
-                        div()
-                            .flex_1()
-                            .min_w_0()
-                            .truncate()
-                            .text_size(px(11.5 * s))
-                            .text_color(if section["statusError"] == true {
-                                swatch("failed", p)
-                            } else {
-                                p.card_muted
-                            })
-                            .child(status),
-                    )
-                    .child(refresh),
+                    .items_end()
+                    .truncate()
+                    .text_size(px(11.5 * s))
+                    .text_color(if section["statusError"] == true {
+                        swatch("failed", p)
+                    } else {
+                        p.card_muted
+                    })
+                    .child(status),
             )
             .into_any_element()
     }
