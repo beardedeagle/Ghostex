@@ -5,7 +5,7 @@ use super::session_list::{SESSION_HEIGHT, SESSION_INSET_X, SESSION_SPACING, sess
 use gpui::prelude::FluentBuilder;
 use gpui::{
     AnyElement, InteractiveElement, IntoElement, MouseButton, ParentElement,
-    StatefulInteractiveElement, Styled, div, px, rgb,
+    StatefulInteractiveElement, Styled, div, px,
 };
 use gpui_component::h_flex;
 use gpui_component::tooltip::ManagedTooltipExt as _;
@@ -183,13 +183,13 @@ impl GhostexGpuiApp {
                 .when(visible && !highlighted, |row| row.bg(appearance.visible))
                 .when(highlighted, |row| row.bg(appearance.session_selected))
                 .when(visible || highlighted, |row| row.text_color(chrome_color(0xd8d8d8, 0x292929)))
-                .when(selected, |row| row.border_1().border_color(rgb(0x2f8cff)))
+                .when(selected, |row| row.child(super::decorations::multi_selected_outline(scale)))
                 // CDXC:Sidebar 2026-09-24 DECISION: User: the drop line between session cards is a straight line, not a top or bottom border that bends into the card's rounded corners; it is the same line project and collection rows use, drawn in the gap beside the card.
                 .when_some(drop_position, |row, position| row.child(super::drag::drop_line(position, scale)))
                 .when(!highlighted, |row| row.hover(|row| row.bg(appearance.session_hover)))
                 .when(highlighted, |row| row.child(super::decorations::session_outline(appearance)))
                 .when_some(question_fill, |row, fill| row.bg(fill).hover(move |row| row.bg(fill)))
-                .children(super::threads::thread_connector(session, card_height, above_height, appearance))
+                .children(super::threads::thread_tree_lines(session, card_height, above_height, appearance))
                 .children(self.render_native_session_decorations(session, appearance, cx))
                 .when_some(self.native_sidebar.reveal_flash.as_ref().filter(|(id, _)| id == &session.session_id).map(|(_, start)| *start), |row, start| row.child(super::scroll::reveal_flash(start, scale)))
                 // Line 1 is the whole card of every row without work links, and the absolute

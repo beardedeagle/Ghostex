@@ -70,6 +70,18 @@ pub(crate) fn tally_threads<'a>(
 /// Deeper trees are drawn flat past this, so a coordinator of coordinators still reads as a tree
 /// without running out of row width.
 const MAX_DEPTH: u8 = 3;
+// `RowNesting::passing_lines` keeps one bit per level.
+const _: () = assert!(MAX_DEPTH < u8::BITS as u8);
+
+/// The `RowNesting::passing_lines` a row at `depth` hands to the rows directly under it: the ones
+/// that run past the row itself, plus its own level's line while a sibling of it follows.
+pub(crate) fn passing_lines_below(passing_lines: u8, depth: u8, last: bool) -> u8 {
+    if depth > 0 && !last {
+        passing_lines | (1 << depth)
+    } else {
+        passing_lines
+    }
+}
 
 fn is_nestable_thread(session: &SessionView, enable_parking: bool, now_ms: u64) -> bool {
     let row = &session.row;
@@ -176,13 +188,14 @@ pub(crate) fn nest_threads(
         })
         .collect();
 
-    /// Where one row is emitted: its index, depth, whether it is the last drawn child, its section,
-    /// whether a folded coordinator hides it, and whether it waits behind its coordinator's "N
-    /// older threads" row.
+    /// Where one row is emitted: its index, depth, whether it is the last drawn child, the tree
+    /// lines that run past it, its section, whether a folded coordinator hides it, and whether it
+    /// waits behind its coordinator's "N older threads" row.
     struct Placed {
         index: usize,
         depth: u8,
         last: bool,
+        passing_lines: u8,
         section: SectionId,
         folded: bool,
         older_hidden: bool,
@@ -198,6 +211,7 @@ pub(crate) fn nest_threads(
     fn emit(placed: Placed, tree: &Tree<'_>, order: &mut Vec<Placed>) {
         let (index, depth, section) = (placed.index, placed.depth, placed.section);
         let folded = placed.folded || tree.is_collapsed[index];
+        let passing_lines = passing_lines_below(placed.passing_lines, depth, placed.last);
         order.push(placed);
         if let Some(list) = tree.children.get(&index) {
             let tucks_older = !tree.shows_older[index];
@@ -209,6 +223,7 @@ pub(crate) fn nest_threads(
                         index: *child,
                         depth: (depth + 1).min(MAX_DEPTH),
                         last: position + 1 == drawn,
+                        passing_lines,
                         section,
                         folded: folded || hidden(*child),
                         older_hidden: hidden(*child),
@@ -232,6 +247,7 @@ pub(crate) fn nest_threads(
                     index,
                     depth: 0,
                     last: false,
+                    passing_lines: 0,
                     section: base_sections[index],
                     folded: false,
                     older_hidden: false,
@@ -281,6 +297,7 @@ pub(crate) fn nest_threads(
         index,
         depth,
         last,
+        passing_lines,
         section,
         folded,
         older_hidden,
@@ -292,6 +309,7 @@ pub(crate) fn nest_threads(
         session.nesting = RowNesting {
             depth,
             last_child: depth > 0 && last,
+            passing_lines,
             thread_count: children
                 .get(&index)
                 .map_or(0, |list| u16::try_from(list.len()).unwrap_or(u16::MAX)),
