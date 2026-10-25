@@ -12,7 +12,7 @@ use gpui_component::{h_flex, v_flex};
 
 use super::model::{ChangesScope, Row};
 use super::rows::{ICON_CHEVRON_DOWN, ICON_CHEVRON_RIGHT, checkbox, stat, status_badge};
-use super::style::ChangesStyle;
+use super::style::{ChangesStyle, FILE_HEADER_HEIGHT};
 use super::view::{ChangesRequest, ChangesView, Confirm};
 use crate::app::window::native_modal_kit::{
     MODAL_UI_FONT, hsla, modal_icon, modal_spinner, rgba_of,
@@ -434,17 +434,15 @@ impl ChangesView {
     }
 
     fn render_stream(&mut self, s: &ChangesStyle, cx: &mut Context<Self>) -> AnyElement {
-        // The file the top of the view is in, pinned over the stream once its own header has
-        // scrolled away.
-        let top = self.list.logical_scroll_top();
-        let pinned = (0..=top.item_ix.min(self.rows.len().saturating_sub(1)))
-            .rev()
-            .find_map(|index| match self.rows.get(index) {
-                Some(Row::File(file)) => Some((index, *file)),
-                _ => None,
-            })
-            .filter(|(index, _)| *index < top.item_ix || top.offset_in_item > px(0.0));
-        let header = pinned.map(|(_, file)| self.render_file_header(s, file, true, cx));
+        let pinned = self.pinned_file_header();
+        let header = pinned.map(|(file, shift)| {
+            div()
+                .absolute()
+                .top(shift)
+                .left_0()
+                .w_full()
+                .child(self.render_file_header(s, file, true, cx))
+        });
         let resolved = self.resolved_count();
         let view = cx.entity().downgrade();
         let list_state = self.list.clone();
@@ -456,6 +454,7 @@ impl ChangesView {
             .flex_1()
             .min_h_0()
             .w_full()
+            .overflow_hidden()
             .bg(hsla(s.code_bg))
             .child(
                 list(
@@ -464,9 +463,7 @@ impl ChangesView {
                 )
                 .size_full(),
             )
-            .when_some(header, |this, header| {
-                this.child(div().absolute().top_0().left_0().w_full().child(header))
-            })
+            .children(header)
             .when(resolved > 0, |this| {
                 let label = if self.show_resolved {
                     format!("Hide resolved comments ({resolved})")
@@ -484,7 +481,7 @@ impl ChangesView {
                         .rounded(px(10.0))
                         .border_1()
                         .border_color(hsla(s.hairline))
-                        .bg(hsla(s.header_bg))
+                        .bg(hsla(s.sticky_bg))
                         .text_size(px(11.0))
                         .text_color(hsla(s.muted))
                         .cursor_pointer()
@@ -493,6 +490,36 @@ impl ChangesView {
                 )
             })
             .into_any_element()
+    }
+
+    /// The file whose header stays pinned at the top, and how far the next file's header has
+    /// pushed it up. Only an expanded file pins, and only while its own lines scroll under it.
+    ///
+    /// CDXC:Changes 2026-10-25 WHY: a folded file's header used to stay pinned while the next
+    /// files' headers scrolled under it, drawing two rows over each other; now a folded file never
+    /// pins and the next header pushes the pinned one off instead of sliding beneath it.
+    fn pinned_file_header(&self) -> Option<(usize, gpui::Pixels)> {
+        let top = self.list.logical_scroll_top();
+        let (index, file) = (0..=top.item_ix.min(self.rows.len().checked_sub(1)?))
+            .rev()
+            .find_map(|index| match self.rows.get(index) {
+                Some(Row::File(file)) => Some((index, *file)),
+                _ => None,
+            })?;
+        if index == top.item_ix && top.offset_in_item <= px(0.0) {
+            return None;
+        }
+        let path = &self.data.as_ref()?.files.get(file)?.path;
+        if self.collapsed.contains(path) || self.viewed.contains_key(path) {
+            return None;
+        }
+        let height = px(FILE_HEADER_HEIGHT);
+        let shift = (index + 1..self.rows.len())
+            .find(|next| matches!(self.rows[*next], Row::File(_)))
+            .and_then(|next| self.list.bounds_for_item(next))
+            .map(|bounds| (bounds.top() - self.list.viewport_bounds().top() - height).min(px(0.0)))
+            .unwrap_or(px(0.0));
+        (shift > -height).then_some((file, shift))
     }
 
     fn render_file_menu(&mut self, s: &ChangesStyle, cx: &mut Context<Self>) -> Option<AnyElement> {

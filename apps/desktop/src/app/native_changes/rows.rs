@@ -323,13 +323,13 @@ impl ChangesView {
             .h(px(FILE_HEADER_HEIGHT))
             .px(px(8.0))
             .gap(px(6.0))
-            .bg(hsla(s.header_bg))
+            .bg(hsla(if sticky { s.sticky_bg } else { s.header_bg }))
             .border_b_1()
             .border_color(hsla(s.hairline))
             .when(!sticky, |this| this.border_t_1())
             .text_size(px(12.0))
             .cursor_pointer()
-            .hover(|this| this.bg(hsla(s.hover)))
+            .hover(|this| this.bg(hsla(if sticky { s.sticky_hover } else { s.hover })))
             .on_click(cx.listener(move |this, _, _, cx| this.toggle_collapsed(&toggle_path, cx)))
             .on_mouse_down(
                 MouseButton::Right,

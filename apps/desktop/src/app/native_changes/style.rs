@@ -21,6 +21,10 @@ pub(crate) struct ChangesStyle {
     pub(crate) panel: Rgba,
     pub(crate) code_bg: Rgba,
     pub(crate) header_bg: Rgba,
+    /// What floats over the diff (the pinned file header, the resolved-comments pill): always
+    /// opaque, so the lines scrolling under it never show through its text.
+    pub(crate) sticky_bg: Rgba,
+    pub(crate) sticky_hover: Rgba,
     pub(crate) hover: Rgba,
     pub(crate) selected: Rgba,
     pub(crate) accent: Rgba,
@@ -56,6 +60,13 @@ impl ChangesStyle {
         } else {
             css_mix(rgb(ink), 0.02, p.solid_surface)
         };
+        // CDXC:Changes 2026-10-25 WHY: under window glass every header fill is a thin ink wash,
+        // so the pinned file header let the scrolling diff show through and its text overlapped
+        // the code. Floating rows mix the same ink into the surface and drop its alpha instead.
+        let opaque = |amount: f32| Rgba {
+            a: 1.0,
+            ..css_mix(rgb(ink), amount, p.solid_surface)
+        };
         Self {
             p,
             text: p.foreground,
@@ -69,6 +80,8 @@ impl ChangesStyle {
             } else {
                 css_mix(rgb(ink), 0.04, p.solid_surface)
             },
+            sticky_bg: opaque(if p.glass { 0.08 } else { 0.04 }),
+            sticky_hover: opaque(if p.glass { 0.12 } else { 0.09 }),
             hover: modal_rgba(ink, 0.05),
             selected: modal_rgba(ink, 0.09),
             accent: pick(0x9bbce0, 0x315d88),
