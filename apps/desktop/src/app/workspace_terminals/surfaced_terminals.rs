@@ -231,6 +231,7 @@ impl GhostexGpuiApp {
             last_view_mode: self.last_open_view_mode,
             workarea_split_ratio: self.project_editor_shell.workarea_split_ratio,
             active_view_awake: self.project_editor_shell.is_mode_awake(active_mode),
+            code_windows: self.code_windows.clone(),
         }
     }
 
@@ -283,6 +284,7 @@ impl GhostexGpuiApp {
             */
             self.open_views.clear();
             self.view_strip_layout = GpuiViewStripLayout::default();
+            self.code_windows = CodeWindows::default();
             self.view_panel_maximized = false;
             self.last_open_view_mode = self.open_view_mode();
             self.apply_view_pane_state(cx);
@@ -313,6 +315,7 @@ impl GhostexGpuiApp {
             self.open_views.push(target_mode);
         }
         self.view_strip_layout = state.view_strip_layout.clone();
+        self.code_windows = state.code_windows.clone();
         self.active_mode = target_mode;
         // The picker belongs to the panel, not to a project, so it survives a switch only while the
         // incoming project has no view of its own to show.

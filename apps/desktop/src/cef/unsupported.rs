@@ -236,6 +236,10 @@ impl CefBrowser {
 
     pub fn order_front(&self) {}
 
+    pub fn content_identity(&self) -> u64 {
+        0
+    }
+
     pub fn identifier(&self) -> i32 {
         0
     }

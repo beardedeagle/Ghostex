@@ -65,7 +65,7 @@ impl GhostexGpuiApp {
         } else {
             ProjectWorkareaCefSurfaceSlotKey::for_titlebar_mode(mode).and_then(|slot| {
                 self.project_workarea_runtime_cef_surfaces
-                    .get(&slot)
+                    .get(&self.shown_workarea_slot(slot))
                     .map(|owned| owned.surface.clone())
             })
         };

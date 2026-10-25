@@ -93,7 +93,7 @@ impl GhostexGpuiApp {
             .min_w_0()
             .min_h_0()
             .overflow_hidden()
-            .bg(if slot_key == ProjectWorkareaCefSurfaceSlotKey::Source {
+            .bg(if slot_key.is_code_editor() {
                 source_view_background_color()
             } else {
                 chrome_color(0x000000, 0xffffff).into()
@@ -248,12 +248,27 @@ impl GhostexGpuiApp {
         CDXC:Workarea 2026-06-29-00:02:
         Source placeholder loading/error copy now comes only from the app-owned code-server runtime target for the current sidebar snapshot. Legacy Source readiness messages are compatibility no-ops and cannot make Source ready or failed.
         */
-        let slot_key = ProjectWorkareaCefSurfaceSlotKey::Source;
-        if let Some(surface) = self.project_workarea_runtime_cef_surface_for_render(slot_key) {
-            return self.render_project_workarea_runtime_cef_surface(slot_key, surface, cx);
-        }
-        let signature = self.source_workarea_placeholder_signature();
-        self.render_project_editor_placeholder(signature, cx)
+        let slot_key = self.active_code_editor_slot();
+        let body = match self.project_workarea_runtime_cef_surface_for_render(slot_key) {
+            Some(surface) => {
+                self.render_project_workarea_runtime_cef_surface(slot_key, surface, cx)
+            }
+            None => {
+                let signature = self.source_workarea_placeholder_signature();
+                self.render_project_editor_placeholder(signature, cx)
+            }
+        };
+        // The window tabs sit above the page as its sibling, never over it (render/code_window_tabs.rs).
+        let Some(window_tabs) = self.render_code_window_tab_row(cx) else {
+            return body;
+        };
+        v_flex()
+            .size_full()
+            .min_w_0()
+            .min_h_0()
+            .child(window_tabs)
+            .child(div().relative().flex_1().min_w_0().min_h_0().child(body))
+            .into_any_element()
     }
 
     /// Kanban is the native GPUI board in app/native_kanban/ (see the DECISION on

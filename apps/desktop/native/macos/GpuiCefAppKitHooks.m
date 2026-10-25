@@ -1090,6 +1090,55 @@ void GhostexGpuiCEFOrderNativeViewFront(void *nativeView) {
   [parent addSubview:view positioned:NSWindowAbove relativeTo:nil];
 }
 
+static uintptr_t GhostexGpuiCEFLayerContentIdentity(CALayer *layer) {
+  if (!layer) {
+    return 0;
+  }
+  // Chromium shows the GPU process's frames through a CALayerHost (its contextId) or, when it
+  // draws in this process, as an IOSurface set as a layer's contents.
+  static Class hostClass;
+  static dispatch_once_t once;
+  dispatch_once(&once, ^{
+    hostClass = NSClassFromString(@"CALayerHost");
+  });
+  if (hostClass && [layer isKindOfClass:hostClass]) {
+    NSNumber *contextId = [layer valueForKey:@"contextId"];
+    if (contextId.unsignedIntValue != 0) {
+      return ((uintptr_t)1 << 63) | contextId.unsignedIntValue;
+    }
+  }
+  if (layer.contents) {
+    return (uintptr_t)(__bridge void *)layer.contents;
+  }
+  for (CALayer *sublayer in layer.sublayers) {
+    uintptr_t identity = GhostexGpuiCEFLayerContentIdentity(sublayer);
+    if (identity) {
+      return identity;
+    }
+  }
+  return 0;
+}
+
+/// CDXC:CodeEditor 2026-10-24 WHY:
+/// What a CEF page's view shows right now, as an identity: it changes when the page's compositor hands the view a new surface, which is how a Code window switch learns that the incoming page is on screen (app/workarea/code_windows.rs) without the page's own script, which keeps drawing while hidden and so cannot tell. 0 while the view shows nothing.
+uint64_t GhostexGpuiCEFNativeViewContentIdentity(void *nativeView) {
+  NSView *view = (__bridge NSView *)nativeView;
+  if (!view) {
+    return 0;
+  }
+  uintptr_t identity = GhostexGpuiCEFLayerContentIdentity(view.layer);
+  if (identity) {
+    return identity;
+  }
+  for (NSView *subview in view.subviews) {
+    identity = GhostexGpuiCEFNativeViewContentIdentity((__bridge void *)subview);
+    if (identity) {
+      return identity;
+    }
+  }
+  return 0;
+}
+
 void GhostexGpuiCEFRemoveNativeViewFromSuperview(void *nativeView) {
   if (!nativeView) {
     return;

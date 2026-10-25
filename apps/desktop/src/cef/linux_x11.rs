@@ -783,6 +783,11 @@ pub(super) fn set_native_view_visible(native_view: *mut c_void, visible: bool) {
     let _ = connection.flush();
 }
 
+/// Not read on Linux: a Code window switch there waits out its fixed hold.
+pub(super) fn native_view_content_identity(_native_view: *mut c_void) -> u64 {
+    0
+}
+
 pub(super) fn order_native_view_front(native_view: *mut c_void) {
     let Some(window) = x11_window(native_view) else {
         return;

@@ -781,7 +781,10 @@ pub(crate) fn gpui_keyboard_owner_allows_hotkey(
         return !matches!(
             owner,
             GpuiKeyboardOwner::FirstResponder(FirstResponderTarget::CefSurface(
-                FirstResponderCefSurface::ProjectWorkarea(ProjectWorkareaCefSurfaceSlotKey::Source),
+                FirstResponderCefSurface::ProjectWorkarea(
+                    ProjectWorkareaCefSurfaceSlotKey::Source
+                        | ProjectWorkareaCefSurfaceSlotKey::CodeWindow(_)
+                ),
             ))
         );
     }
@@ -804,7 +807,10 @@ pub(crate) fn gpui_keyboard_owner_allows_hotkey(
     match owner {
         GpuiKeyboardOwner::CompositedTerminal(_) => true,
         GpuiKeyboardOwner::FirstResponder(FirstResponderTarget::CefSurface(
-            FirstResponderCefSurface::ProjectWorkarea(ProjectWorkareaCefSurfaceSlotKey::Source),
+            FirstResponderCefSurface::ProjectWorkarea(
+                ProjectWorkareaCefSurfaceSlotKey::Source
+                | ProjectWorkareaCefSurfaceSlotKey::CodeWindow(_),
+            ),
         )) => gpui_source_workarea_allowed_configured_hotkey_action_id(action_id),
         GpuiKeyboardOwner::FirstResponder(FirstResponderTarget::CefSurface(
             FirstResponderCefSurface::BrowserTab(_),

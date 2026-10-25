@@ -230,6 +230,10 @@ impl GhostexGpuiApp {
             .then(|| self.view_tab_successor(mode))
             .flatten();
         self.open_views.retain(|tab| *tab != mode);
+        // Closing the Code tab closes its windows too; the Sleep below releases their pages.
+        if mode == TitlebarMode::Source {
+            self.code_windows = CodeWindows::default();
+        }
         // A closed tab is not a sleeping tab: the page it owned has no way back on screen, so it
         // releases its CEF surface here instead of waiting for the idle timer.
         self.sleep_titlebar_view(mode, cx);

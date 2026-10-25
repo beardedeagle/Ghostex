@@ -73,6 +73,14 @@ impl GhostexGpuiApp {
             }
             let owns_surface = match mode {
                 TitlebarMode::Browser => !self.browser_surfaces.is_empty(),
+                // Code's page on screen may be one of its extra windows, and its server runs on
+                // without a page: either is what its Sleep releases.
+                TitlebarMode::Source => {
+                    self.project_workarea_runtime_cef_surfaces
+                        .keys()
+                        .any(|slot| slot.is_code_editor())
+                        || self.source_code_server_runtime.child.is_some()
+                }
                 _ => {
                     ProjectWorkareaCefSurfaceSlotKey::for_titlebar_mode(mode).is_some_and(|slot| {
                         self.project_workarea_runtime_cef_surfaces

@@ -843,6 +843,7 @@ impl GhostexGpuiApp {
         requested_url: String,
         remote_machine_id: Option<String>,
         placement: cef::BrowserPopupPlacement,
+        source_tab: Option<BrowserTabId>,
         window: &mut Window,
         cx: &mut gpui::Context<Self>,
     ) {
@@ -866,11 +867,11 @@ impl GhostexGpuiApp {
         if !self.titlebar_mode_available(TitlebarMode::Browser) {
             return;
         }
-        // The tab the user clicked in, before the popup takes the selection: a popup from a
-        // Claude account's claude.ai page (its Google sign-in) stays in that account's profile.
-        let source_tab = self
-            .browser_tabs
-            .active_tab()
+        // The Browser tab the popup came from: a popup from a Claude account's claude.ai page (its
+        // Google sign-in) stays in that account's profile. Code and website views have no Browser
+        // tab, so their links never take on the account of whichever tab is selected.
+        let source_tab = source_tab
+            .and_then(|id| self.browser_tabs.tab(id))
             .map(|tab| (tab.id, tab.url.clone()));
         let popup_tab_id = self.browser_tabs.open_loaded_popup_tab(
             requested_url,

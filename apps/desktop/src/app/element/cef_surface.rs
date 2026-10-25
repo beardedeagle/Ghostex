@@ -63,6 +63,7 @@ impl CefSurface {
         trusted_clipboard_origin: Option<String>,
         visible: bool,
         popup_open_handler: Option<cef::BrowserPopupOpenHandler>,
+        code_window_popup_handler: Option<cef::BrowserPopupOpenHandler>,
         page_metadata_handler: Option<cef::BrowserPageMetadataHandler>,
         media_access_handler: Option<cef::BrowserMediaAccessHandler>,
         project_workarea_bridge_event_handler: Option<cef::ProjectWorkareaBridgeEventHandler>,
@@ -79,6 +80,7 @@ impl CefSurface {
             uses_system_page_appearance,
             trusted_clipboard_origin,
             popup_open_handler,
+            code_window_popup_handler,
             page_metadata_handler,
             media_access_handler,
             project_workarea_bridge_event_handler,
@@ -112,6 +114,7 @@ impl CefSurface {
             &profile,
             prepaint_background_color,
             uses_system_page_appearance,
+            None,
             None,
             None,
             None,
@@ -454,6 +457,11 @@ impl CefSurface {
 
     pub(crate) fn order_front(&mut self) {
         self.browser.order_front();
+    }
+
+    /// Changes when the page's compositor hands its view a new surface (macOS); 0 elsewhere.
+    pub(crate) fn content_identity(&self) -> u64 {
+        self.browser.content_identity()
     }
 }
 

@@ -440,10 +440,15 @@ impl GhostexGpuiApp {
                     self.pending_keyboard_handoff = None;
                     return;
                 }
+                // Code keeps a page per window; the one on screen takes the keys.
+                let shown_code_slot = self.active_code_editor_slot();
                 let Some(surface) = self
                     .project_workarea_runtime_cef_surfaces
                     .iter()
-                    .find(|(slot_key, _)| slot_key.titlebar_mode() == mode)
+                    .find(|(slot_key, _)| {
+                        slot_key.titlebar_mode() == mode
+                            && (!slot_key.is_code_editor() || **slot_key == shown_code_slot)
+                    })
                     .map(|(_, owned_surface)| owned_surface.surface.clone())
                 else {
                     // The surface is still being created.

@@ -271,6 +271,7 @@ view from the strip.
   reuses the local VS Code configuration. The editor and the web runtime (see
   Browser) are both optional installs; the VS Code view offers each one the first
   time it opens.
+  Settings: `codeServerLinkVscodeUserConfig`, `codeServerNewWindowsAsTabs`.
 - **Browser**: embedded Chromium tabs with profiles, splits, annotations,
   DevTools, and agent control through the `$ghostex-embedded-browser-use`
   skill. Its tabs sit in the view panel's tab strip, in the same row as the view

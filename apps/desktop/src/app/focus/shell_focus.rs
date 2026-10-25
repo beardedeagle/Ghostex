@@ -194,6 +194,7 @@ impl GhostexGpuiApp {
             self.first_responder_target,
             FirstResponderTarget::CefSurface(FirstResponderCefSurface::ProjectWorkarea(
                 ProjectWorkareaCefSurfaceSlotKey::Source
+                    | ProjectWorkareaCefSurfaceSlotKey::CodeWindow(_)
             ))
         )
     }
@@ -213,7 +214,9 @@ impl GhostexGpuiApp {
         let renderer_edit_hotkeys_own_focus = matches!(
             self.first_responder_target,
             FirstResponderTarget::CefSurface(FirstResponderCefSurface::ProjectWorkarea(
-                ProjectWorkareaCefSurfaceSlotKey::Source | ProjectWorkareaCefSurfaceSlotKey::Manage
+                ProjectWorkareaCefSurfaceSlotKey::Source
+                    | ProjectWorkareaCefSurfaceSlotKey::CodeWindow(_)
+                    | ProjectWorkareaCefSurfaceSlotKey::Manage
             ))
         );
         let source_menu_changed =

@@ -298,7 +298,7 @@ impl GhostexGpuiApp {
             }
             ShellFocusTarget::ProjectEditorSurface(mode) if self.active_mode == mode => {
                 let slot_key = match mode {
-                    TitlebarMode::Source => ProjectWorkareaCefSurfaceSlotKey::Source,
+                    TitlebarMode::Source => self.active_code_editor_slot(),
                     TitlebarMode::Kanban => ProjectWorkareaCefSurfaceSlotKey::Kanban,
                     TitlebarMode::Automate => ProjectWorkareaCefSurfaceSlotKey::Automate,
                     TitlebarMode::Manage => ProjectWorkareaCefSurfaceSlotKey::Manage,
@@ -647,7 +647,8 @@ impl GhostexGpuiApp {
             }
             profile
         };
-        let popup_open_handler = self.browser_popup_open_handler(remote_machine_id, cx);
+        let popup_open_handler =
+            self.browser_popup_open_handler(remote_machine_id, Some(tab_id), cx);
         let page_metadata_handler = self.browser_page_metadata_handler(tab_id, cx);
         let media_access_handler = self.browser_media_access_handler(tab_id, profile_id, cx);
         let mobile_user_agent = self
@@ -685,6 +686,7 @@ impl GhostexGpuiApp {
             None,
             initially_visible,
             Some(popup_open_handler),
+            None,
             Some(page_metadata_handler),
             Some(media_access_handler),
             None,
@@ -727,9 +729,12 @@ impl GhostexGpuiApp {
     updating its own tabs instead of being permanently invalidated (which would
     leave restored tabs with a dead title, favicon, and load state forever).
     */
+    /// `source_tab` is the Browser tab whose page opens the popups, `None` for a page that is not
+    /// a Browser tab (Code, a website view).
     pub(crate) fn browser_popup_open_handler(
         &self,
         remote_machine_id: Option<String>,
+        source_tab: Option<BrowserTabId>,
         cx: &mut gpui::Context<Self>,
     ) -> cef::BrowserPopupOpenHandler {
         let app = cx.entity().downgrade();
@@ -751,6 +756,7 @@ impl GhostexGpuiApp {
                                         requested_url,
                                         remote_machine_id,
                                         placement,
+                                        source_tab,
                                         window,
                                         cx,
                                     );

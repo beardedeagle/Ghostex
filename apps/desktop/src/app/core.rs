@@ -339,6 +339,15 @@ pub struct GhostexGpuiApp {
     pub(crate) view_strip_drop_index: Option<usize>,
     /// The drawn order of the strip's tabs and which are pinned. See `GpuiViewStripLayout`.
     pub(crate) view_strip_layout: GpuiViewStripLayout,
+    /// The active project's extra Code windows (`app/workarea/code_windows.rs`). Swapped with the
+    /// rest of the project's view state on a project switch.
+    pub(crate) code_windows: CodeWindows,
+    /// `codeServerNewWindowsAsTabs` as the Code pages were last built for
+    /// (`apply_code_windows_setting`).
+    pub(crate) code_windows_setting_on: bool,
+    pub(crate) next_code_window_id: u64,
+    pub(crate) code_window_handoff: Option<CodeWindowHandoff>,
+    pub(crate) next_code_window_handoff_generation: u64,
     /// The view the active project last had open, so closing the panel and reopening it comes back
     /// to the same view. Swapped with the rest of the project's view state on a project switch.
     pub(crate) last_open_view_mode: Option<TitlebarMode>,
@@ -749,6 +758,8 @@ pub struct GhostexGpuiApp {
     pub(crate) browser_tab_scroll_handles: HashMap<BrowserPaneId, ScrollHandle>,
     /// The view panel has exactly one tab strip, so it needs one handle rather than a map.
     pub(crate) view_tab_scroll_handle: ScrollHandle,
+    /// The Code view's window tab row (`render/code_window_tabs.rs`).
+    pub(crate) code_window_tab_scroll_handle: ScrollHandle,
     pub(crate) command_tab_scroll_handles: HashMap<CommandPaneGroupId, ScrollHandle>,
     pub(crate) command_collapsed_tab_scroll_handle: ScrollHandle,
     pub(crate) workspace_split_layout_metrics: HashMap<WorkspaceSplitId, SplitResizeMetrics>,

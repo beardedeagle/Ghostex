@@ -54,6 +54,7 @@ unsafe extern "C" {
         fade_in_seconds: f64,
     );
     fn GhostexGpuiCEFOrderNativeViewFront(native_view: *mut c_void);
+    fn GhostexGpuiCEFNativeViewContentIdentity(native_view: *mut c_void) -> u64;
     fn GhostexGpuiCEFRemoveNativeViewFromSuperview(native_view: *mut c_void);
     fn GhostexGpuiCEFPrepareNativeViewForFocus(native_view: *mut c_void);
     fn GhostexGpuiCEFSetNativeViewPinchZoomDisabled(native_view: *mut c_void, disabled: bool);
@@ -354,6 +355,13 @@ pub(super) fn order_native_view_front(native_view: *mut c_void) {
     unsafe {
         GhostexGpuiCEFOrderNativeViewFront(native_view);
     }
+}
+
+pub(super) fn native_view_content_identity(native_view: *mut c_void) -> u64 {
+    if native_view.is_null() {
+        return 0;
+    }
+    unsafe { GhostexGpuiCEFNativeViewContentIdentity(native_view) }
 }
 
 pub(super) fn release_native_view(native_view: *mut c_void) {
