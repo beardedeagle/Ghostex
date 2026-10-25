@@ -1371,6 +1371,10 @@ static void GhostexGpuiCEFBrowserViewMagnify(id self, SEL _cmd, NSEvent *event) 
  GitHub #291: the app quit on an uncaught "Cannot remove an observer <_NSTouchBarFinderObservation> for the key path nextResponder" exception. AppKit's Touch Bar finder (it runs on Macs without a Touch Bar too) KVO-observes nextResponder on every responder from the key window's first responder up, and KVO does that by switching the view's class to NSKVONotifying_<class>. The focus subclass below switches the class too, so running it on a view the finder was observing put our class on top of KVO's: KVO lost its own class info (`-class` returned nil), and the finder's next removal of that observer, when focus moved (a chat menu or the feedback window closing), threw or crashed.
  So a view whose hierarchy already holds the focus subclass is left alone, even under KVO's class (the old prefix check compared one byte too many and never matched, so every repeat swizzled again), and a view KVO currently owns is swizzled once KVO has let go. The forwarding calls take their superclass from the focus subclass, not from the object's class: with KVO's class on top, the class above the focus subclass is the focus subclass itself, so every forwarded call looped back into the same hook.
 */
+/*
+ CDXC:CefRuntime 2026-10-25 SEE-ALSO:
+ The same exception had a second cause in the GPUI fork: its accessibility adapter (accesskit's SubclassingAdapter) swapped every GPUI window's content-view class when the window opened and swapped it back when the window closed, which stripped KVO's class whenever a key child window closed (Add to Chat from the chat's menu, restoring the maximized composer). `.dependencies/zed` crates/gpui_macos/src/window.rs (`A11yState`) now gives GPUI windows a declared `GPUIContentView` instead. Never change the class of a view in a GPUI window, there or here, without the KVO check above.
+*/
 static const char GhostexGpuiCEFFocusClassPrefix[] = "GhostexGpuiCEFFocus_";
 static const void *GhostexGpuiCEFFocusSubclassRetryKey =
     &GhostexGpuiCEFFocusSubclassRetryKey;
