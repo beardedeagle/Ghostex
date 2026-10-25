@@ -690,21 +690,24 @@ impl NativeChatView {
             );
         }
         let status = str_of(section, "status");
+        // A failure wraps onto as many lines as it needs: cut at the card's edge it hid the
+        // reason ("Couldn't count: Claude Code stopped before it…").
+        let status_line = if section["statusError"] == true {
+            div()
+                .min_h(px(NOTE_HEIGHT * s))
+                .pt(px(4.0 * s))
+                .min_w_0()
+                .text_color(swatch("failed", p))
+        } else {
+            div()
+                .h(px(NOTE_HEIGHT * s))
+                .flex()
+                .items_end()
+                .truncate()
+                .text_color(p.card_muted)
+        };
         column
-            .child(
-                div()
-                    .h(px(NOTE_HEIGHT * s))
-                    .flex()
-                    .items_end()
-                    .truncate()
-                    .text_size(px(11.5 * s))
-                    .text_color(if section["statusError"] == true {
-                        swatch("failed", p)
-                    } else {
-                        p.card_muted
-                    })
-                    .child(status),
-            )
+            .child(status_line.text_size(px(11.5 * s)).child(status))
             .into_any_element()
     }
 

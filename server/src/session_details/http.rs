@@ -185,6 +185,9 @@ fn read_details(
                 zmx_name: crate::zmx::provider_zmx_session_name(&session).ok(),
                 model: model.clone(),
                 transcript_len,
+                resumable: facts
+                    .as_ref()
+                    .is_some_and(|facts| facts.conversation_started),
                 working: resolution.working(),
                 home: home.clone(),
             },
