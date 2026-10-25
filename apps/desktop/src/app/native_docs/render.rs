@@ -186,15 +186,7 @@ impl GhostexGpuiApp {
                 // Search in Files (Cmd+Shift+F) shares its chord with Find Prompts; the root lets it
                 // through, and here, below the root, Files claims the chord (CDXC:Docs 2026-10-25
                 // DECISION in packages/settings-catalog/src/hotkey_definitions.rs).
-                .on_action(cx.listener(
-                    |this, action: &crate::app::hotkeys::RunConfiguredGhostexHotkey, window, cx| {
-                        if super::project_search::claims_hotkey(&action.action_id) {
-                            this.native_docs_show_project_search(window, cx);
-                        } else {
-                            cx.propagate();
-                        }
-                    },
-                ))
+                .on_action(cx.listener(Self::native_docs_claim_hotkey))
                 // CDXC:Docs 2026-10-24 WHY: Cmd+= / Cmd+- / Cmd+0 (Ctrl on Windows and Linux) are bound app-wide to zoom the focused surface (main.rs), and a matched binding is dispatched before any key-down listener, so an open picture answers those actions here, below the root, and lets them go on when no picture is showing.
                 .on_action(cx.listener(
                     |this, _: &crate::app::actions::ZoomInFocusedSurface, _, cx| {
