@@ -34,7 +34,7 @@ impl GhostexGpuiApp {
             }
             chat.session_details_ring()
         };
-        let open = self.session_details.open;
+        let open = self.session_details_target_open();
         let bounds = self.session_details.button_bounds.clone();
         let text = titlebar_active_text_color();
         Some(

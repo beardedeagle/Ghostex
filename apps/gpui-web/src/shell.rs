@@ -170,7 +170,10 @@ impl GhostexGpuiApp {
             }
             view.session_details_ring()
         };
-        let open = self.session_details_open;
+        let open = self
+            .session_details_choices
+            .is_open(&session.to_sidebar_session_id());
+        let key = session.to_sidebar_session_id();
         let bounds = self.session_details_button_bounds.clone();
         let text = titlebar_active_text_color();
         Some(
@@ -207,14 +210,15 @@ impl GhostexGpuiApp {
                     })
                     .build(window, cx)
                 })
-                .on_click(cx.listener(|app, _, _, cx| {
+                .on_click(cx.listener(move |app, _, _, cx| {
                     // The click that just closed the floating card does not reopen it.
-                    let reopening = !app.session_details_open
+                    let open = app.session_details_choices.is_open(&key);
+                    let reopening = !open
                         && app
                             .session_details_dismissed_at
                             .is_some_and(|at| at.elapsed() < std::time::Duration::from_millis(350));
                     if !reopening {
-                        app.session_details_open = !app.session_details_open;
+                        app.session_details_choices.set(&key, !open);
                         cx.notify();
                     }
                 }))
@@ -344,7 +348,11 @@ impl Render for GhostexGpuiApp {
         // The Session details panel belongs to the chat the page shows, while its button is on.
         let anchor = self.session_details_button_bounds.clone();
         for (key, (_, view)) in &self.native_chats {
-            let wanted = self.session_details_open && !shows_terminal && open.as_ref() == Some(key);
+            let wanted = !shows_terminal
+                && open.as_ref() == Some(key)
+                && self
+                    .session_details_choices
+                    .is_open(&key.to_sidebar_session_id());
             view.update(cx, |view, cx| {
                 view.set_session_details_wanted(wanted, Some(anchor.clone()), cx)
             });

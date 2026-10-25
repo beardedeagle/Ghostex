@@ -214,11 +214,31 @@ impl GhostexGpuiApp {
                 "Save it from the Ghostex app.",
                 cx,
             ),
-            // The Session details panel's card closed by a click on the chat (shell.rs).
+            // The Session details panel's card was dismissed (shell.rs): it goes off for this chat
+            // once the press that did it has landed, if the chat is still the one on screen
+            // (`SessionDetailsChoices::settle`).
             Some("sessionDetailsDismissed") => {
+                let key = session.to_sidebar_session_id();
                 self.session_details_dismissed_at = Some(web_time::Instant::now());
-                self.session_details_open = false;
+                self.session_details_choices
+                    .dismissed(&key, web_time::Instant::now());
                 cx.notify();
+                cx.spawn(async move |this, cx| {
+                    cx.background_executor()
+                        .timer(crate::app::native_chat::session_details::DISMISS_SETTLE)
+                        .await;
+                    let _ = this.update(cx, |this, cx| {
+                        let shown = this
+                            .open_session
+                            .as_ref()
+                            .filter(|session| !this.web_shows_terminal(session))
+                            .map(|session| session.to_sidebar_session_id());
+                        this.session_details_choices
+                            .settle(shown.as_deref(), web_time::Instant::now());
+                        cx.notify();
+                    });
+                })
+                .detach();
             }
             Some("openAgentsHubSkill") => self.web_chat_needs_app_toast(
                 "Agents Hub is in the Ghostex app",

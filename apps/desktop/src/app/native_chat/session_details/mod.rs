@@ -12,8 +12,10 @@
 //! SEE-ALSO: apps/desktop/src/app/render/workarea_header/session_details_button.rs (the button), apps/gpui-web/src/shell.rs (the web header's button).
 
 mod cards;
+mod choices;
 mod ring;
 
+pub(crate) use choices::{DISMISS_SETTLE, SessionDetailsChoices};
 pub(crate) use ring::{session_details_ring, session_details_ring_label};
 
 use super::{appearance::ChatAppearance, state::NativeChatView};
@@ -196,9 +198,11 @@ impl NativeChatView {
     }
 
     /// The floating card went away. Closed by a click on the chat (or Escape), the panel is off
-    /// until the button is pressed again; closed by this view, nothing changes.
+    /// until the button is pressed again (the app waits to see the chat is still shown,
+    /// `SessionDetailsChoices::settle`); closed by this view, or because the chat left the
+    /// screen, nothing changes.
     pub(super) fn session_details_menu_closed(&mut self, cx: &mut Context<Self>) {
-        if std::mem::take(&mut self.session_details.closing) {
+        if std::mem::take(&mut self.session_details.closing) || self.pane_hidden {
             return;
         }
         if self.session_details.wanted && !self.session_details.docked {

@@ -30,9 +30,11 @@ pub(crate) struct GhostexGpuiApp {
     pub(crate) gx_store: crate::app::gx_store::GxStoreHost,
     pub(crate) sidebar_width: f32,
     pub(crate) sidebar_collapsed: bool,
-    /// The header's Session details button: on or off for the page, where it was painted (the
-    /// floating card opens under it), and when a click on the chat last closed that card.
-    pub(crate) session_details_open: bool,
+    /// The header's Session details button: each chat's choice for this page (the page has no
+    /// settings file, so it starts closed), where it was painted (the floating card opens under
+    /// it), and when a click on the chat last closed that card.
+    pub(crate) session_details_choices:
+        crate::app::native_chat::session_details::SessionDetailsChoices,
     pub(crate) session_details_button_bounds: Rc<std::cell::Cell<Bounds<Pixels>>>,
     pub(crate) session_details_dismissed_at: Option<web_time::Instant>,
     pub(crate) sidebar_usage_visible: bool,
@@ -108,7 +110,7 @@ impl GhostexGpuiApp {
             gx_store: Default::default(),
             sidebar_width: 300.0,
             sidebar_collapsed: false,
-            session_details_open: false,
+            session_details_choices: Default::default(),
             session_details_button_bounds: Rc::default(),
             session_details_dismissed_at: None,
             sidebar_usage_visible: false,
