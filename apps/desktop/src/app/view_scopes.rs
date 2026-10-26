@@ -341,6 +341,7 @@ impl GhostexGpuiApp {
             scopes.insert(key.to_string(), scope.to_json());
         }
         let _ = shared_settings::write_shared_sidebar_settings_object(settings);
+        self.move_off_view_hidden_just_now(cx);
         self.refresh_gpui_plugins_modal(cx);
         cx.notify();
     }

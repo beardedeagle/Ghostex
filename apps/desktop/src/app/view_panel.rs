@@ -204,9 +204,13 @@ impl GhostexGpuiApp {
     /// The tab that takes over when `mode` leaves the panel: the nearest one to its right that this
     /// project can show, else the nearest to its left, else nothing. `mode` itself may be a view
     /// this project can no longer show.
+    ///
+    /// CDXC:Workarea 2026-10-26 WHY:
+    /// The neighbours are read from the strip's drawn order, not from the open-views list: only a drag rewrites that list's order, so after a pin and an unpin closing a tab could jump past the one drawn beside it.
     pub(crate) fn view_tab_successor(&self, mode: TitlebarMode) -> Option<TitlebarMode> {
-        let index = self.open_views.iter().position(|tab| *tab == mode)?;
-        let (left, right) = self.open_views.split_at(index);
+        let tabs = self.open_views_in_view_strip_order();
+        let index = tabs.iter().position(|tab| *tab == mode)?;
+        let (left, right) = tabs.split_at(index);
         right[1..]
             .iter()
             .chain(left.iter().rev())

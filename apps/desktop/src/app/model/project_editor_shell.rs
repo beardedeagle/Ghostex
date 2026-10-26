@@ -181,12 +181,26 @@ impl GpuiProjectViewState {
     }
 
     /// What `append_view_strip_tab` does for a tab that just opened on screen, done to this saved
-    /// strip: the order is written out as the strip would draw every tab the project has (`tabs`
-    /// is its Browser), so tabs it had not placed keep their places, and the new tab goes last.
+    /// strip (`tabs` is its Browser): the row the page is drawn in is written back into the stored
+    /// order as it would be drawn with every tab the project has, so tabs it had not placed keep
+    /// their places and every other tab, the dragged Browser tab included, keeps its slot; the new
+    /// tab goes last.
     pub(crate) fn append_browser_tab(&mut self, tab_id: BrowserTabId, tabs: &BrowserTabModel) {
+        let pages_in_row =
+            shared_settings::shared_sidebar_settings_snapshot().browser_pages_in_view_row();
+        self.append_browser_tab_to_row(tab_id, tabs, pages_in_row);
+    }
+
+    fn append_browser_tab_to_row(
+        &mut self,
+        tab_id: BrowserTabId,
+        tabs: &BrowserTabModel,
+        pages_in_row: bool,
+    ) {
         let views = self
             .open_views
             .iter()
+            .filter(|_| !pages_in_row)
             .filter(|mode| !matches!(mode, TitlebarMode::Agents | TitlebarMode::Browser))
             .map(|mode| ViewStripTabKey::View(*mode));
         let pages = tabs
@@ -195,13 +209,16 @@ impl GpuiProjectViewState {
             .filter_map(|pane_id| tabs.find_leaf(pane_id))
             .flat_map(|leaf| &leaf.tab_group.tabs)
             .map(|pane_tab| ViewStripTabKey::Browser(pane_tab.tab_id));
+        let layout = &mut self.view_strip_layout;
+        let drawn = layout.in_drawn_order(views.chain(pages).collect(), false, |key| *key);
+        let open_views = &self.open_views;
+        layout.write_projection(&drawn, |key| match key {
+            ViewStripTabKey::View(mode) => open_views.contains(mode),
+            ViewStripTabKey::Browser(tab_id) => tabs.tab(*tab_id).is_some(),
+        });
         let key = ViewStripTabKey::Browser(tab_id);
-        let mut order = self
-            .view_strip_layout
-            .in_drawn_order(views.chain(pages).collect(), |existing| *existing);
-        order.retain(|existing| *existing != key);
-        order.push(key);
-        self.view_strip_layout.order = order;
+        layout.order.retain(|existing| *existing != key);
+        layout.order.push(key);
     }
 }
 
@@ -693,5 +710,59 @@ pub(crate) fn workarea_split_ratio_for_span(ratio: f32, content_span: f32) -> f3
         ratio.clamp(agents_min_ratio, agents_max_ratio)
     } else {
         agents_min_ratio
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn two_pages() -> (BrowserTabModel, BrowserTabId, BrowserTabId) {
+        let profile = BrowserProfileId::default_profile();
+        let mut tabs = BrowserTabModel::shell_address_only_with_profile(profile);
+        let mut open = |url: &str| {
+            tabs.open_loaded_popup_tab(
+                url.to_string(),
+                profile,
+                cef::BrowserPopupPlacement::Selected,
+            )
+            .expect("page opens")
+        };
+        let first = open("https://one.example");
+        let second = open("https://two.example");
+        (tabs, first, second)
+    }
+
+    /// A page opened for a project off screen keeps the Browser tab where it was dragged, with its
+    /// pages in a row of their own or in the strip.
+    #[test]
+    fn a_background_page_keeps_the_dragged_browser_tab() {
+        let (tabs, first, second) = two_pages();
+        for pages_in_row in [true, false] {
+            let mut saved = GpuiProjectViewState::closed(WORKAREA_SPLIT_DEFAULT_RATIO);
+            saved.open_views = vec![
+                TitlebarMode::Manage,
+                TitlebarMode::Browser,
+                TitlebarMode::Kanban,
+            ];
+            saved.view_strip_layout.order = vec![
+                ViewStripTabKey::View(TitlebarMode::Browser),
+                ViewStripTabKey::View(TitlebarMode::Manage),
+                ViewStripTabKey::Browser(first),
+                ViewStripTabKey::View(TitlebarMode::Kanban),
+            ];
+            saved.append_browser_tab_to_row(second, &tabs, pages_in_row);
+            assert_eq!(
+                saved.view_strip_layout.order,
+                vec![
+                    ViewStripTabKey::View(TitlebarMode::Browser),
+                    ViewStripTabKey::View(TitlebarMode::Manage),
+                    ViewStripTabKey::Browser(first),
+                    ViewStripTabKey::View(TitlebarMode::Kanban),
+                    ViewStripTabKey::Browser(second),
+                ],
+                "pages in their own row: {pages_in_row}"
+            );
+        }
     }
 }

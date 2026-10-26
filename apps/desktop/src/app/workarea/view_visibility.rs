@@ -27,9 +27,18 @@ impl GhostexGpuiApp {
         settings.insert(settings_key.to_string(), serde_json::Value::Bool(hidden));
         shared_settings::write_shared_sidebar_settings_object(settings)
             .map_err(|error| format!("Could not update the built-in feature setting: {error:?}"))?;
+        self.move_off_view_hidden_just_now(cx);
         self.refresh_gpui_plugins_modal(cx);
         cx.notify();
         Ok(())
+    }
+
+    /// CDXC:Workarea 2026-10-26 WHY:
+    /// A switch that hides views here moves the panel off the one on screen right after its setting is written, instead of when the settings change comes back from the save, which left the old page drawn with no tab selected for about a second. The settings pass that follows finds nothing left to move.
+    pub(crate) fn move_off_view_hidden_just_now(&mut self, cx: &mut gpui::Context<Self>) {
+        if self.coerce_active_mode_to_available_project_context(cx) {
+            self.update_project_workarea_runtime_cef_surface_visibility(cx);
+        }
     }
 
     pub(crate) fn titlebar_mode_available(&self, mode: TitlebarMode) -> bool {
