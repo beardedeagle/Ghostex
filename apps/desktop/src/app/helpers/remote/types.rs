@@ -109,6 +109,8 @@ pub(crate) struct GpuiRemoteMachineConfig {
     pub(crate) has_saved_password: bool,
     pub(crate) wsl_distribution: Option<String>,
     pub(crate) disabled: bool,
+    /// The connect's shared SSH login (`GpuiRemoteSshConnectionShare`); set only on the copy one connect runs with.
+    pub(crate) ssh_control_path: Option<String>,
 }
 
 impl GpuiRemoteMachineConfig {

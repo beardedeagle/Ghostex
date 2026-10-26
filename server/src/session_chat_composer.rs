@@ -239,9 +239,11 @@ fn requires_ready_composer(agent: Option<&str>) -> bool {
 enum ComposerSignature {
     /// A marker line sandwiched between two full-width `─` rules.
     ///
-    ///     ────────────────────────────── conversation-summary ─
-    ///     ❯
-    ///     ──────────────────────────────────────────────────────
+    /// ```text
+    /// ────────────────────────────── conversation-summary ─
+    /// ❯
+    /// ──────────────────────────────────────────────────────
+    /// ```
     ///
     /// The TOP rule may carry a right-aligned session title, and BELOW the
     /// bottom rule sits a statusline of user-chosen height — which is why the
@@ -276,8 +278,10 @@ enum ComposerSignature {
     /// A rounded box at the very bottom of the screen, at most
     /// `ROUNDED_FOOT_MAX_BOX_LINES` tall, whose borders carry the statusline:
     ///
-    ///     ╭── π  > ⬢ GPT-5.6-Sol · … ▶────────────╮
-    ///     ╰─                                    ─╯
+    /// ```text
+    /// ╭── π  > ⬢ GPT-5.6-Sol · … ▶────────────╮
+    /// ╰─                                    ─╯
+    /// ```
     ///
     /// Height is the discriminator: omp's dialogs are full-screen boxes.
     TrailingRoundedFoot,

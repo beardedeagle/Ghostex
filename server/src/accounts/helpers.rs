@@ -355,7 +355,10 @@ fn discover_row(home: &Path, provider: Provider, row: &Value) -> Option<Discover
             }
         }
     } else {
-        account.identity = text(row, "accountId");
+        account.identity = super::codex_identity::codex_identity(
+            &text(row, "accountId"),
+            Some(&text(row, "userId")),
+        );
         account.status = match text(row, "loginStatus").as_str() {
             "present" => "ready",
             "identity_changed" => "identityChanged",
@@ -425,7 +428,13 @@ pub(crate) fn codex_request<B>(
     let auth: Value =
         serde_json::from_slice(&raw).map_err(|_| "Codex credentials are unreadable.")?;
     let expected = text(row, "accountId");
-    if auth.pointer("/tokens/account_id").and_then(Value::as_str) != Some(expected.as_str()) {
+    // The member is checked too: a slot whose login moved to another member of the same Business workspace keeps the workspace's `account_id`.
+    let saved = super::codex_identity::codex_identity(&expected, Some(&text(row, "userId")));
+    if auth.pointer("/tokens/account_id").and_then(Value::as_str) != Some(expected.as_str())
+        || !super::codex_identity::codex_auth_identity(&auth).is_some_and(|login| {
+            super::codex_identity::identity_matches(Provider::Codex, &saved, &login)
+        })
+    {
         return Err("This account's login identity changed. Reconnect it.".into());
     }
     let token = auth

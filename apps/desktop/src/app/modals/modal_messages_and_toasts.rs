@@ -253,8 +253,8 @@ impl GhostexGpuiApp {
 
     /// Will-terminate persistence flush (macOS `applicationWillTerminate`
     /// parity): persist shell state, restore lid-close sleep by stopping the
-    /// Keep Awake runtime, stop the app-owned code-server, and deliberately
-    /// never stop gxserver. CEF owns the durable Browser-profile store and
+    /// Keep Awake runtime, stop the app-owned code-server and remote tunnels,
+    /// and deliberately never stop gxserver. CEF owns the durable Browser-profile store and
     /// flushes it during the existing CEF shutdown sequence; GPUI does not
     /// duplicate cookies or site storage in shell state here.
     pub(crate) fn flush_gpui_quit_persistence(&mut self, cx: &mut gpui::Context<Self>) {
@@ -276,6 +276,10 @@ impl GhostexGpuiApp {
         self.flush_shell_layout_state();
         self.stop_gpui_keep_awake_runtime();
         self.source_code_server_runtime.stop();
+        // The process can exit after this hook without dropping the app, so `Drop for
+        // GhostexGpuiApp` must not be the only place the tunnels' ssh children are stopped
+        // (tunnel_registry.rs covers a quit that never reaches this hook).
+        self.stop_all_gpui_remote_gxserver_connections();
         let _ = cx;
     }
 }

@@ -11,6 +11,7 @@ use serde_json::{json, Value};
 use crate::transcript::background_rows::background_task_source;
 use crate::transcript::jsstr::js_trim;
 use crate::transcript::tool_fold::{pair_tool_blocks, split_blocks};
+use crate::transcript::tool_rows::is_command_tool;
 use crate::transcript::tool_summary::truncate_tool_preview;
 
 /// How long a failed call's reason may run beside its preview.
@@ -110,7 +111,9 @@ pub fn tool_durations<'a>(
 
 /// What a failed call's row says after its preview: the first line of what the tool reported,
 /// without the harness's own error wrapper.
-pub fn failure_note(output: &str) -> String {
+///
+/// CDXC:SessionChat 2026-10-26 DECISION: User, about a failed Bash row that read "Exit code 1" after its red title: "please don't show 'Exit code 1' here for this kind of element in our chat transcript". Claude Code reports a failed command as "Exit code <n>" followed by the output; the row's red title and cross already say it failed, so a command call says nothing after its title (the next line of output does not take its place) and the exit code stays in the expanded row's output. Other tools' reasons are unchanged. A background command's own "exit code" reason (`background_rows.rs`) is a different row and keeps it.
+pub fn failure_note(tool_name: Option<&str>, output: &str) -> String {
     let line = output
         .lines()
         .map(|line| {
@@ -121,7 +124,17 @@ pub fn failure_note(output: &str) -> String {
         })
         .find(|line| !line.is_empty())
         .unwrap_or_default();
+    if tool_name.is_some_and(is_command_tool) && is_exit_code_line(line) {
+        return String::new();
+    }
     truncate_tool_preview(line, FAILURE_NOTE_LENGTH)
+}
+
+/// "Exit code 1": the whole line Claude Code's Bash tool opens a failed result with.
+fn is_exit_code_line(line: &str) -> bool {
+    line.strip_prefix("Exit code ").is_some_and(|digits| {
+        !digits.is_empty() && digits.bytes().all(|byte| byte.is_ascii_digit())
+    })
 }
 
 /// The counts beside a finished turn's "Worked for 2m 5s": its tool calls and the files it changed.
@@ -158,4 +171,93 @@ pub fn work_stats(rows: &[&ChatMessage], changed_files: usize) -> Vec<Value> {
         }));
     }
     stats
+}
+
+#[cfg(test)]
+mod failure_note_tests {
+    use super::failure_note;
+
+    #[test]
+    fn a_failed_bash_result_shows_no_exit_code_line() {
+        assert_eq!(
+            failure_note(Some("Bash"), "Exit code 1\nboom: not found"),
+            ""
+        );
+        assert_eq!(failure_note(Some("Bash"), "Exit code 127"), "");
+    }
+
+    #[test]
+    fn a_bash_failure_that_says_something_else_keeps_it() {
+        assert_eq!(
+            failure_note(Some("Bash"), "command not found: foo"),
+            "command not found: foo"
+        );
+    }
+
+    #[test]
+    fn a_non_command_failure_keeps_its_summary() {
+        assert_eq!(
+            failure_note(Some("Read"), "Exit code 1\nboom"),
+            "Exit code 1"
+        );
+        assert_eq!(
+            failure_note(
+                Some("Read"),
+                "<tool_use_error>File does not exist.</tool_use_error>"
+            ),
+            "File does not exist."
+        );
+    }
+
+    #[test]
+    fn a_background_commands_reason_is_unchanged() {
+        assert_eq!(
+            failure_note(Some("Background command"), "exit code 1\nx"),
+            "exit code 1"
+        );
+    }
+}
+
+#[cfg(test)]
+mod failure_row_tests {
+    use std::collections::HashMap;
+
+    use ghostex_gx_protocol::ChatBlock;
+    use serde_json::json;
+
+    use crate::transcript::tool_fold::pair_tool_blocks;
+    use crate::transcript::transcript_rows::tool_rows;
+
+    fn row(name: &str, output: &str, is_error: bool) -> serde_json::Value {
+        let blocks = [
+            ChatBlock::ToolCall {
+                name: name.to_string(),
+                input: json!({ "command": "gh issue list", "description": "List issues" }),
+                call_id: Some("c1".to_string()),
+            },
+            ChatBlock::ToolResult {
+                output: output.to_string(),
+                is_error: is_error.then_some(true),
+                call_id: Some("c1".to_string()),
+                patch: None,
+            },
+        ];
+        let pairs = pair_tool_blocks(blocks.iter());
+        tool_rows(&pairs, "", None, &HashMap::new()).remove(0)
+    }
+
+    #[test]
+    fn rows_show_no_exit_code_for_a_failed_command_and_keep_other_summaries() {
+        let failed_bash = row("Bash", "Exit code 1\nboom", true);
+        assert_eq!(failed_bash["failure"], "");
+        assert_eq!(failed_bash["status"], "failed");
+        assert!(failed_bash["hasDetail"].as_bool().unwrap());
+        assert_eq!(
+            row("Read", "File does not exist.", true)["failure"],
+            "File does not exist."
+        );
+        let done = row("Bash", "Exit code 1\nnot an error result", false);
+        assert_eq!(done["failure"], "");
+        assert_eq!(done["status"], "done");
+    }
 }
