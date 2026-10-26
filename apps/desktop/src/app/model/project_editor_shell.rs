@@ -155,6 +155,56 @@ pub(crate) struct GpuiProjectViewState {
     pub(crate) code_windows: CodeWindows,
 }
 
+impl GpuiProjectViewState {
+    /// A project with no saved view: the panel closed and no tabs, as the project switch treats it
+    /// (`apply_project_view_state_for_active_project`).
+    pub(crate) fn closed(workarea_split_ratio: f32) -> Self {
+        Self {
+            active_mode: TitlebarMode::Agents,
+            open_views: Vec::new(),
+            view_strip_layout: GpuiViewStripLayout::default(),
+            last_view_mode: None,
+            workarea_split_ratio,
+            active_view_awake: false,
+            code_windows: CodeWindows::default(),
+        }
+    }
+
+    /// What opening a Browser page does to the project on screen (`change_active_mode_with_pane_state`),
+    /// done to the saved view of a project that is not: its panel comes back on Browser.
+    pub(crate) fn show_browser(&mut self) {
+        if !self.open_views.contains(&TitlebarMode::Browser) {
+            self.open_views.push(TitlebarMode::Browser);
+        }
+        self.active_mode = TitlebarMode::Browser;
+        self.last_view_mode = Some(TitlebarMode::Browser);
+    }
+
+    /// What `append_view_strip_tab` does for a tab that just opened on screen, done to this saved
+    /// strip: the order is written out as the strip would draw every tab the project has (`tabs`
+    /// is its Browser), so tabs it had not placed keep their places, and the new tab goes last.
+    pub(crate) fn append_browser_tab(&mut self, tab_id: BrowserTabId, tabs: &BrowserTabModel) {
+        let views = self
+            .open_views
+            .iter()
+            .filter(|mode| !matches!(mode, TitlebarMode::Agents | TitlebarMode::Browser))
+            .map(|mode| ViewStripTabKey::View(*mode));
+        let pages = tabs
+            .rendered_leaf_order()
+            .into_iter()
+            .filter_map(|pane_id| tabs.find_leaf(pane_id))
+            .flat_map(|leaf| &leaf.tab_group.tabs)
+            .map(|pane_tab| ViewStripTabKey::Browser(pane_tab.tab_id));
+        let key = ViewStripTabKey::Browser(tab_id);
+        let mut order = self
+            .view_strip_layout
+            .in_drawn_order(views.chain(pages).collect(), |existing| *existing);
+        order.retain(|existing| *existing != key);
+        order.push(key);
+        self.view_strip_layout.order = order;
+    }
+}
+
 /// A project's saved view that its restore could not show yet (`finish_project_view_restore`).
 #[derive(Clone, Debug, PartialEq)]
 pub(crate) struct PendingProjectViewRestore {

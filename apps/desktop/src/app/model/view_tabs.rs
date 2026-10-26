@@ -52,6 +52,26 @@ pub(crate) struct GpuiViewStripLayout {
 }
 
 impl GpuiViewStripLayout {
+    /// `available` (the tabs to draw, in their natural order) in drawn order: pinned tabs first,
+    /// then the rest, each group in the stored order, tabs it has not placed after the ones it has.
+    pub(crate) fn in_drawn_order<T>(
+        &self,
+        mut available: Vec<T>,
+        key: impl Fn(&T) -> ViewStripTabKey,
+    ) -> Vec<T> {
+        let mut ordered = Vec::with_capacity(available.len());
+        for stored in &self.order {
+            if let Some(position) = available.iter().position(|tab| key(tab) == *stored) {
+                ordered.push(available.remove(position));
+            }
+        }
+        ordered.append(&mut available);
+        let (pinned, unpinned): (Vec<_>, Vec<_>) = ordered
+            .into_iter()
+            .partition(|tab| self.pinned.contains(&key(tab)));
+        pinned.into_iter().chain(unpinned).collect()
+    }
+
     pub(crate) fn to_shell_state_json(&self) -> serde_json::Value {
         let keys = |keys: &[ViewStripTabKey]| {
             keys.iter()

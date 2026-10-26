@@ -133,6 +133,10 @@ pub struct GhostexGpuiApp {
     just left and reloaded its pages from scratch on the way back.
     */
     pub(crate) parked_browser_runtimes_by_project: HashMap<String, ParkedBrowserRuntime>,
+    /// Per project, the tab of the last page opened for it while it was not on screen, shown when the
+    /// project next is (`land_pending_parked_browser_open`). Runtime only: after a launch every page
+    /// waits for a click (CDXC:Browser 2026-09-19).
+    pub(crate) pending_parked_browser_opens: HashMap<String, BrowserTabId>,
     pub(crate) browser_tabs_project_epoch: u64,
     /*
     CDXC:Browser 2026-08-26:

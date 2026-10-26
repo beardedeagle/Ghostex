@@ -313,6 +313,10 @@ view from the strip.
   Web links from terminals, chat, and detected dev servers
   open here or in the system browser depending on Open links in; Shift+click a
   link in the chat to open it in the system browser either way.
+  A page an agent opens for a project that is not on screen (`ghostex browser open`
+  uses the agent's own project) goes to that project's Browser: the project you are
+  looking at stays as it is, a notice names the project, and the page is in front
+  when you switch to it.
   The Browser runs on the web runtime (Chromium), an optional one-time install
   that Ghostex does not need for anything else: until it is installed the
   Browser, the VS Code view, website and extension views, and HTML, drawing and

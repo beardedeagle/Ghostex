@@ -25,7 +25,7 @@ impl GhostexGpuiApp {
     /// The strip in drawn order: pinned tabs first, then the rest, each group in the order the
     /// user dragged it into. A tab the stored order has not seen yet is drawn at the end.
     pub(crate) fn view_strip_entries(&self) -> Vec<ViewStripEntry> {
-        let mut available = self
+        let available = self
             .open_view_tabs()
             .into_iter()
             .filter(|mode| *mode != TitlebarMode::Browser)
@@ -35,18 +35,9 @@ impl GhostexGpuiApp {
                     .into_iter()
                     .map(ViewStripEntry::Browser),
             )
-            .collect::<Vec<_>>();
-        let mut ordered = Vec::with_capacity(available.len());
-        for key in &self.view_strip_layout.order {
-            if let Some(position) = available.iter().position(|entry| entry.key() == *key) {
-                ordered.push(available.remove(position));
-            }
-        }
-        ordered.append(&mut available);
-        let (pinned, unpinned): (Vec<_>, Vec<_>) = ordered
-            .into_iter()
-            .partition(|entry| self.view_strip_tab_pinned(entry.key()));
-        pinned.into_iter().chain(unpinned).collect()
+            .collect();
+        self.view_strip_layout
+            .in_drawn_order(available, |entry| entry.key())
     }
 
     pub(crate) fn view_strip_tab_pinned(&self, key: ViewStripTabKey) -> bool {

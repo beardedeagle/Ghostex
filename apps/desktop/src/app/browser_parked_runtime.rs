@@ -2,8 +2,11 @@
 // the project-aware routing every parked surface's async CEF callbacks use to
 // reach the tab model that actually owns their tab id.
 
+use ghostex_gx_core::ProjectKey;
+
 use crate::app::helpers::*;
 use crate::app::model::*;
+use crate::app::window::{GPUI_APP_TOAST_DEFAULT_DURATION_MS, GpuiAppToast, GpuiAppToastLevel};
 use crate::*;
 
 impl GhostexGpuiApp {
@@ -243,6 +246,121 @@ impl GhostexGpuiApp {
         cx.notify();
     }
 
+    /// CDXC:Browser 2026-10-25 WHY:
+    /// `ghostex browser open` names the agent's own project, which is often not the one on screen. Such a page goes into that project's parked tab model the way a parked page's popup does: the project on screen keeps its panel, view and tabs, and focus stays put.
+    /// The project's saved view moves to Browser, as the open would have done on screen, a toast says where the page went, and the page is shown when the project is next on screen (`land_pending_parked_browser_open`).
+    /// A page the project does not have yet is created then, not now: a hidden page made now would use the Browser profile of the workspace on screen, not the project's, and it would load for a project the user may not visit. A reused tab whose page is already running parked goes to the address at once, as a live one would: that page was made with its project's profile, keeps running while parked, and an agent driving it sees the new address straight away.
+    pub(crate) fn open_browser_url_in_parked_project(
+        &mut self,
+        project_id: &str,
+        url: String,
+        reuse: GpuiBrowserRendererOpenReuse,
+        remote_machine_id: Option<String>,
+        cx: &mut gpui::Context<Self>,
+    ) {
+        let active_profile_id = self.browser_profiles.active_profile_id();
+        let parked_tabs = self
+            .parked_browser_tabs_by_project
+            .entry(project_id.to_string())
+            .or_insert_with(|| BrowserTabModel::shell_address_only_with_profile(active_profile_id));
+        let (tab_id, new_tab) = match parked_tabs.find_renderer_open_reuse_tab(
+            &url,
+            reuse,
+            remote_machine_id.as_deref(),
+        ) {
+            Some((pane_id, tab_id)) => {
+                parked_tabs.select_tab_in_pane(pane_id, tab_id);
+                parked_tabs.load_pane_active_tab_url(pane_id, url.clone());
+                // A parked page still runs, so it goes to the address as a live one would.
+                if let Some(surface) = self
+                    .parked_browser_runtimes_by_project
+                    .get(project_id)
+                    .and_then(|runtime| runtime.surfaces.get(&tab_id))
+                {
+                    surface.update(cx, |surface, _| surface.load_url(&url));
+                }
+                (tab_id, false)
+            }
+            None => {
+                let Some(tab_id) = parked_tabs.open_loaded_popup_tab(
+                    url,
+                    active_profile_id,
+                    cef::BrowserPopupPlacement::Selected,
+                ) else {
+                    return;
+                };
+                if let Some(tab) = parked_tabs.tabs.iter_mut().find(|tab| tab.id == tab_id) {
+                    tab.remote_machine_id = remote_machine_id;
+                }
+                (tab_id, true)
+            }
+        };
+        let page_title = parked_tabs.tab(tab_id).map(|tab| tab.title.clone());
+        self.pending_parked_browser_opens
+            .insert(project_id.to_string(), tab_id);
+        let workarea_split_ratio = self.project_editor_shell.workarea_split_ratio;
+        let saved_view = self
+            .project_view_states_by_project
+            .entry(project_id.to_string())
+            .or_insert_with(|| GpuiProjectViewState::closed(workarea_split_ratio));
+        saved_view.show_browser();
+        if new_tab {
+            saved_view.append_browser_tab(tab_id, parked_tabs);
+        }
+        let project_title = ProjectKey::parse_workspace_project_id(project_id)
+            .and_then(|key| self.gx_store.core.presentation().project(&key))
+            .map(|project| project.title.trim().to_string())
+            .filter(|title| !title.is_empty())
+            .unwrap_or_else(|| "another project".to_string());
+        self.upsert_gpui_app_toast(
+            GpuiAppToast {
+                copy_text: None,
+                // One toast per project, so a burst of pages updates it instead of stacking.
+                id: format!("gpui-browser-opened-in-project-{project_id}"),
+                level: GpuiAppToastLevel::from_raw(Some("info")),
+                title: format!("Page opened in {project_title}"),
+                description: page_title,
+                loading: false,
+                persistent: false,
+                duration_ms: GPUI_APP_TOAST_DEFAULT_DURATION_MS,
+                action: None,
+                epoch: 0,
+            },
+            cx,
+        );
+        self.persist_shell_layout_state();
+        cx.notify();
+    }
+
+    /// Shows the page opened for this project while it was not on screen, once its views and tabs
+    /// are back (`apply_changed_active_project_snapshot`): Browser wakes, the page loads and the
+    /// strip scrolls to its tab. It runs after the other landings, so one that changed the view or
+    /// the tab in front (a file opened in Code, a project header's New Browser Tab) wins.
+    pub(crate) fn land_pending_parked_browser_open(
+        &mut self,
+        window: &mut gpui::Window,
+        cx: &mut gpui::Context<Self>,
+    ) {
+        let Some(tab_id) = self
+            .browser_tabs_project_id
+            .as_ref()
+            .and_then(|project_id| self.pending_parked_browser_opens.remove(project_id))
+        else {
+            return;
+        };
+        if self.active_mode != TitlebarMode::Browser
+            || self
+                .browser_tabs
+                .active_tab_id_for_pane(self.browser_tabs.focused_pane)
+                != Some(tab_id)
+        {
+            return;
+        }
+        self.mark_project_editor_mode_awake(TitlebarMode::Browser, cx);
+        self.sync_active_browser_tab_to_surface(window, cx);
+        self.scroll_focused_browser_pane_active_tab();
+    }
+
     /// Explicit per-tab sleep for a tab whose project is parked. Dropping the
     /// parked surface closes that page exactly like live sleep does, while the
     /// tab itself stays in its project's model as a restored placeholder.
@@ -297,6 +415,9 @@ impl GhostexGpuiApp {
     ) {
         self.forget_parked_browser_tab_runtime(project_id, tab_id);
         self.forget_claude_cloud_tab(Some(project_id), tab_id);
+        if self.pending_parked_browser_opens.get(project_id) == Some(&tab_id) {
+            self.pending_parked_browser_opens.remove(project_id);
+        }
         let active_profile_id = self.browser_profiles.active_profile_id();
         let Some(parked_tabs) = self.parked_browser_tabs_by_project.get_mut(project_id) else {
             return;
