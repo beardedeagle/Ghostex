@@ -48,12 +48,8 @@ impl GhostexGpuiApp {
                     from_quick_header: false,
                     project_id: None,
                 };
-                self.defer_in_main_window(cx, move |this, window, cx| {
-                    if !this.project_switch_pending_requests.is_empty() {
-                        this.flush_coalesced_project_switch_requests(window, cx);
-                    }
-                    this.open_browser_url_from_renderer_command(message, window, cx);
-                });
+                let session_id = command.get("sessionId").and_then(Value::as_str);
+                self.gx_store_open_browser_url_in_session_project(message, session_id, cx);
                 true
             }
             _ => false,

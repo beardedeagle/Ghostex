@@ -100,11 +100,15 @@ pub(crate) fn session_link_tone_color(tone: SessionLinkTone) -> Hsla {
     .into()
 }
 
-/// What clicking a chip sends: the link opens where Settings says (gx_store/session_links.rs).
-pub(crate) fn open_session_link_command(link: &SessionLink) -> Option<serde_json::Value> {
+/// What clicking a chip of session `session_id` (a sidebar session id) sends: the link opens where
+/// Settings says, in that session's project (gx_store/session_links.rs).
+pub(crate) fn open_session_link_command(
+    link: &SessionLink,
+    session_id: &str,
+) -> Option<serde_json::Value> {
     link.url
         .as_ref()
-        .map(|url| json!({ "type": "openSessionLink", "url": url }))
+        .map(|url| json!({ "type": "openSessionLink", "url": url, "sessionId": session_id }))
 }
 
 /// One chip: the state glyph, the number or ID, and a PR's checks mark.
@@ -371,7 +375,7 @@ impl GhostexGpuiApp {
             && !cx.has_active_drag();
         let session_id = session.session_id.clone();
         let chips = items.iter().take(shown).enumerate().map(|(index, link)| {
-            let click = open_session_link_command(link);
+            let click = open_session_link_command(link, &session_id);
             let tooltip = link.hover_card_text();
             let foreground = appearance.foreground;
             session_link_chip_body(link, scale, 11.5, appearance.muted)

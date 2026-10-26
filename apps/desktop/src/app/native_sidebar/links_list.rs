@@ -376,7 +376,7 @@ impl SessionLinksList {
         let (glyph, tone) = link.glyph();
         let tone_color = session_link_tone_color(tone);
         let red = session_link_tone_color(SessionLinkTone::Closed);
-        let open = open_session_link_command(link);
+        let open = open_session_link_command(link, &self.key.to_sidebar_session_id());
         let loading = link.loading && link.title.is_none();
         let title = if loading {
             "Loading…".to_string()
