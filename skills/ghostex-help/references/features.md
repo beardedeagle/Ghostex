@@ -311,7 +311,8 @@ view from the strip.
   Saved form values (addresses, things you typed before) are offered as you
   type, but the Browser does not save passwords or sign you in automatically.
   Web links from terminals, chat, and detected dev servers
-  open here or in the system browser depending on Open links in.
+  open here or in the system browser depending on Open links in; Shift+click a
+  link in the chat to open it in the system browser either way.
   The Browser runs on the web runtime (Chromium), an optional one-time install
   that Ghostex does not need for anything else: until it is installed the
   Browser, the VS Code view, website and extension views, and HTML, drawing and
@@ -1484,8 +1485,8 @@ card that asks a single choice question right away, without Send answers
 (off by default; cards with several questions, multiple choice, Other or text
 answers still wait for Send). Commands:
 `ghostex show <file.html>`
-publishes a page and prints the block that shows its card (`--browser` opens it
-in the browser whatever Open chat pages in says), and
+publishes a page and prints the block that shows its card, which opens where
+Open chat pages in says, and
 `ghostex visual check <file.json>` draws a chart block to an image, or lists a
 question form's questions, so the agent can check it before replying.
 

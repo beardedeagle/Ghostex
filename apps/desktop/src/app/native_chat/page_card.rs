@@ -177,7 +177,10 @@ impl NativeChatView {
         let s = p.scale;
         let v = &*VISUAL;
         let chat = cx.weak_entity();
-        let floating = page.popup && super::visual_popup::FLOATING_PAGES;
+        // Every card goes to the host's Open chat pages in setting where the host can float a page,
+        // whatever the block's `"open"` says (CDXC:SessionChat DECISION in
+        // app/visual_page_modal_lifecycle.rs).
+        let floating = super::visual_popup::FLOATING_PAGES;
         let page_id = page.page_id().map(str::to_string);
         // The reader already sent this page's answers (`answeredPages`, page_answers.rs).
         let answered = page_id.as_deref().is_some_and(|page_id| {
@@ -245,8 +248,8 @@ impl NativeChatView {
                     })
                     .detach();
                 }
-                // A page marked to float opens over the chat (the app's visual page window);
-                // otherwise where the chat opens every web link.
+                // The desktop opens it where Settings > Chat > Open chat pages in says; a build that
+                // cannot float a page opens it where the chat opens every web link.
                 if floating {
                     cx.emit(super::state::NativeChatEvent::Host(json!({
                         "type": "open",

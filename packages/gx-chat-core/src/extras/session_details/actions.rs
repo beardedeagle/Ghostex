@@ -127,6 +127,7 @@ fn open(action: &UserAction) -> Vec<Effect> {
             }
             vec![Effect::Open(OpenTarget::Url {
                 url: url.to_string(),
+                external: false,
             })]
         }
         "connectors" => host("openSettingsPage", json!({ "page": "connectors" })),
