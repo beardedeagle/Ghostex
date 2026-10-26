@@ -3551,7 +3551,9 @@ then issues, then Linear tickets. Each group folds with the
 chevron on its header and keeps its count; what you fold stays folded in every
 session and after a restart (the phone keeps its own). Click a link to open it; **Open
 session links in** (Settings > General > Browser) opens them in the internal
-browser (the default) or your default browser. Click a link's × and then Remove?
+browser (the default) or your default browser. In the internal browser a link opens in
+its session's project, switching to that project when another one is on screen. Click
+a link's × and then Remove?
 within three seconds to remove it; a removed link never comes back by itself. Click
 the pin beside the × to pin a link (the main issue or PR of the session, say): pinned
 links lead a Pinned group at the top of the list, pinned issues and Linear tickets

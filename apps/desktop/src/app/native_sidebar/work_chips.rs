@@ -313,9 +313,14 @@ fn render_chip(
     let foreground = appearance.foreground;
     let tooltip = chip.tooltip.clone();
     let click = chip.action.clone().or_else(|| {
-        chip.url.clone().map(
-            |url| json!({"type": "openWorkLink", "url": url, "workItem": chip.work_item.clone()}),
-        )
+        chip.url.clone().map(|url| {
+            json!({
+                "type": "openWorkLink",
+                "url": url,
+                "workItem": chip.work_item.clone(),
+                "sessionId": session_id,
+            })
+        })
     });
     div()
         .id(format!("native-session-work-{}-{session_id}", chip.key))

@@ -97,13 +97,14 @@ impl GhostexGpuiApp {
         });
         let hidden = links.items.len() - shown;
         let border = chrome_ink().opacity(0.14);
+        let session_id = key.to_sidebar_session_id();
         let chips = links
             .items
             .iter()
             .take(shown)
             .enumerate()
             .map(|(index, link)| {
-                let open = open_session_link_command(link);
+                let open = open_session_link_command(link, &session_id);
                 let tooltip = link.hover_card_text();
                 h_flex()
                     .id(format!("workarea-header-session-link-{index}"))

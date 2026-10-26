@@ -19,8 +19,8 @@ use std::time::Duration;
 use web_time::Instant;
 
 use ghostex_gx_core::{
-    ActiveGroup, BrowserPaneOpen, DEFAULT_BROWSER_LAUNCH_URL, Event, Intent, MachineId,
-    plan_browser_pane_open,
+    ActiveGroup, BrowserPaneOpen, DEFAULT_BROWSER_LAUNCH_URL, Event, Intent, MachineId, ProjectKey,
+    SessionKey, plan_browser_pane_open,
 };
 use gpui::Window;
 use serde_json::json;
@@ -28,6 +28,8 @@ use serde_json::json;
 use crate::GhostexGpuiApp;
 use crate::app::helpers::gpui_active_project_id_from_snapshot;
 use crate::app::model::{GpuiBrowserRendererOpenReuse, GpuiSidebarOpenBrowserUrlMessage};
+#[cfg(not(target_arch = "wasm32"))]
+use crate::app::workspace_windows::ProjectWindowRoute;
 
 /// How long a New Browser Tab waits for the project switch it follows.
 const PENDING_BROWSER_OPEN_DEADLINE: Duration = Duration::from_secs(5);
@@ -116,13 +118,90 @@ impl GhostexGpuiApp {
                     self.gx_store_open_browser_url(message, cx);
                     return;
                 }
-                self.gx_store.create.pending_browser_open = Some(PendingBrowserOpen {
-                    project_id: project_id.clone(),
-                    message,
-                    deadline: Instant::now() + PENDING_BROWSER_OPEN_DEADLINE,
-                });
+                self.gx_store_hold_browser_open(project_id.clone(), message);
             }
         }
+    }
+
+    /// CDXC:SessionLinks 2026-10-25 DECISION:
+    /// User picked "switch to that project and open it there": a link (a PR, an issue, a Linear ticket) of a session in another project, from its card's chips, its links list or its Work chips, switches to that project and opens in its Browser, so the page is in the right project and uses the right workspace's Browser profile; it no longer opens in the project on screen. Only the project is focused, on this computer or a remote one: no session is chosen, attached or started, so the card itself is still not selected (a chip keeps the click from the row). The project comes back on its remembered view and the page opens once it is there, as a header's New Browser Tab does.
+    pub(crate) fn gx_store_open_browser_url_in_session_project(
+        &mut self,
+        message: GpuiSidebarOpenBrowserUrlMessage,
+        session_id: Option<&str>,
+        cx: &mut gpui::Context<Self>,
+    ) {
+        let Some(session_id) = session_id else {
+            self.gx_store_open_browser_url(message, cx);
+            return;
+        };
+        // A link that names a session it cannot be read from opens nowhere, not on screen.
+        let Some(session) = SessionKey::parse_sidebar_session_id(session_id) else {
+            return;
+        };
+        self.gx_store_open_browser_url_in_project(session.project_key(), message, cx);
+    }
+
+    /// `message` opens in `project`'s Browser, in the window that shows the project's workspace: at
+    /// once when the project is the active one, else once the switch to it has landed.
+    #[cfg(not(target_arch = "wasm32"))]
+    fn gx_store_open_browser_url_in_project(
+        &mut self,
+        project: ProjectKey,
+        mut message: GpuiSidebarOpenBrowserUrlMessage,
+        cx: &mut gpui::Context<Self>,
+    ) {
+        let route = if project.machine.is_local() {
+            self.route_local_project_to_its_window(&project.project_id, cx)
+        } else {
+            ProjectWindowRoute::Here
+        };
+        if let ProjectWindowRoute::Other(app) = route {
+            cx.defer(move |cx| {
+                let _ = app.update(cx, |app, cx| {
+                    app.gx_store_open_browser_url_in_project(project, message, cx)
+                });
+            });
+            return;
+        }
+        let project_id = project.to_workspace_project_id();
+        message.project_id = Some(project_id.clone());
+        let active_project_id =
+            gpui_active_project_id_from_snapshot(self.latest_sidebar_project_snapshot.as_ref());
+        if active_project_id == Some(project_id.as_str()) {
+            self.gx_store_open_browser_url(message, cx);
+            return;
+        }
+        self.gx_store_hold_browser_open(project_id, message);
+        self.gx_store_focus_intent(Intent::FocusProject { project }, cx);
+        self.gx_store_publish_workspace_focus(cx);
+        if matches!(route, ProjectWindowRoute::Switched) {
+            self.settle_routed_window_workspace(cx);
+        }
+    }
+
+    /// The web page has no per-project Browser: a link opens in a tab of the page's own browser.
+    #[cfg(target_arch = "wasm32")]
+    fn gx_store_open_browser_url_in_project(
+        &mut self,
+        _project: ProjectKey,
+        message: GpuiSidebarOpenBrowserUrlMessage,
+        cx: &mut gpui::Context<Self>,
+    ) {
+        self.gx_store_open_browser_url(message, cx);
+    }
+
+    /// Holds `message` until `project_id` is the active project (`gx_store_land_pending_browser_open`).
+    fn gx_store_hold_browser_open(
+        &mut self,
+        project_id: String,
+        message: GpuiSidebarOpenBrowserUrlMessage,
+    ) {
+        self.gx_store.create.pending_browser_open = Some(PendingBrowserOpen {
+            project_id,
+            message,
+            deadline: Instant::now() + PENDING_BROWSER_OPEN_DEADLINE,
+        });
     }
 
     /// Opens the New Browser Tab that was waiting for this project to become the active one.

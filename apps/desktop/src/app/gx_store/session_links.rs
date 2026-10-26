@@ -12,7 +12,7 @@ use crate::GhostexGpuiApp;
 use crate::app::model::{GpuiBrowserRendererOpenReuse, GpuiSidebarOpenBrowserUrlMessage};
 
 impl GhostexGpuiApp {
-    /// Answers `openSessionLink {url}`, `removeSessionLink {sessionId, key}`,
+    /// Answers `openSessionLink {url, sessionId}`, `removeSessionLink {sessionId, key}`,
     /// `restoreSessionLink {sessionId, key}`, `pinSessionLink {sessionId, key, pinned}` and
     /// `addSessionLink {sessionId, link}`; the session is
     /// named by its sidebar id.
@@ -62,7 +62,8 @@ impl GhostexGpuiApp {
                     .map(str::trim)
                     .filter(|url| url.starts_with("https://") || url.starts_with("http://"))
                 {
-                    self.open_session_link(url.to_string(), cx);
+                    let session_id = command.get("sessionId").and_then(Value::as_str);
+                    self.open_session_link(url.to_string(), session_id, cx);
                 }
                 true
             }
@@ -159,7 +160,14 @@ impl GhostexGpuiApp {
         .detach();
     }
 
-    pub(crate) fn open_session_link(&mut self, url: String, cx: &mut gpui::Context<Self>) {
+    /// `session_id` (a sidebar session id) is the session whose link it is: the page opens in its
+    /// project (`gx_store_open_browser_url_in_session_project`).
+    pub(crate) fn open_session_link(
+        &mut self,
+        url: String,
+        session_id: Option<&str>,
+        cx: &mut gpui::Context<Self>,
+    ) {
         let external = crate::shared_settings::shared_sidebar_settings_snapshot()
             .object()
             .get("sessionLinkOpenTarget")
@@ -175,11 +183,6 @@ impl GhostexGpuiApp {
             from_quick_header: false,
             project_id: None,
         };
-        self.defer_in_main_window(cx, move |this, window, cx| {
-            if !this.project_switch_pending_requests.is_empty() {
-                this.flush_coalesced_project_switch_requests(window, cx);
-            }
-            this.open_browser_url_from_renderer_command(message, window, cx);
-        });
+        self.gx_store_open_browser_url_in_session_project(message, session_id, cx);
     }
 }
