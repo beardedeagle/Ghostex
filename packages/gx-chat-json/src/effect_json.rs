@@ -69,8 +69,12 @@ fn encode(effect: Effect) -> Value {
         Effect::ClearComposerIfUnchanged { text } => {
             json!({ "type": "clearComposerIfUnchanged", "text": text })
         }
-        Effect::Open(OpenTarget::Url { url }) => {
-            json!({ "type": "open", "target": { "kind": "url", "url": url } })
+        Effect::Open(OpenTarget::Url { url, external }) => {
+            let mut target = json!({ "kind": "url", "url": url });
+            if external {
+                target["external"] = Value::Bool(true);
+            }
+            json!({ "type": "open", "target": target })
         }
         Effect::Open(OpenTarget::File { path, line, column }) => {
             let mut target = json!({ "kind": "file", "path": path });

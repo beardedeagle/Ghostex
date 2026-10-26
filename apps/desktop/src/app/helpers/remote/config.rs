@@ -80,6 +80,7 @@ pub(crate) fn gpui_remote_machine_config_from_settings(
             == Some(true),
         wsl_distribution,
         disabled: machine.get("disabled").and_then(serde_json::Value::as_bool) == Some(true),
+        ssh_control_path: None,
     })
 }
 

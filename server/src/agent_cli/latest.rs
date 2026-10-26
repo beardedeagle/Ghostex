@@ -47,11 +47,18 @@ pub(crate) async fn latest(definition: &'static Definition) -> Option<String> {
 }
 
 fn fetch(url: &str, field: Option<&str>) -> Option<String> {
-    let agent = ureq::AgentBuilder::new()
-        .timeout(Duration::from_secs(4))
-        .try_proxy_from_env(true)
-        .build();
-    let body = agent.get(url).call().ok()?.into_string().ok()?;
+    let agent: ureq::Agent = crate::http_agent::config()
+        .timeout_global(Some(Duration::from_secs(4)))
+        .proxy(ureq::Proxy::try_from_env())
+        .build()
+        .into();
+    let body = agent
+        .get(url)
+        .call()
+        .ok()?
+        .body_mut()
+        .read_to_string()
+        .ok()?;
     let text = match field {
         Some(field) => serde_json::from_str::<Value>(&body)
             .ok()?

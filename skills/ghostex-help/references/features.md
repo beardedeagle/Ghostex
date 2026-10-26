@@ -309,7 +309,8 @@ view from the strip.
   Saved form values (addresses, things you typed before) are offered as you
   type, but the Browser does not save passwords or sign you in automatically.
   Web links from terminals, chat, and detected dev servers
-  open here or in the system browser depending on Open links in.
+  open here or in the system browser depending on Open links in; Shift+click a
+  link in the chat to open it in the system browser either way.
   A page an agent opens for a project that is not on screen (`ghostex browser open`
   uses the agent's own project) goes to that project's Browser: the project you are
   looking at stays as it is, a notice names the project, and the page is in front
@@ -1486,8 +1487,8 @@ card that asks a single choice question right away, without Send answers
 (off by default; cards with several questions, multiple choice, Other or text
 answers still wait for Send). Commands:
 `ghostex show <file.html>`
-publishes a page and prints the block that shows its card (`--browser` opens it
-in the browser whatever Open chat pages in says), and
+publishes a page and prints the block that shows its card, which opens where
+Open chat pages in says, and
 `ghostex visual check <file.json>` draws a chart block to an image, or lists a
 question form's questions, so the agent can check it before replying.
 
@@ -2051,6 +2052,11 @@ to Claude or Codex and choose Sign in with browser; a Claude account needs no
 email (pick it in the browser), while Codex asks for the new account's email
 first. The first account of a provider also asks to share chat history between
 your accounts, which lets a conversation carry on with another account.
+Each Codex login is its own account with its own name and settings, also when
+two people sign in to the same ChatGPT Business workspace or one person has
+several workspaces; this needs Codex Swap 0.3.2 or later (its Update button sits
+under the account list in Settings > Accounts), and accounts saved earlier keep
+their names, settings and sessions.
 Quick launch, the main launcher row, and any session started without
 picking an account use New sessions start on in each provider's rules (Claude
 rules or Codex rules in the list). The automatic rules only consider accounts

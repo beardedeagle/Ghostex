@@ -48,7 +48,7 @@ describe('release fingerprint algorithm', () => {
     };
     const first = computeNodeFingerprint({ ...shared, nodeId: 'alpha' });
     const second = computeNodeFingerprint({ ...shared, nodeId: 'beta' });
-    expect(FINGERPRINT_ALGORITHM_REVISION).toBe('fp6');
+    expect(FINGERPRINT_ALGORITHM_REVISION).toBe('fp7');
     expect(first.fingerprint).not.toBe(second.fingerprint);
     expect(first.inputs.paths).toEqual([
       { digest: expect.stringMatching(/^[0-9a-f]{64}$/u), entryCount: 1, pathspec: 'package.json' },
@@ -257,7 +257,7 @@ describe('fingerprint helpers', () => {
         { digest: '1', entryCount: 1, pathspec: 'apps/desktop/**' },
         { digest: '2', entryCount: 1, pathspec: 'packages/shared/**' },
       ],
-      values: { zig: '0.16.0' },
+      values: { zig: '0.17.0' },
     };
     const baseline = {
       composed: { 'gxserver-linux-x64': 'bb' },

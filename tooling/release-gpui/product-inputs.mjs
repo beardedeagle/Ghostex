@@ -21,9 +21,9 @@ export const TRUSTED_REPO = 'maddada/Ghostex';
  * silently reusing an artifact built with a different compiler.
  */
 export const TOOLCHAIN = Object.freeze({
-  androidBuildTools: '36.0.0',
+  androidBuildTools: '37.0.0',
   androidNdk: '29.0.14206865',
-  androidPlatform: 'android-36',
+  androidPlatform: 'android-37.0',
   bun: '1.4.4',
   dotnet: '8.0.x',
   java: '17.0.19+10',
@@ -40,10 +40,10 @@ export const TOOLCHAIN = Object.freeze({
   tailcatBridgeGomobile: 'v0.0.0-20260821190718-4776eadac327',
   vpk: '1.2.0',
   /*
-   * One Zig toolchain for the whole repo. zmx pinned 0.15.2 until its fork was
-   * re-ported onto upstream/main (Zig 0.16), which was the last 0.15 consumer.
+   * One Zig toolchain for the whole repo. Ghostty and the zmx fork moved from
+   * 0.16 to 0.17 together on 2026-10-26, when both upstreams required 0.17.
    */
-  zig: '0.16.0',
+  zig: '0.17.0',
 });
 
 /* Mirrors CODE_SERVER_COMPONENT_IDENTITY_REVISION; asserted equal in the tests. */

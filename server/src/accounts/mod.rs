@@ -5,6 +5,8 @@ pub(crate) mod claude_swap_switch;
 pub(crate) mod claude_swap_windows;
 mod cli;
 mod codex_blockers;
+mod codex_identity;
+mod codex_identity_migration;
 pub(crate) mod continuation;
 pub(crate) mod default_account;
 pub(crate) mod default_login;

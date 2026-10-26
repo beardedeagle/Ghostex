@@ -187,7 +187,7 @@ pub fn tool_rows(
             row.insert(
                 "failure".to_string(),
                 if pair.result_is_error() {
-                    failure_note(pair.result_output().unwrap_or_default())
+                    failure_note(pair.call_name(), pair.result_output().unwrap_or_default())
                 } else {
                     String::new()
                 }

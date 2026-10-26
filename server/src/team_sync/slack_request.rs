@@ -430,9 +430,10 @@ fn download_images(
         .collect();
     let dir: PathBuf = state.paths.app_data_dir.join("slack-files").join(safe_id);
     fs::create_dir_all(&dir).map_err(|error| format!("Could not save Slack images: {error}"))?;
-    let agent = ureq::AgentBuilder::new()
-        .timeout(std::time::Duration::from_secs(30))
-        .build();
+    let agent: ureq::Agent = crate::http_agent::config()
+        .timeout_global(Some(std::time::Duration::from_secs(30)))
+        .build()
+        .into();
     let mut paths = Vec::new();
     for (index, image) in images.iter().enumerate() {
         let Some(url) = text(image, "/url") else {
@@ -456,7 +457,7 @@ fn download_images(
             .map_err(|error| format!("Could not fetch a Slack image: {error}"))?;
         let mut bytes = Vec::new();
         std::io::Read::read_to_end(
-            &mut std::io::Read::take(response.into_reader(), MAX_IMAGE_BYTES),
+            &mut std::io::Read::take(response.into_body().into_reader(), MAX_IMAGE_BYTES),
             &mut bytes,
         )
         .map_err(|error| format!("Could not fetch a Slack image: {error}"))?;

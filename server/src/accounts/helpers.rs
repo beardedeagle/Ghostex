@@ -355,7 +355,10 @@ fn discover_row(home: &Path, provider: Provider, row: &Value) -> Option<Discover
             }
         }
     } else {
-        account.identity = text(row, "accountId");
+        account.identity = super::codex_identity::codex_identity(
+            &text(row, "accountId"),
+            Some(&text(row, "userId")),
+        );
         account.status = match text(row, "loginStatus").as_str() {
             "present" => "ready",
             "identity_changed" => "identityChanged",
@@ -398,26 +401,25 @@ fn discover_row(home: &Path, provider: Provider, row: &Value) -> Option<Discover
     Some(account)
 }
 pub(crate) fn codex_get(row: &Value, path: &str) -> Result<Value, String> {
-    let response = match codex_request(row, "GET", path)?.call() {
+    let response = match codex_request(row, ureq::Agent::get, path)?.call() {
         Ok(r) => r,
-        Err(ureq::Error::Status(401, _)) => {
+        Err(ureq::Error::StatusCode(401)) => {
             return Err("Sign in again to refresh account usage.".into());
         }
-        Err(ureq::Error::Status(429, _)) => {
+        Err(ureq::Error::StatusCode(429)) => {
             return Err("Usage requests are temporarily limited. Ghostex will try again.".into());
         }
         Err(_) => return Err("Usage could not be refreshed. Ghostex will try again.".into()),
     };
-    response
-        .into_json()
+    crate::http_agent::read_json(response)
         .map_err(|_| "The usage service returned an invalid response.".to_string())
 }
-/// A ChatGPT backend request authorized as the xswap account in `row`, after checking its saved login still belongs to that account.
-pub(crate) fn codex_request(
+/// A ChatGPT backend request authorized as the xswap account in `row`, after checking its saved login still belongs to that account. `method` is `ureq::Agent::get` or `ureq::Agent::post`.
+pub(crate) fn codex_request<B>(
     row: &Value,
-    method: &str,
+    method: impl FnOnce(&ureq::Agent, String) -> ureq::RequestBuilder<B>,
     path: &str,
-) -> Result<ureq::Request, String> {
+) -> Result<ureq::RequestBuilder<B>, String> {
     let home = PathBuf::from(text(row, "home"));
     if !home.is_absolute() {
         return Err("Invalid Codex account home.".into());
@@ -426,25 +428,31 @@ pub(crate) fn codex_request(
     let auth: Value =
         serde_json::from_slice(&raw).map_err(|_| "Codex credentials are unreadable.")?;
     let expected = text(row, "accountId");
-    if auth.pointer("/tokens/account_id").and_then(Value::as_str) != Some(expected.as_str()) {
+    // The member is checked too: a slot whose login moved to another member of the same Business workspace keeps the workspace's `account_id`.
+    let saved = super::codex_identity::codex_identity(&expected, Some(&text(row, "userId")));
+    if auth.pointer("/tokens/account_id").and_then(Value::as_str) != Some(expected.as_str())
+        || !super::codex_identity::codex_auth_identity(&auth).is_some_and(|login| {
+            super::codex_identity::identity_matches(Provider::Codex, &saved, &login)
+        })
+    {
         return Err("This account's login identity changed. Reconnect it.".into());
     }
     let token = auth
         .pointer("/tokens/access_token")
         .and_then(Value::as_str)
         .ok_or("Sign in again to read usage.")?;
-    Ok(ureq::AgentBuilder::new()
-        .timeout(Duration::from_secs(15))
-        .build()
-        .request(
-            method,
-            &format!("https://chatgpt.com/backend-api/wham/{path}"),
-        )
-        .set("Authorization", &format!("Bearer {token}"))
-        .set("ChatGPT-Account-Id", &expected)
-        .set("Accept", "application/json")
-        .set("OpenAI-Beta", "codex-1")
-        .set("originator", "Codex Desktop"))
+    Ok(method(
+        crate::http_agent::agent(),
+        format!("https://chatgpt.com/backend-api/wham/{path}"),
+    )
+    .header("Authorization", format!("Bearer {token}"))
+    .header("ChatGPT-Account-Id", &expected)
+    .header("Accept", "application/json")
+    .header("OpenAI-Beta", "codex-1")
+    .header("originator", "Codex Desktop")
+    .config()
+    .timeout_global(Some(Duration::from_secs(15)))
+    .build())
 }
 fn codex_usage(row: &Value) -> Result<(Vec<UsageWindow>, Option<u64>), String> {
     let value = codex_get(row, "usage")?;

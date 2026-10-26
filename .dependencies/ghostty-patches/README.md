@@ -20,7 +20,11 @@ tooling/sync-ghostty.sh <upstream-ref>   # e.g. tooling/sync-ghostty.sh origin/m
 The script replaces `.dependencies/ghostty/` with the pristine upstream tree at
 the ref, re-applies this series with `patch -p1`, and updates `UPSTREAM`.
 Conflicting patches are reported and must be rebased by hand (edit the file,
-then regenerate that patch). After a sync always:
+then regenerate that patch). The sync also fails, listing the paths, when a
+root `.gitignore` rule (`build/`, `dist/`, ...) would hide a new upstream file;
+add `!` exceptions for those folders and sync again
+(`tooling/sync-ghostty.sh --check-ignored [<ref>]` runs only that check).
+After a sync always:
 
 1. `cd .dependencies/ghostty && zig build test-lib-vt` (full suite must pass)
 2. `cd apps/desktop && cargo check` (build.rs rebuilds libghostty-vt.a)
@@ -85,6 +89,21 @@ then regenerate that patch). After a sync always:
   through Ghostty's own `renderer/shadertoy.zig` pipeline (uniform prefix,
   glslang, SPIRV-Cross) and returns the MSL for Ghostex terminal shaders. The
   result is freed with `ghostty_string_free`.
+
+## Rebased in the 2026-10-26 sync (Zig 0.17)
+
+- Upstream moved to Zig 0.17 (`minimum_zig_version = "0.17.0"`), so the whole
+  repo's Zig pin moved with it.
+- `0001`: upstream replaced the freestanding ABI-manifest
+  `test_lib_vt_schema_step.addError(...)` with Zig 0.17's
+  `_ = b.addFail(...)`; the patch keeps its `else if (native_freestanding)`
+  guard on the new form, so `-Demit-lib-vt-shared=false` still never reaches
+  the failure for ordinary targets.
+- Every other patch applied unchanged (only line offsets moved), and each
+  regenerated patch carries exactly the same added and removed lines as
+  before. Upstream added no new unbounded (`.forever`) mailbox pushes on the
+  teardown paths `0007` bounds, and `0008`'s `renderer/shadertoy.zig` entry
+  points still exist.
 
 ## Rebased in the 2026-09-27 sync
 

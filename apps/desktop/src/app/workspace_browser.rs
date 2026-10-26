@@ -20,7 +20,7 @@ pub(crate) fn workspace_browser_profile(workspace_id: Option<&str>) -> String {
         return profile;
     }
     use sha2::{Digest, Sha256};
-    let digest = format!("{:x}", Sha256::digest(workspace_id.as_bytes()));
+    let digest = hex::encode(Sha256::digest(workspace_id.as_bytes()));
     format!("workspace-h{}", &digest[..32])
 }
 

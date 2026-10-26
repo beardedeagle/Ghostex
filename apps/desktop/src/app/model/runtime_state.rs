@@ -85,6 +85,7 @@ impl GpuiRemoteGxserverConnection {
         if let Some(cancel) = self.presentation_stream_cancel.as_ref() {
             cancel.store(true, Ordering::SeqCst);
         }
+        gpui_forget_remote_tunnel(self.child.id());
         let _ = self.child.kill();
     }
 }

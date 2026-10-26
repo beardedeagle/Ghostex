@@ -374,7 +374,7 @@ pub fn waiting_prompt(session: &Value) -> Option<ThreadPrompt> {
 
 fn stored_prompt_key(stored: &str) -> String {
     use sha2::{Digest, Sha256};
-    format!("{:x}", Sha256::digest(stored.as_bytes()))
+    hex::encode(Sha256::digest(stored.as_bytes()))
         .chars()
         .take(16)
         .collect()

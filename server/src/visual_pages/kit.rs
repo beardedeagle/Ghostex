@@ -278,13 +278,14 @@ function setup(root){
     /* Once sent, the page shows what went: no picks and no notes. */
     send(out,function(){restore({});root.querySelectorAll("textarea").forEach(function(t){t.value="";});});
   });
-  function lock(){questions.forEach(function(q){q.lock();});options.forEach(function(o){o.lock();});syncOptions();button.disabled=true;skipAll.remove();label.textContent="Sent";button.removeAttribute("data-tip");status.textContent="Sent to the agent.";}
+  function lock(){questions.forEach(function(q){q.lock();});options.forEach(function(o){o.lock();});syncOptions();button.disabled=true;skipAll.remove();label.textContent="Sent";button.removeAttribute("data-tip");status.classList.remove("gx-error");status.textContent="Sent to the agent.";}
   if(!window.ghostex){button.disabled=true;skipAll.remove();status.textContent="This Ghostex can't send answers from a page; type them in the chat.";return;}
   if(ghostex.answered){restore(ghostex.answers||{});lock();return;}
   var saved=ghostex.__draft&&ghostex.__draft("kit");if(saved&&typeof saved==="object"){restore(saved);syncOptions();}
   function send(out,sent){
     button.disabled=true;status.classList.remove("gx-error");status.textContent="Sending…";
-    ghostex.submit(out).then(function(){if(sent)sent();lock();},function(error){button.disabled=false;status.classList.add("gx-error");status.textContent=error&&error.message||"Your answers were not sent.";});
+    /* A send that can't reach Ghostex keeps trying with everything left as typed, and says so (PAGE_API's submit). */
+    ghostex.submit(out,function(message){status.classList.add("gx-error");status.textContent=message;}).then(function(){if(sent)sent();lock();},function(error){button.disabled=false;status.classList.add("gx-error");status.textContent=error&&error.message||"Your answers were not sent.";});
   }
   button.addEventListener("click",function(){send(collect());});
   /* Ctrl+Enter (Cmd+Enter on macOS) presses the send button from anywhere on the page, a note box included; with Shift it presses Skip all. */

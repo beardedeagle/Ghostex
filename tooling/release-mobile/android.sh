@@ -85,11 +85,11 @@ bunx expo prebuild --platform android --no-install
 	"-Dorg.gradle.jvmargs=-Xmx6g -XX:MaxMetaspaceSize=1g -Dfile.encoding=UTF-8" \
 	"-PreactNativeArchitectures=$REACT_NATIVE_ARCHITECTURES" "$GRADLE_TASK"
 
-BUILD_TOOLS="${ANDROID_HOME:?ANDROID_HOME is required}/build-tools/36.0.0"
+BUILD_TOOLS="${ANDROID_HOME:?ANDROID_HOME is required}/build-tools/37.0.0"
 AAPT="$BUILD_TOOLS/aapt"
 APKSIGNER="$BUILD_TOOLS/apksigner"
 [[ -x "$AAPT" && -x "$APKSIGNER" ]] || {
-	echo "Android build-tools 36.0.0 are incomplete" >&2
+	echo "Android build-tools 37.0.0 are incomplete" >&2
 	exit 1
 }
 

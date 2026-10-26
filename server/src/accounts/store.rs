@@ -36,9 +36,10 @@ pub(crate) fn read(db: &Connection) -> Result<Registry, DomainStateError> {
         })
         .optional()
         .map_err(error)?;
-    let registry = raw
+    let mut registry = raw
         .map(|s| serde_json::from_str(&s).map_err(error))
         .unwrap_or_else(|| Ok(Registry::default()))?;
+    super::codex_identity_migration::apply(db, &mut registry);
     remember_user_disabled(&registry);
     Ok(registry)
 }

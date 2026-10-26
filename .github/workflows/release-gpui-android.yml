@@ -113,8 +113,8 @@ jobs:
       - name: Install pinned Android SDK
         run: |
           yes | "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" \
-            "platforms;android-36" \
-            "build-tools;36.0.0" \
+            "platforms;android-37.0" \
+            "build-tools;37.0.0" \
             "ndk;29.0.14206865"
           # The cache keys below name the NDK through ANDROID_NDK_VERSION; a pin
           # bump that forgets the job env would otherwise serve a stale bridge.

@@ -313,16 +313,30 @@ describe('pinned toolchain values track the workflows', () => {
    * The 7.8.0 Ghostty-sync guard: each vendored Zig source's own
    * minimum_zig_version is the authority for TOOLCHAIN.zig. The standalone check
    * script runs the same assertion pre-dispatch; this test keeps it from rotting.
-   * zmx joined the check once its fork was re-ported onto upstream/main (0.16),
-   * which made TOOLCHAIN.zig the repo's only Zig pin.
+   * zmx joined the check once its fork was re-ported onto upstream/main (0.16;
+   * both moved to 0.17 together), which made TOOLCHAIN.zig the repo's only Zig pin.
    */
   test("the vendored Zig sources' declared minimums are satisfied by the single pin", async () => {
-    const { checkGhosttyZigPin, readGhosttyMinimumZig, readZmxMinimumZig } =
-      await import('./check-ghostty-zig-pin.mjs');
+    const { checkGhosttyZigPin, readGhosttyMinimumZig } = await import('./check-ghostty-zig-pin.mjs');
     expect(() => checkGhosttyZigPin({ minimum: readGhosttyMinimumZig(), pin: TOOLCHAIN.zig })).not.toThrow();
-    expect(() => checkGhosttyZigPin({ minimum: '0.17.0', pin: TOOLCHAIN.zig })).toThrow(/requires Zig 0\.17\.0/u);
-    expect(() => checkGhosttyZigPin({ minimum: readZmxMinimumZig(), pin: TOOLCHAIN.zig, source: 'zmx' })).not.toThrow();
+    expect(() => checkGhosttyZigPin({ minimum: '0.18.0', pin: TOOLCHAIN.zig })).toThrow(/requires Zig 0\.18\.0/u);
   });
+
+  /*
+   * zmx is a submodule a checkout may leave uninitialized (a fresh worktree, a
+   * contributor without it), so its half of the check reports as skipped there
+   * instead of failing on a missing build.zig.zon. Release runners check it out,
+   * and check-ghostty-zig-pin.mjs still requires it before dispatch.
+   */
+  test.skipIf(!existsSync('.dependencies/zmx/build.zig.zon'))(
+    "zmx's declared Zig minimum is satisfied by the single pin",
+    async () => {
+      const { checkGhosttyZigPin, readZmxMinimumZig } = await import('./check-ghostty-zig-pin.mjs');
+      expect(() =>
+        checkGhosttyZigPin({ minimum: readZmxMinimumZig(), pin: TOOLCHAIN.zig, source: 'zmx' })
+      ).not.toThrow();
+    }
+  );
 
   test('code-server identity pin matches its source of truth', () => {
     expect(CODE_SERVER_IDENTITY_REVISION).toBe(CODE_SERVER_COMPONENT_IDENTITY_REVISION);

@@ -269,14 +269,14 @@ For a mockup or a small interactive tool:
    ```
 
 5. Paste the ```visual block it prints into your reply exactly as printed.
-   The chat shows it as a card for your page. The block carries
-   `"open": "popup"`, the floating mark: clicking the card opens the page in a
-   floating window over the chat (desktop), which closes when the reader
-   clicks away. Leave the mark in for mockups and tools the reader looks at
-   and dismisses. Publish with `--browser` after the file name (or remove the
-   mark) when the page is better read in a full browser tab, such as a long
-   report. Older Ghostex versions print the block without `"open"`: their
-   cards open the page in the browser, and they ignore `--browser`.
+   The chat shows it as a card for your page. Clicking the card opens the page
+   where the reader chose under Settings > Chat > Open chat pages in: a
+   floating window over the chat (the default), the Files view or their
+   browser, and the floating window has its own Open in browser button. The
+   reader decides, so publish every page the same way and leave the block's
+   `"open": "popup"` mark in: some older Ghostex apps float only a marked card
+   and open any other in the browser. Older Ghostex versions print the block
+   without `"open"`; paste it as printed.
 
 If `ghostex show` is an unknown command, say this Ghostex is too old to show
 pages and give the HTML file's path instead.
@@ -377,7 +377,10 @@ chat instead.
 For an answer the kit can't ask for, such as a ranking or a spot on a
 mockup, a page can send its own: `ghostex.submit(answers)` posts any JSON
 under 64 KiB and returns a promise that rejects with an `Error` saying why it
-wasn't sent; `ghostex.answered` and `ghostex.answers` tell a reopened page what
+wasn't sent. While Ghostex can't be reached (a dropped phone link, a restart)
+newer versions keep trying instead of rejecting and call an optional second
+argument, `ghostex.submit(answers, onRetry)`, with a message to show each
+time; `ghostex.answered` and `ghostex.answers` tell a reopened page what
 was sent; an element with `data-gx-answered` is where the Answered note goes.
 A page takes one set of answers either way.
 
