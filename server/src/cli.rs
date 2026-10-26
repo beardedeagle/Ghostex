@@ -177,7 +177,7 @@ const ENDPOINT_CAPABILITIES: [&str; 2] = ["sendRequestLedger", "voiceAgent"];
 /// `gxserver endpoint` (`ghostex server endpoint`): the running daemon's local port and bearer token
 /// as JSON.
 ///
-/// CDXC:Mobile 2026-09-27 WHY: a client that reaches this computer over SSH (the phone's GPUI chat) opens its own chat socket to gxserver through an SSH port forward, as the desktop's remote chats do, and needs the port and token for it. The desktop reads them with a shell snippet over SSH (`gpui_remote_token_read_command`); this verb answers from the daemon's own paths, so an SSH client needs no copy of that snippet. Anyone who can run it can already read the token file.
+/// CDXC:Mobile 2026-09-27 WHY: a client that reaches this computer over SSH (the phone's chat) opens its own chat socket to gxserver through an SSH port forward, as the desktop's remote chats do, and needs the port and token for it. The desktop reads them with a shell snippet over SSH (`gpui_remote_token_read_command`); this verb answers from the daemon's own paths, so an SSH client needs no copy of that snippet. Anyone who can run it can already read the token file.
 fn print_endpoint() -> Result<()> {
     let paths = get_gxserver_paths(None);
     let metadata =

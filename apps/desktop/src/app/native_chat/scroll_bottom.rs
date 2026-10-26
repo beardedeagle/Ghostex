@@ -266,8 +266,7 @@ impl NativeChatView {
 
     /// What still floats over the transcript's bottom edge: the Escape and "Agent was interrupted"
     /// toasts. "Scroll to bottom" and "Previous question" are icon pills on the working card
-    /// (working_card.rs, chat_pills.rs), which a transcript-only view (the phone's GPUI transcript)
-    /// draws too.
+    /// (working_card.rs, chat_pills.rs).
     pub(super) fn scroll_bottom_button(&self, cx: &Context<Self>) -> AnyElement {
         let glass = crate::app::helpers::window_glass_active_for(self.main_window);
         let p = ChatAppearance::current(&self.snapshot).on_window_glass(glass);
@@ -400,7 +399,7 @@ fn tone_colors(tone: &ErrorTone, light: bool) -> (gpui::Hsla, gpui::Hsla, gpui::
 }
 
 impl NativeChatView {
-    /// The toasts' (and a transcript-only view's scroll pill's) frosted window.
+    /// The toasts' frosted window.
     ///
     /// CDXC:SessionChat 2026-09-23 DECISION:
     /// User: the scroll-to-bottom pill "should match the color and everything of the composer box", then, when the composer's see-through wash let the transcript read through it, "can't we make it's bg more frosted glass??". Under window glass the pill wears the composer's wash and border over a real blur of what is behind it. Supersedes the same day's opaque menu tone and the plain see-through wash.

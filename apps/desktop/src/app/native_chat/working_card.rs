@@ -128,14 +128,13 @@ impl NativeChatView {
     }
 
     /// Scroll-to-bottom on its own over the transcript's bottom edge, while the reader is away from
-    /// the bottom and no card shows to carry it (or the view has no composer: the phone's GPUI
-    /// transcript).
+    /// the bottom and no card shows to carry it.
     pub(super) fn render_lone_scroll_bottom(
         &self,
         p: &ChatAppearance,
         cx: &mut Context<Self>,
     ) -> Option<AnyElement> {
-        if self.list.item_count() == 0 || (!self.transcript_only && self.working_card_shown()) {
+        if self.list.item_count() == 0 || self.working_card_shown() {
             return None;
         }
         let pill = self.scroll_bottom_icon_pill(p, cx)?;

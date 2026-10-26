@@ -113,7 +113,6 @@ impl NativeChatView {
     ) {
         let wanted = self.session_details.wanted
             && self.session_details_available()
-            && !self.transcript_only
             && self.maximized_window.is_none()
             && !self.pane_hidden;
         let pane = self.session_details.pane_bounds.get().size.width.as_f32();

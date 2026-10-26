@@ -28,8 +28,8 @@ pub(crate) static APP_ICON_PNG: &[u8] =
 
 /// DM Sans's static 400, 500, 600 and 700 faces, embedded once for the chat (`native_chat/fonts.rs`)
 /// and the onboarding (`window/onboarding/fonts.rs`), which both register them. They live here
-/// because every build that compiles either file (the app, apps/gpui-web, the modal demo and
-/// packages/gpui-mobile, which has its own `assets.rs` with the same static) has this module.
+/// because every build that compiles either file (the app, apps/gpui-web and the modal demo) has
+/// this module.
 pub(crate) static DM_SANS_UPRIGHT_FACES: [&[u8]; 4] = [
     include_bytes!("../../../.dependencies/app-fonts/dm-sans/static/400.ttf"),
     include_bytes!("../../../.dependencies/app-fonts/dm-sans/static/500.ttf"),

@@ -272,12 +272,6 @@ pub(crate) struct NativeChatView {
     /// The transcript starts at the window's top edge under the floating work area header, so its
     /// first row reserves the header's height (`set_under_workarea_header`).
     pub(crate) under_workarea_header: bool,
-    /// CDXC:SessionChat 2026-09-27 WHY:
-    /// The phone (`packages/gpui-mobile`) draws this view inside its React Native chat screen, where the composer and the cards above it (working strip, questions, approvals, notices) are native React Native views fed by the same core. Set there through `set_transcript_only`, the view draws only the transcript region: no composer, no composer inset, no composer field, and toasts go to the host as a `toast` host action. Off everywhere else, so the desktop and the web build are unchanged.
-    pub(crate) transcript_only: bool,
-    /// CDXC:SessionChat 2026-09-27 WHY:
-    /// The phone's app keeps its own React Native composer model (`apps/mobile/app/src/chat/rust/composer.ts`) and draws only the transcript with this view, so the core's composer requests belong to that model, not to this view's undrawn field. With `host_composer` set they go to the host as a `composerRequest` host action, the host answers the `readNativeComposer` read (`answer_composer_read`), and a `chatImage` also reaches the host for the composer's attachment thumbnails. Off everywhere else.
-    pub(crate) host_composer: bool,
 }
 
 impl EventEmitter<NativeChatEvent> for NativeChatView {}
@@ -505,8 +499,6 @@ impl NativeChatView {
             notify_scheduled: false,
             api_error_tick: std::cell::Cell::new(false),
             under_workarea_header: false,
-            transcript_only: false,
-            host_composer: false,
         }
     }
 
@@ -738,31 +730,6 @@ impl NativeChatView {
         self.invoke(json!({"type":"saveDraft","content":self.draft,"draftVersion":{"draftId":self.draft_id,"revision":self.draft_revision}}), cx);
     }
 
-    /// The core's requests a host-owned composer performs (see the `host_composer` field).
-    fn is_host_composer_request(request: &Value) -> bool {
-        matches!(
-            request["kind"].as_str(),
-            Some(
-                "composerClearExpected"
-                    | "returnedPrompt"
-                    | "composerInit"
-                    | "draftSubmitted"
-                    | "submissionFailed"
-                    | "draftReceived"
-                    | "attachmentReferences"
-                    | "composer"
-            )
-        ) || (request["kind"] == "rpc" && request["method"] == "readNativeComposer")
-    }
-
-    /// A host composer's answer to a forwarded `readNativeComposer` read: the text it holds.
-    #[allow(dead_code)] // only the phone's crate (packages/gpui-mobile) forwards the read
-    pub(crate) fn answer_composer_read(&self, id: Value, text: String) {
-        if let Some(runtime) = &self.runtime {
-            runtime.call("resolve", vec![id, text.into(), Value::Null]);
-        }
-    }
-
     pub(crate) fn host(&self, action: &str, fields: Value, cx: &mut Context<Self>) {
         let mut message = fields.as_object().cloned().unwrap_or_default();
         message.insert("type".into(), "sessionChatHostAction".into());
@@ -795,13 +762,10 @@ impl NativeChatView {
     /// CDXC:SessionChat 2026-09-24 WHY:
     /// The model pop-up opened from terminal view belongs to a hidden chat view and repaints only by observing it, so an open pop-up counts as shown; otherwise its tab and search changes reached the runtime while the pop-up kept painting the state it opened with. Supersedes the same rule for the retired full-screen picker.
     /// CDXC:SessionChat 2026-09-28 WHY:
-    /// Elapsed time since a draw cannot tell whether a pane is hidden: an idle visible chat stopped painting model results after one second until a hover redrew it. Use the pane's existing visibility state and keep the phone's transcript-only view visible. Claude's first-run cards on a new Windows install stayed blank the same way. Supersedes the timing exception made for the phone on 2026-09-27.
+    /// Elapsed time since a draw cannot tell whether a pane is hidden: an idle visible chat stopped painting model results after one second until a hover redrew it. Use the pane's existing visibility state. Claude's first-run cards on a new Windows install stayed blank the same way.
     fn notify_if_shown(&mut self, cx: &mut Context<Self>) {
         const NOTIFY_MIN_INTERVAL: Duration = Duration::from_millis(50);
-        if self.option_menu.is_none()
-            && !self.transcript_only
-            && (self.pane_hidden || self.last_render.is_none())
-        {
+        if self.option_menu.is_none() && (self.pane_hidden || self.last_render.is_none()) {
             return;
         }
         let now = web_time::Instant::now();
@@ -876,8 +840,8 @@ impl NativeChatView {
                 snapshot["composerOverflow"] =
                     json!(ghostex_gx_chat_core::composer::layout::fit_composer_controls(&measured));
             }
-            let selection_only = !self.host_composer
-                && super::suggestions::only_selection_moved(&self.snapshot, &snapshot);
+            let selection_only =
+                super::suggestions::only_selection_moved(&self.snapshot, &snapshot);
             let ring_moved = ["enabled", "ring"]
                 .iter()
                 .any(|key| self.snapshot["sessionDetails"][key] != snapshot["sessionDetails"][key]);
@@ -892,25 +856,16 @@ impl NativeChatView {
                     self.suggestions.clear_hover();
                 }
                 self.adopt_status_line_reservation();
-                // A host that draws the composer also draws what opens from it (the model menu, the
-                // context editor, the suggestions, the rewind and Save to Markdown dialogs), so the
-                // transcript-only view opens none of their windows.
-                if !self.host_composer {
-                    self.open_pending_model_menu(cx);
-                    self.sync_context_editor_window(cx);
-                    self.sync_save_markdown_window(cx);
-                    self.sync_rewind_window(cx);
-                    self.sync_suggestion_window(cx);
-                }
+                self.open_pending_model_menu(cx);
+                self.sync_context_editor_window(cx);
+                self.sync_save_markdown_window(cx);
+                self.sync_rewind_window(cx);
+                self.sync_suggestion_window(cx);
                 self.load_earlier_if_near_top(cx);
                 self.notify_if_shown(cx);
             }
         }
         for request in output["requests"].as_array().into_iter().flatten() {
-            if self.host_composer && Self::is_host_composer_request(request) {
-                self.host("composerRequest", json!({"request": request}), cx);
-                continue;
-            }
             match request["kind"].as_str() {
                 Some("rpc") => self.rpc(request.clone(), cx),
                 Some("broker") => cx.emit(NativeChatEvent::Broker(request.clone())),
@@ -994,12 +949,7 @@ impl NativeChatView {
                 // The page card's picture (`page_card.rs`), which the view keeps for itself.
                 Some("host") if request["method"] == "pageThumbnail" => self.receive_page_thumbnail(&request["params"], cx),
                 Some("host") => self.host(request["method"].as_str().unwrap_or_default(), request["params"].clone(), cx),
-                Some("chatImage") => {
-                    if self.host_composer {
-                        self.host("chatImage", json!({"request": request}), cx);
-                    }
-                    self.receive_chat_image(request, cx)
-                }
+                Some("chatImage") => self.receive_chat_image(request, cx),
                 // The two arms the Rust brain's `Effect::Copy` and `Effect::Toast` ride in. The
                 // TypeScript brain the web build still runs pushes neither (a clipboard write only
                 // ever reaches the view inside `markdownSaved`).
@@ -1011,11 +961,7 @@ impl NativeChatView {
                 // CDXC:SessionChat 2026-10-17 WHY: The chat's own notices (a Q-tag or Files and links jump that cannot reach its message, a coordinator thread that will not open) went to the window's gpui-component notification layer, which the desktop never shows over its panes, so they vanished. They go out as the raw `{type: "toast"}` app message, which the desktop (`session_chat/host_actions.rs`) and the web build (`chat_host.rs`) both draw in the app's toast window, like dictation's failure toast.
                 Some("toast") => {
                     let message = request["params"]["message"].as_str().unwrap_or_default().to_string();
-                    if self.transcript_only {
-                        if !message.is_empty() {
-                            self.host("toast", json!({"message": message, "level": request["params"]["level"]}), cx);
-                        }
-                    } else if !message.is_empty() {
+                    if !message.is_empty() {
                         let level = if request["params"]["level"] == "error" { "error" } else { "info" };
                         cx.emit(NativeChatEvent::Host(json!({"type": "toast", "level": level, "title": message})));
                     }

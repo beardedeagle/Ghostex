@@ -78,8 +78,5 @@ pub(crate) use read_aloud::{
     read_aloud_voice_conversation,
 };
 pub(crate) use transport::current_model_catalog;
-/// The phone's host (packages/gpui-mobile) compiles this file and turns the touch composer on.
-#[allow(unused_imports)]
-pub(crate) use worker::set_touch_composer;
 pub(crate) use worker::{ChatHostHandle, set_endpoint};
 pub(crate) use world::ChatHostOutput;
