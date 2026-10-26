@@ -419,13 +419,6 @@ impl GhostexGpuiApp {
             self.gx_store.sidebar_list.counters.idle += 1;
             return;
         }
-        let active_project_moved = self
-            .gx_store
-            .sidebar_list
-            .last_focus
-            .as_ref()
-            .and_then(|focus| focus.active_project.as_ref())
-            != self.gx_store.core.focus().active_project.as_ref();
         self.gx_store.sidebar_list.last_focus = Some(self.gx_store.core.focus().clone());
         // Before the generation is read: pruning is a change to the sidebar's own state and the
         // inputs have to carry it.
@@ -433,7 +426,7 @@ impl GhostexGpuiApp {
         let ui_generation = self.gx_store.sidebar_ui.generation();
         let changes = std::mem::take(&mut self.gx_store.sidebar_list.changes);
         let dirty = std::mem::take(&mut self.gx_store.sidebar_list.dirty);
-        self.gx_store_hud_store_changed(&changes, active_project_moved, cx);
+        self.gx_store_hud_store_changed(&changes, cx);
         self.gx_store_notification_feeds_store_changed(cx);
         self.gx_store_quick_access_store_changed(true, cx);
         let mut inputs = std::mem::take(&mut self.gx_store.sidebar_list.last_inputs);

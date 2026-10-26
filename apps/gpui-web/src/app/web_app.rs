@@ -283,6 +283,9 @@ impl GhostexGpuiApp {
         _cx: &mut Context<Self>,
     ) {
     }
+    /// The page has no view panel (the desktop's `workspace_reconcile/project_switch.rs`), so a
+    /// project switch never leaves a saved view waiting to be restored.
+    pub(crate) fn finish_project_view_restore(&mut self, _cx: &mut Context<Self>) {}
 
     // Workspaces (`gx_store/workspaces.rs`): a page is one window with nothing to save it in, so
     // its workspace lasts for the page; it has no other windows and no Settings window.
