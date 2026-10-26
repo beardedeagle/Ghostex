@@ -123,8 +123,8 @@ impl GhostexGpuiApp {
         }
     }
 
-    /// CDXC:SessionLinks 2026-10-25 DECISION:
-    /// User picked "switch to that project and open it there": a link (a PR, an issue, a Linear ticket) of a session in another project, from its card's chips, its links list or its Work chips, switches to that project and opens in its Browser, so the page is in the right project and uses the right workspace's Browser profile; it no longer opens in the project on screen. Only the project is focused, on this computer or a remote one: no session is chosen, attached or started, so the card itself is still not selected (a chip keeps the click from the row). The project comes back on its remembered view and the page opens once it is there, as a header's New Browser Tab does.
+    /// CDXC:SessionLinks 2026-10-25 WHY:
+    /// A link (a PR, an issue, a Linear ticket) of a session in another project, from its card's chips, its links list or its Work chips, switches to that project and opens in its Browser, so the page is in the right project and uses the right workspace's Browser profile; it no longer opens in the project on screen. Only the project is focused, on this computer or a remote one: no session is chosen, attached or started, so the card itself is still not selected (a chip keeps the click from the row). The project comes back on its remembered view and the page opens once it is there, as a header's New Browser Tab does.
     pub(crate) fn gx_store_open_browser_url_in_session_project(
         &mut self,
         message: GpuiSidebarOpenBrowserUrlMessage,
