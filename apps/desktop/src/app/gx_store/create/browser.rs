@@ -191,39 +191,46 @@ impl GhostexGpuiApp {
         self.gx_store_open_browser_url(message, cx);
     }
 
-    /// Holds `message` until `project_id` is the active project (`gx_store_land_pending_browser_open`).
+    /// Holds `message` until `project_id` is the active project (`gx_store_land_pending_browser_open`),
+    /// after the opens already waiting: a second link clicked before the first one's switch lands
+    /// does not replace it.
     fn gx_store_hold_browser_open(
         &mut self,
         project_id: String,
         message: GpuiSidebarOpenBrowserUrlMessage,
     ) {
-        self.gx_store.create.pending_browser_open = Some(PendingBrowserOpen {
+        let now = Instant::now();
+        let pending = &mut self.gx_store.create.pending_browser_opens;
+        pending.retain(|open| now <= open.deadline);
+        pending.push(PendingBrowserOpen {
             project_id,
             message,
-            deadline: Instant::now() + PENDING_BROWSER_OPEN_DEADLINE,
+            deadline: now + PENDING_BROWSER_OPEN_DEADLINE,
         });
     }
 
-    /// Opens the New Browser Tab that was waiting for this project to become the active one.
+    /// Opens, oldest first, the browser opens that were waiting for this project to become the
+    /// active one. One owed to another project keeps waiting until its deadline.
     pub(crate) fn gx_store_land_pending_browser_open(
         &mut self,
         window: &mut Window,
         cx: &mut gpui::Context<Self>,
     ) {
-        let Some(pending) = self.gx_store.create.pending_browser_open.take() else {
-            return;
-        };
-        if Instant::now() > pending.deadline {
+        if self.gx_store.create.pending_browser_opens.is_empty() {
             return;
         }
+        let now = Instant::now();
         let active_project_id =
             gpui_active_project_id_from_snapshot(self.latest_sidebar_project_snapshot.as_ref());
-        if active_project_id != Some(pending.project_id.as_str()) {
-            // Another project landed first: the tab is still owed to this one.
-            self.gx_store.create.pending_browser_open = Some(pending);
-            return;
+        let (landing, waiting): (Vec<_>, Vec<_>) =
+            std::mem::take(&mut self.gx_store.create.pending_browser_opens)
+                .into_iter()
+                .filter(|open| now <= open.deadline)
+                .partition(|open| active_project_id == Some(open.project_id.as_str()));
+        self.gx_store.create.pending_browser_opens = waiting;
+        for open in landing {
+            self.open_browser_url_from_renderer_command(open.message, window, cx);
         }
-        self.open_browser_url_from_renderer_command(pending.message, window, cx);
     }
 
     /// `openQuickBrowserTab`: the projectless Quick header's browser launch.
