@@ -264,13 +264,17 @@ pub struct SessionView {
 pub struct RowNesting {
     /// How deep under a coordinator the row is drawn; 0 for a top-level row.
     pub depth: u8,
-    /// The last thread directly under its coordinator, where the tree line ends.
+    /// The last thread directly under its coordinator, where the tree line ends. Not set on a last
+    /// thread at the depth limit whose own threads are drawn flat under it: its line runs on to them.
     pub last_child: bool,
     /// The tree lines that run on past this row: bit `k` is set when the row's ancestor drawn at
     /// depth `k` has a sibling drawn further down, so the line of that level goes on beside this row
     /// to reach it. Past the depth limit a row is drawn at its parent's depth, so a bit can be the
     /// row's own depth.
     pub passing_lines: u8,
+    /// The `passing_lines` this row hands to its threads and to its "N older threads" row
+    /// (`passing_lines_below`).
+    pub(crate) lines_below: u8,
     /// On a coordinator row: the threads nested under it, its older ones included.
     pub thread_count: u16,
     /// On a coordinator row: every thread of it in the list, wherever it is drawn (a worktree
@@ -364,7 +368,7 @@ impl RowNesting {
     /// The `passing_lines` this row hands to its threads and to its "N older threads" row; a deeper
     /// row adds the lines of its own ancestors below this one.
     pub fn passing_lines_below(&self) -> u8 {
-        super::threads::passing_lines_below(self.passing_lines, self.depth, self.last_child)
+        self.lines_below
     }
 
     /// The coordinator row's badge.

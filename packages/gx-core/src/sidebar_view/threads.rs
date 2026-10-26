@@ -188,14 +188,15 @@ pub(crate) fn nest_threads(
         })
         .collect();
 
-    /// Where one row is emitted: its index, depth, whether it is the last drawn child, the tree
-    /// lines that run past it, its section, whether a folded coordinator hides it, and whether it
-    /// waits behind its coordinator's "N older threads" row.
+    /// Where one row is emitted: its index, depth, whether its tree line ends at it, the tree
+    /// lines that run past it and the ones it hands to its threads, its section, whether a folded
+    /// coordinator hides it, and whether it waits behind its coordinator's "N older threads" row.
     struct Placed {
         index: usize,
         depth: u8,
         last: bool,
         passing_lines: u8,
+        passing_lines_below: u8,
         section: SectionId,
         folded: bool,
         older_hidden: bool,
@@ -208,15 +209,22 @@ pub(crate) fn nest_threads(
         shows_older: &'a [bool],
     }
     let mut order: Vec<Placed> = Vec::with_capacity(sessions.len());
-    fn emit(placed: Placed, tree: &Tree<'_>, order: &mut Vec<Placed>) {
+    fn emit(mut placed: Placed, tree: &Tree<'_>, order: &mut Vec<Placed>) {
         let (index, depth, section) = (placed.index, placed.depth, placed.section);
         let folded = placed.folded || tree.is_collapsed[index];
         let passing_lines = passing_lines_below(placed.passing_lines, depth, placed.last);
+        placed.passing_lines_below = passing_lines;
+        let list = tree.children.get(&index).map_or(&[][..], Vec::as_slice);
+        let tucks_older = !tree.shows_older[index];
+        let hidden = |child: usize| tucks_older && tree.is_older[child];
+        let drawn = list.iter().filter(|child| !hidden(**child)).count();
+        // Past the depth limit the row's threads are drawn at its own level, so the line it would
+        // end runs on to them; the line the threads take is still the one handed down above.
+        if depth == MAX_DEPTH && !tree.is_collapsed[index] && drawn > 0 {
+            placed.last = false;
+        }
         order.push(placed);
-        if let Some(list) = tree.children.get(&index) {
-            let tucks_older = !tree.shows_older[index];
-            let hidden = |child: usize| tucks_older && tree.is_older[child];
-            let drawn = list.iter().filter(|child| !hidden(**child)).count();
+        if !list.is_empty() {
             for (position, child) in list.iter().enumerate() {
                 emit(
                     Placed {
@@ -224,6 +232,7 @@ pub(crate) fn nest_threads(
                         depth: (depth + 1).min(MAX_DEPTH),
                         last: position + 1 == drawn,
                         passing_lines,
+                        passing_lines_below: 0,
                         section,
                         folded: folded || hidden(*child),
                         older_hidden: hidden(*child),
@@ -248,6 +257,7 @@ pub(crate) fn nest_threads(
                     depth: 0,
                     last: false,
                     passing_lines: 0,
+                    passing_lines_below: 0,
                     section: base_sections[index],
                     folded: false,
                     older_hidden: false,
@@ -298,6 +308,7 @@ pub(crate) fn nest_threads(
         depth,
         last,
         passing_lines,
+        passing_lines_below,
         section,
         folded,
         older_hidden,
@@ -310,6 +321,7 @@ pub(crate) fn nest_threads(
             depth,
             last_child: depth > 0 && last,
             passing_lines,
+            lines_below: passing_lines_below,
             thread_count: children
                 .get(&index)
                 .map_or(0, |list| u16::try_from(list.len()).unwrap_or(u16::MAX)),
@@ -431,5 +443,46 @@ mod tests {
         assert!(open
             .iter()
             .all(|session| !session.nesting.folded_status.any()));
+    }
+
+    /// A nested coordinator that is the last thread of its parent but has threads of its own drawn
+    /// flat beside it at the depth limit runs its line on to them; its last thread ends the line.
+    /// Folded, it ends the line itself.
+    #[test]
+    fn last_thread_at_depth_limit_runs_its_line_on_to_its_flat_threads() {
+        let coordinator = |session_id: &str, parent: &str| {
+            let mut session = row(session_id, "working", Some(parent));
+            Arc::make_mut(&mut session.row).is_coordinator = true;
+            session
+        };
+        let sessions = || {
+            vec![
+                row("lead", "idle", None),
+                coordinator("l1", "lead"),
+                coordinator("l1x", "l1"),
+                row("t3", "working", Some("l1x")),
+                coordinator("l1xx", "l1x"),
+                row("t4", "working", Some("l1xx")),
+            ]
+        };
+        let nesting = |rows: &[SessionView], id: &str| {
+            rows.iter()
+                .find(|session| session.row.sidebar_session_id.ends_with(&format!(":{id}")))
+                .unwrap()
+                .nesting
+        };
+
+        let open = nest(sessions(), &[]);
+        let l1xx = nesting(&open, "l1xx");
+        let t4 = nesting(&open, "t4");
+        assert_eq!((l1xx.depth, t4.depth), (MAX_DEPTH, MAX_DEPTH));
+        assert!(!l1xx.last_child);
+        assert!(t4.last_child);
+        // Nothing follows l1x's tree, so no line of its level runs past t4 or l1xx's older row.
+        assert_eq!(t4.passing_lines & (1 << MAX_DEPTH), 0);
+        assert_eq!(l1xx.passing_lines_below() & (1 << MAX_DEPTH), 0);
+
+        let folded = nest(sessions(), &["l1xx"]);
+        assert!(nesting(&folded, "l1xx").last_child);
     }
 }
