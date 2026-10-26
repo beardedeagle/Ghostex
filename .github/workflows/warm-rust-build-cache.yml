@@ -95,10 +95,10 @@ on:
     - cron: '0 4 * * 1,4'
   workflow_dispatch:
 
-# Back-to-back pushes must not pile up runners; only the newest commit matters.
+# CDXC:Build 2026-10-26 DECISION: User (Q27): finish the run in progress instead of cancelling it on every push; one run builds while at most one more waits, and a newer push replaces the waiting one. On busy days every push cancelled the Windows jobs (21 to 37 minutes), so Windows breakage went unnoticed.
 concurrency:
   group: warm-rust-build-cache
-  cancel-in-progress: true
+  cancel-in-progress: false
 
 permissions:
   contents: read
