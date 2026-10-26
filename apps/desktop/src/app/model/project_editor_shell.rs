@@ -155,6 +155,16 @@ pub(crate) struct GpuiProjectViewState {
     pub(crate) code_windows: CodeWindows,
 }
 
+/// A project's saved view that its restore could not show yet (`finish_project_view_restore`).
+#[derive(Clone, Debug, PartialEq)]
+pub(crate) struct PendingProjectViewRestore {
+    pub(crate) project_id: String,
+    pub(crate) saved_mode: TitlebarMode,
+    /// Picked up by a launch: the view it settles on sleeps until clicked, as every view does after
+    /// a launch (CDXC:Browser 2026-09-19).
+    pub(crate) at_launch: bool,
+}
+
 pub(crate) struct ProjectEditorShellModel {
     /// CDXC:Workarea 2026-09-20 WHY:
     /// The share of the workarea the Agents column keeps while a view is open. It is the live value

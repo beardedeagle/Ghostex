@@ -134,6 +134,7 @@ impl GhostexGpuiApp {
         self.gx_store_note_sidebar_snapshot_browser_focus(browser_focus);
         let work_view_was_available = self.work_view_available();
         self.native_sidebar.snapshot = Some(snapshot);
+        self.finish_project_view_restore(cx);
         self.leave_work_view_if_unavailable(work_view_was_available, cx);
         self.work_view_sync_current_session(cx);
         cx.notify();

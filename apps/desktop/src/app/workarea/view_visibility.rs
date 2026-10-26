@@ -173,25 +173,26 @@ impl GhostexGpuiApp {
         items
     }
 
+    /// Returns whether the view on screen could no longer be shown here and the panel moved on. Most
+    /// callers (the settings, Work mode and extension refreshes) have no `Window`, so a Browser
+    /// successor's address field follows in the main window on the next turn, from that turn's state.
+    ///
+    /// CDXC:Workarea 2026-10-25 WHY:
+    /// Hiding the view on screen now behaves like closing its tab: the panel shows the tab to its right, else the one to its left, and with no other tab it follows the last-tab rule (`closeSidePanelWithLastTab`). This holds everywhere a view goes away: Show in › This Project or This Space, Settings › Customize, "Choose where it's shown…", turning its extension or Work mode off, and switching to a project where it is hidden (`finish_project_view_restore`). It replaces the 2026-06-22 fallback to Agents, which since the 2026-09-20 side panel closed the whole panel even with other tabs open.
     pub(crate) fn coerce_active_mode_to_available_project_context(
         &mut self,
         cx: &mut gpui::Context<Self>,
     ) -> bool {
-        /*
-        CDXC:Workarea 2026-06-22-19:44:
-        Runtime GPUI workarea availability now prefers the latest valid in-memory sidebar project snapshot and uses the strict env bridge only before the sidebar reports. When a project-context update disables the active project-scoped mode, fall back through the existing Agents route, hide Browser CEF through the normal visibility gate, and persist only shell mode/focus state without writing project names, paths, ids, URLs, raw JSON, tokens, cookies, or user content.
-        */
-        let next_active_mode = self.available_titlebar_mode_or_agents(self.active_mode);
-        if next_active_mode == self.active_mode {
+        let gone = self.active_mode;
+        if self.available_titlebar_mode_or_agents(gone) == gone {
             return false;
         }
-
-        self.change_active_mode_with_pane_state(next_active_mode, cx);
-        self.focus_default_surface_for_active_mode(cx);
-        self.update_active_mode_cef_child_visibility(cx);
-        self.scroll_all_active_tab_strips();
-        self.schedule_project_editor_auto_sleep_for_inactive_modes(cx);
-        self.persist_shell_layout_state();
+        self.show_view_tab_successor(self.view_tab_successor(gone), cx);
+        if self.active_mode == TitlebarMode::Browser {
+            self.defer_in_main_window(cx, |app, window, cx| {
+                app.sync_browser_address_input_if_shown(window, cx);
+            });
+        }
         true
     }
 }

@@ -483,4 +483,26 @@ impl GpuiShellLayoutState {
             parked_browser_tabs_by_project,
         })
     }
+
+    /// The view restore a quit left unsettled: the live project kept its saved view while its panel
+    /// was only provisionally closed (`current_project_view_state`), or the loader could not show
+    /// that view yet. The app settles it like any pending restore once the project's context and
+    /// Spaces have arrived. Closing the panel or opening the picker saved no view for the project,
+    /// so neither asks for one; a picker carried over from the previous project may still sit beside
+    /// an unsettled restore, so the picker flag alone decides nothing.
+    pub(crate) fn unsettled_project_view_restore(&self) -> Option<PendingProjectViewRestore> {
+        if self.active_mode != TitlebarMode::Agents {
+            return None;
+        }
+        let project_id = self.agents_workspace_project_id.as_ref()?;
+        let saved_mode = self
+            .project_view_states_by_project
+            .get(project_id)?
+            .active_mode;
+        (saved_mode != TitlebarMode::Agents).then(|| PendingProjectViewRestore {
+            project_id: project_id.clone(),
+            saved_mode,
+            at_launch: true,
+        })
+    }
 }

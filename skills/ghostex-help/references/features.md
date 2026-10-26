@@ -221,7 +221,9 @@ your own project views (Configure view opens that view's editor in Settings >
 Extensions > Store and focuses its name field). **Show in ▸** holds **This Project** and
 **This Space**, which are ticks: unticking one hides the view there and leaves
 it everywhere else (the space row is absent when the project is not in a
-space). **Choose where it's shown…** at the bottom of that submenu opens the
+space). When the view on screen is hidden like this or turned off in Settings,
+the panel moves to the tab beside it, as closing its tab would.
+**Choose where it's shown…** at the bottom of that submenu opens the
 view's full scope editor in Settings > Extensions > Store. **Close tab** removes the
 view from the strip.
 

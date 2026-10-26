@@ -369,6 +369,24 @@ impl GhostexGpuiApp {
             .map(|id| id.0.clone())
     }
 
+    /// Whether both inputs a view's scope is resolved from describe `project_id`: the project
+    /// context (project overrides) and the sidebar HUD (`activeProjectSpaceRefs`, space overrides),
+    /// which arrive separately after a project switch.
+    pub(crate) fn view_scope_describes_project(&self, project_id: &str) -> bool {
+        let context_project = self
+            .latest_sidebar_project_snapshot
+            .as_ref()
+            .and_then(|snapshot| snapshot.active_project_id.as_ref())
+            .map(|id| id.0.as_str());
+        let hud_project = self
+            .native_sidebar
+            .snapshot
+            .as_ref()
+            .and_then(|snapshot| snapshot.hud.get("activeProjectId"))
+            .and_then(Value::as_str);
+        context_project == Some(project_id) && hud_project == Some(project_id)
+    }
+
     /// The active project's spaces with the names the sidebar shows, so the tab menu can say "Show in
     /// space ShortPoint". The keys come from `activeProjectSpaceRefs`, which carries membership but
     /// no name; the names come from `projectViewSpaces`, the same HUD list the Settings scope editor

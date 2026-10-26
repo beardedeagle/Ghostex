@@ -123,6 +123,7 @@ impl GhostexGpuiApp {
         let pending_command_gxserver_cleanup =
             shell_layout_state.pending_command_gxserver_cleanup.clone();
         let browser_url = shell_layout_state.browser_tabs.active_address_value();
+        let pending_project_view_restore = shell_layout_state.unsettled_project_view_restore();
         let project_editor_auto_sleep_policy = ProjectEditorAutoSleepPolicySnapshot::read_current();
         let gpui_reduce_motion_enabled = gpui_macos_reduce_motion_enabled();
         // GPUI's own flag is what `cx.reduce_motion()` answers (the panel slides, the composer), and
@@ -260,6 +261,7 @@ impl GhostexGpuiApp {
                 remote_attach_requests: Default::default(),
                 project_view_states_by_project: shell_layout_state.project_view_states_by_project,
                 open_views: shell_layout_state.open_views,
+                pending_project_view_restore,
                 view_panel_maximized: shell_layout_state.view_panel_maximized,
                 view_panel_picker_open: shell_layout_state.view_panel_picker_open,
                 view_picker_scroll: ScrollHandle::new(),

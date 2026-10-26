@@ -117,6 +117,11 @@ impl GhostexGpuiApp {
             if mode == TitlebarMode::Browser {
                 self.sync_active_browser_tab_to_surface(window, cx);
             } else {
+                // A view shown asleep never went through `activate_mode`, so its extension server
+                // may not be running yet.
+                if let TitlebarMode::Extension(id) = mode {
+                    self.ensure_extension_view_runtime_for_current_context(id, cx);
+                }
                 self.ensure_project_workarea_runtime_cef_surfaces_for_current_context(cx);
                 self.update_active_mode_cef_child_visibility(cx);
             }
@@ -356,7 +361,7 @@ impl GhostexGpuiApp {
             }
             FocusedSurfaceCloseDecision::CloseViewPanel => {
                 if self.view_picker_open() {
-                    self.close_view_panel(window, cx);
+                    self.close_view_panel(cx);
                 }
             }
             FocusedSurfaceCloseDecision::CloseBrowserActiveTab => {

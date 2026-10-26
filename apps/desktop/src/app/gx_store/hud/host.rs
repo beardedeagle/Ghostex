@@ -191,14 +191,26 @@ impl GhostexGpuiApp {
         }
     }
 
-    /// The store moved: recompose when the change touched what the HUD reads from it. Called by
-    /// the sidebar list's update before it reads the HUD's generation.
+    /// The store moved: recompose when the change touched what the HUD reads from it, or when the
+    /// focus carried the active project elsewhere. Called by the sidebar list's update before it
+    /// reads the HUD's generation.
+    ///
+    /// CDXC:Sidebar 2026-10-25 WHY:
+    /// The HUD names the active project and the Spaces it belongs to (`activeProjectId`,
+    /// `activeProjectSpaceRefs`), but selecting a session row in another project moves the focus
+    /// without a change summary (gx_store/local_focus.rs), so `focus_changed` alone left the HUD on
+    /// the previous project until an unrelated change recomposed it. Meanwhile views with a Space
+    /// rule were judged by the previous project's Spaces, and a view restore waiting for the HUD
+    /// (`finish_project_view_restore`) kept the panel closed. The list update compares the focus it
+    /// last built from, so a selection inside one project still composes nothing.
     pub(in crate::app::gx_store) fn gx_store_hud_store_changed(
         &mut self,
         changes: &ChangeSummary,
+        active_project_moved: bool,
         cx: &mut gpui::Context<Self>,
     ) {
-        let relevant = !changes.machines_reloaded.is_empty()
+        let relevant = active_project_moved
+            || !changes.machines_reloaded.is_empty()
             || !changes.projects_changed.is_empty()
             || !changes.projects_removed.is_empty()
             || !changes.project_order_changed.is_empty()
