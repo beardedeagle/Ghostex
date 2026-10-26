@@ -240,11 +240,13 @@ impl GhostexGpuiApp {
                 GpuiWorkspaceTerminalSessionKey::Local(key) => {
                     ghostex_gx_core::SessionKey::local(key.project_id, key.session_id)
                 }
-                GpuiWorkspaceTerminalSessionKey::Remote(key) => ghostex_gx_core::SessionKey::remote(
-                    key.remote_machine_id,
-                    key.project_id,
-                    key.session_id,
-                ),
+                GpuiWorkspaceTerminalSessionKey::Remote(key) => {
+                    ghostex_gx_core::SessionKey::remote(
+                        key.remote_machine_id,
+                        key.project_id,
+                        key.session_id,
+                    )
+                }
             },
         )
     }

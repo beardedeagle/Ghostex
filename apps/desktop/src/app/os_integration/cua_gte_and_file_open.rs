@@ -377,7 +377,11 @@ impl GhostexGpuiApp {
         // The Customize switch, not the active project's availability: that is the previous
         // project's until the focus lands.
         if gpui_titlebar_mode_hidden_from_settings(TitlebarMode::Source) {
-            self.copy_path_for_disabled_project_workarea(&file_path.to_string_lossy(), "VS Code", cx);
+            self.copy_path_for_disabled_project_workarea(
+                &file_path.to_string_lossy(),
+                "VS Code",
+                cx,
+            );
             return;
         }
         self.pending_source_file_open = Some(PendingSourceFileOpen {
