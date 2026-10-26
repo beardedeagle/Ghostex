@@ -44,6 +44,7 @@ pub(crate) fn gpui_open_remote_gxserver_tunnel(
                 health_check_failures: 0,
             });
         }
+        gpui_forget_remote_tunnel(tunnel.child.id());
         let _ = tunnel.child.kill();
         let _ = tunnel.child.wait();
     }
@@ -103,6 +104,7 @@ pub(crate) fn gpui_spawn_remote_gxserver_tunnel(
     let askpass = gpui_remote_ssh_askpass_script(config)?;
     let mut arguments = Vec::new();
     let remote_port = gpui_remote_gxserver_port(execution_target);
+    let forward = format!("{local_port}:127.0.0.1:{remote_port}");
     if !matches!(
         execution_target,
         GpuiRemoteExecutionTarget::WindowsWsl { .. }
@@ -114,7 +116,7 @@ pub(crate) fn gpui_spawn_remote_gxserver_tunnel(
         "-o".to_string(),
         "ExitOnForwardFailure=yes".to_string(),
         "-L".to_string(),
-        format!("{local_port}:127.0.0.1:{remote_port}"),
+        forward.clone(),
     ]);
     arguments.extend(target_arguments);
     if let GpuiRemoteExecutionTarget::WindowsWsl { distribution } = execution_target {
@@ -135,12 +137,12 @@ pub(crate) fn gpui_spawn_remote_gxserver_tunnel(
     let mut child = command
         .spawn()
         .map_err(|_| "Could not start the SSH tunnel.".to_string())?;
+    gpui_record_remote_tunnel(child.id(), forward.as_str());
     thread::sleep(GPUI_REMOTE_GXSERVER_TUNNEL_STARTUP_DELAY);
-    if child
-        .try_wait()
-        .map_err(|_| "Could not check the SSH tunnel process.".to_string())?
-        .is_some()
-    {
+    if !matches!(child.try_wait(), Ok(None)) {
+        gpui_forget_remote_tunnel(child.id());
+        let _ = child.kill();
+        let _ = child.wait();
         return Err("SSH tunnel exited before remote gxserver became reachable.".to_string());
     }
     Ok(GpuiRemoteSpawnedTunnel {

@@ -217,6 +217,8 @@ fn main() {
     // scan sees the user's standard tool directories.
     profiling::start();
     thread::spawn(gpui_auto_install_ghostex_cli_wrappers);
+    // Tunnels a crashed or force-quit Ghostex left running (app/helpers/remote/tunnel_registry.rs).
+    thread::spawn(gpui_reap_orphaned_remote_tunnels);
     // Only finds the CEF runtime on disk; nothing starts or downloads it here
     // (CDXC:CefRuntime 2026-09-28 in app/helpers/web_runtime.rs).
     // A runtime the user uninstalled (or, on Windows, reinstalled) while it ran is removed first,
