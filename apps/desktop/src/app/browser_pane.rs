@@ -675,14 +675,14 @@ impl GhostexGpuiApp {
             .and_then(|tab| tab.device_view.user_agent());
         let initially_visible = !background
             && BrowserRuntimeSurfacePolicy::for_tab(
-            self.browser_runtime_lifecycle_input(),
-            self.browser_tabs.tab(tab_id).map(|tab| tab.state),
-            self.browser_tabs
-                .rendered_active_loaded_tab_ids()
-                .contains(&tab_id),
-            true,
-        )
-        .shows_cef_child_view();
+                self.browser_runtime_lifecycle_input(),
+                self.browser_tabs.tab(tab_id).map(|tab| tab.state),
+                self.browser_tabs
+                    .rendered_active_loaded_tab_ids()
+                    .contains(&tab_id),
+                true,
+            )
+            .shows_cef_child_view();
         /*
         CDXC:Browser 2026-09-19 WHY:
         GPUI paints this colour under the CEF child view, and it is what the

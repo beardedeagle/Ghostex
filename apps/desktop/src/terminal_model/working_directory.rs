@@ -103,11 +103,8 @@ mod tests {
     #[test]
     fn local_hostname_url_is_a_plain_path() {
         assert_eq!(
-            file_url_local_path(
-                "file://dev-mac.local/Users/madda/dev/_active/Ghostex",
-                HOST
-            )
-            .as_deref(),
+            file_url_local_path("file://dev-mac.local/Users/madda/dev/_active/Ghostex", HOST)
+                .as_deref(),
             Some("/Users/madda/dev/_active/Ghostex")
         );
         assert_eq!(
@@ -150,20 +147,14 @@ mod tests {
             file_url_local_path("kitty-shell-cwd://build-box/home/ci", HOST),
             None
         );
-        assert_eq!(
-            file_url_local_path("file://dev-mac.local/x", None),
-            None
-        );
+        assert_eq!(file_url_local_path("file://dev-mac.local/x", None), None);
     }
 
     #[test]
     fn percent_encoded_spaces_are_decoded() {
         assert_eq!(
-            file_url_local_path(
-                "file://dev-mac.local/Users/madda/My%20Project/a%2Bb",
-                HOST
-            )
-            .as_deref(),
+            file_url_local_path("file://dev-mac.local/Users/madda/My%20Project/a%2Bb", HOST)
+                .as_deref(),
             Some("/Users/madda/My Project/a+b")
         );
         assert_eq!(
@@ -188,10 +179,7 @@ mod tests {
     fn other_values_are_not_file_urls() {
         assert_eq!(file_url_local_path("/Users/madda", HOST), None);
         assert_eq!(file_url_local_path("https://example.com/x", HOST), None);
-        assert_eq!(
-            file_url_local_path("file://dev-mac.local", HOST),
-            None
-        );
+        assert_eq!(file_url_local_path("file://dev-mac.local", HOST), None);
     }
 
     #[test]
