@@ -319,6 +319,10 @@ pub(crate) fn gpui_is_probably_ghostex_command(path: &Path, command: &str) -> bo
     if gpui_is_marked_ghostex_wrapper_file(&realpath) {
         return true;
     }
+    // The Linux packages' /usr/bin/ghostex script (CDXC:Cli 2026-10-26 in os_cli/cli_install.rs).
+    if gpui_is_linux_package_cli_wrapper_file(&realpath) {
+        return true;
+    }
     if gpui_is_ghostex_app_owned_command_realpath(command, &realpath) {
         return true;
     }
