@@ -883,6 +883,12 @@ fn build_session(
             "threadLast".to_string(),
             Value::Bool(session.nesting.last_child),
         );
+        if session.nesting.passing_lines != 0 {
+            details.insert(
+                "threadPassingLines".to_string(),
+                Value::from(session.nesting.passing_lines),
+            );
+        }
     }
     if row.is_coordinator {
         let badge = session.nesting.coordinator_badge();
@@ -900,6 +906,7 @@ fn build_session(
                 "collapsed": session.nesting.collapsed,
                 "older": session.nesting.older_threads,
                 "olderShown": session.nesting.older_threads_shown,
+                "passingLinesBelow": session.nesting.passing_lines_below(),
                 "containsActive": session.nesting.contains_active_session,
             }),
         );
