@@ -134,8 +134,9 @@ pub struct GhostexGpuiApp {
     */
     pub(crate) parked_browser_runtimes_by_project: HashMap<String, ParkedBrowserRuntime>,
     /// Per project, the tab of the last page opened for it while it was not on screen, shown when the
-    /// project next is (`land_pending_parked_browser_open`). Runtime only: after a launch every page
-    /// waits for a click (CDXC:Browser 2026-09-19).
+    /// project next is (`land_pending_parked_browser_open`), and made by
+    /// `start_waiting_parked_browser_pages` if CEF could not make it at the time. Runtime only:
+    /// after a launch every page waits for a click (CDXC:Browser 2026-09-19).
     pub(crate) pending_parked_browser_opens: HashMap<String, BrowserTabId>,
     pub(crate) browser_tabs_project_epoch: u64,
     /*

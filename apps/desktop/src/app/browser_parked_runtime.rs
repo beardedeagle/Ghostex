@@ -246,10 +246,10 @@ impl GhostexGpuiApp {
         cx.notify();
     }
 
-    /// CDXC:Browser 2026-10-25 WHY:
+    /// CDXC:Browser 2026-10-26 WHY:
     /// `ghostex browser open` names the agent's own project, which is often not the one on screen. Such a page goes into that project's parked tab model the way a parked page's popup does: the project on screen keeps its panel, view and tabs, and focus stays put.
     /// The project's saved view moves to Browser, as the open would have done on screen, a toast says where the page went, and the page is shown when the project is next on screen (`land_pending_parked_browser_open`).
-    /// A page the project does not have yet is created then, not now: a hidden page made now would use the Browser profile of the workspace on screen, not the project's, and it would load for a project the user may not visit. A reused tab whose page is already running parked goes to the address at once, as a live one would: that page was made with its project's profile, keeps running while parked, and an agent driving it sees the new address straight away.
+    /// The page itself is made at once, hidden, under the Browser profile of the project's own workspace (`start_parked_browser_page`), so the agent's next step (`ghostex_list_pages`, a snapshot, a click) finds a page to drive. This supersedes the 2026-10-25 rule that made it only when the project came on screen, which left the embedded-browser-use loop with no page. A reused tab whose page is already running parked goes to the address at once, as a live one would.
     pub(crate) fn open_browser_url_in_parked_project(
         &mut self,
         project_id: &str,
@@ -307,10 +307,9 @@ impl GhostexGpuiApp {
         if new_tab {
             saved_view.append_browser_tab(tab_id, parked_tabs);
         }
-        let project_title = ProjectKey::parse_workspace_project_id(project_id)
-            .and_then(|key| self.gx_store.core.presentation().project(&key))
-            .map(|project| project.title.trim().to_string())
-            .filter(|title| !title.is_empty())
+        self.start_parked_browser_page(project_id, tab_id, cx);
+        let project_title = self
+            .parked_project_title(project_id)
             .unwrap_or_else(|| "another project".to_string());
         self.upsert_gpui_app_toast(
             GpuiAppToast {
@@ -332,9 +331,111 @@ impl GhostexGpuiApp {
         cx.notify();
     }
 
+    fn parked_project_title(&self, project_id: &str) -> Option<String> {
+        ProjectKey::parse_workspace_project_id(project_id)
+            .and_then(|key| self.gx_store.core.presentation().project(&key))
+            .map(|project| project.title.trim().to_string())
+            .filter(|title| !title.is_empty())
+    }
+
+    /// Makes the page of a parked project's tab, hidden, through the same path a page on screen
+    /// takes: the project's tab model and runtime key stand in for the live ones for the call, so
+    /// the page's callbacks name that project's runtime (`browser_runtime_owner_for_key`) and the
+    /// page is parked under it like one left behind by a project switch. It opens in the Browser
+    /// profile of the project's own workspace, the one it gets when the project is next on screen
+    /// (a project of another workspace switches the window to it). Nothing for a project on
+    /// screen, a tab that already has a page, or one with no address; a page that cannot be made
+    /// yet (CEF or the workspace profile still starting) is made by
+    /// `start_waiting_parked_browser_pages` once it can.
+    pub(crate) fn start_parked_browser_page(
+        &mut self,
+        project_id: &str,
+        tab_id: BrowserTabId,
+        cx: &mut gpui::Context<Self>,
+    ) {
+        if self.browser_tabs_project_id.as_deref() == Some(project_id)
+            || self
+                .parked_browser_runtimes_by_project
+                .get(project_id)
+                .is_some_and(|runtime| runtime.surfaces.contains_key(&tab_id))
+        {
+            return;
+        }
+        let Some((url, profile_id)) = self
+            .parked_browser_tabs_by_project
+            .get(project_id)
+            .and_then(|tabs| tabs.tab(tab_id))
+            .filter(|tab| tab.state == BrowserTabState::Loaded)
+            .map(|tab| (tab.cef_url(), tab.profile_id))
+        else {
+            return;
+        };
+        let workspace_id = match self.gx_store_local_project_workspace_id(project_id) {
+            Some(workspace_id) => self
+                .gx_store_workspaces_state()
+                .filter(|state| state.default_id() != workspace_id)
+                .map(|_| workspace_id),
+            None => self.gx_store_window_non_default_workspace_id(),
+        };
+        let profile = crate::app::workspace_browser::browser_cef_profile_for_workspace(
+            profile_id,
+            workspace_id.as_deref(),
+        );
+        let project_name = self
+            .parked_project_title(project_id)
+            .unwrap_or_else(|| self.project_name.clone());
+        let Some(tabs) = self.parked_browser_tabs_by_project.remove(project_id) else {
+            return;
+        };
+        let mut runtime = self
+            .parked_browser_runtimes_by_project
+            .remove(project_id)
+            .unwrap_or_else(|| {
+                // A fresh identity, as a project switch gives a model with no parked runtime.
+                self.browser_tabs_project_epoch = self.browser_tabs_project_epoch.wrapping_add(1);
+                ParkedBrowserRuntime {
+                    runtime_key: self.browser_tabs_project_epoch,
+                    ..Default::default()
+                }
+            });
+        let live_tabs = std::mem::replace(&mut self.browser_tabs, tabs);
+        let live_runtime_key =
+            std::mem::replace(&mut self.browser_tabs_runtime_key, runtime.runtime_key);
+        let live_surfaces = std::mem::replace(
+            &mut self.browser_surfaces,
+            std::mem::take(&mut runtime.surfaces),
+        );
+        // A parked page's history entries carry the project name it was made under.
+        let live_project_name = std::mem::replace(&mut self.project_name, project_name);
+        self.ensure_browser_surface_for_tab_in_profile(tab_id, url, profile_id, Some(profile), cx);
+        runtime.surfaces = std::mem::replace(&mut self.browser_surfaces, live_surfaces);
+        self.project_name = live_project_name;
+        self.browser_tabs_runtime_key = live_runtime_key;
+        let tabs = std::mem::replace(&mut self.browser_tabs, live_tabs);
+        self.parked_browser_tabs_by_project
+            .insert(project_id.to_string(), tabs);
+        if runtime.holds_runtime_state() {
+            self.parked_browser_runtimes_by_project
+                .insert(project_id.to_string(), runtime);
+        }
+    }
+
+    /// The pages opened for parked projects that could not be made at the time, made now: called
+    /// when CEF has started and when a workspace profile's context is ready.
+    pub(crate) fn start_waiting_parked_browser_pages(&mut self, cx: &mut gpui::Context<Self>) {
+        let waiting = self
+            .pending_parked_browser_opens
+            .iter()
+            .map(|(project_id, tab_id)| (project_id.clone(), *tab_id))
+            .collect::<Vec<_>>();
+        for (project_id, tab_id) in waiting {
+            self.start_parked_browser_page(&project_id, tab_id, cx);
+        }
+    }
+
     /// Shows the page opened for this project while it was not on screen, once its views and tabs
-    /// are back (`apply_changed_active_project_snapshot`): Browser wakes, the page loads and the
-    /// strip scrolls to its tab. It runs after the other landings, so one that changed the view or
+    /// are back (`apply_changed_active_project_snapshot`): Browser wakes, the page made in the
+    /// background is shown (made now if it could not be then) and the strip scrolls to its tab. It runs after the other landings, so one that changed the view or
     /// the tab in front (a file opened in Code, a project header's New Browser Tab) wins.
     pub(crate) fn land_pending_parked_browser_open(
         &mut self,

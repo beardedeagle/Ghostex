@@ -602,6 +602,21 @@ impl GhostexGpuiApp {
         profile_id: BrowserProfileId,
         cx: &mut gpui::Context<Self>,
     ) -> Option<Entity<CefSurface>> {
+        self.ensure_browser_surface_for_tab_in_profile(tab_id, url, profile_id, None, cx)
+    }
+
+    /// `background_profile` is the CEF profile of a page made for a project that is not on screen
+    /// (`start_parked_browser_page`): the page opens in it and starts hidden, whatever the strip
+    /// on screen shows.
+    pub(crate) fn ensure_browser_surface_for_tab_in_profile(
+        &mut self,
+        tab_id: BrowserTabId,
+        url: String,
+        profile_id: BrowserProfileId,
+        background_profile: Option<String>,
+        cx: &mut gpui::Context<Self>,
+    ) -> Option<Entity<CefSurface>> {
+        let background = background_profile.is_some();
         if let Some(surface) = self.browser_surfaces.get(&tab_id) {
             return Some(surface.clone());
         }
@@ -639,9 +654,12 @@ impl GhostexGpuiApp {
         } else {
             // A Claude cloud session's claude.ai page opens in its account's own profile
             // (CDXC:ClaudeCloud in app/claude_cloud_page.rs).
-            let profile = self
-                .claude_cloud_tab_profile(tab_id, &url)
-                .unwrap_or_else(|| self.browser_tab_cef_profile(profile_id));
+            let profile = match background_profile {
+                Some(profile) => profile,
+                None => self
+                    .claude_cloud_tab_profile(tab_id, &url)
+                    .unwrap_or_else(|| self.browser_tab_cef_profile(profile_id)),
+            };
             if !self.prepare_workspace_browser_context(&profile, cx) {
                 return None;
             }
@@ -655,7 +673,8 @@ impl GhostexGpuiApp {
             .browser_tabs
             .tab(tab_id)
             .and_then(|tab| tab.device_view.user_agent());
-        let initially_visible = BrowserRuntimeSurfacePolicy::for_tab(
+        let initially_visible = !background
+            && BrowserRuntimeSurfacePolicy::for_tab(
             self.browser_runtime_lifecycle_input(),
             self.browser_tabs.tab(tab_id).map(|tab| tab.state),
             self.browser_tabs
