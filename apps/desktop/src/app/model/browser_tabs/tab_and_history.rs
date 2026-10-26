@@ -112,12 +112,15 @@ impl BrowserTab {
     }
 
     pub(crate) fn display_title(&self) -> String {
+        self.display_title_ref().to_string()
+    }
+
+    /// The title the tab shows, borrowed, for callers that keep their own copy only if they need
+    /// one (the strip and the Browser's page row share one `SharedString` per page).
+    pub(crate) fn display_title_ref(&self) -> &str {
         match self.state {
-            BrowserTabState::Loaded => self
-                .runtime_page_title
-                .clone()
-                .unwrap_or_else(|| self.title.clone()),
-            BrowserTabState::AddressOnly => "New Tab".to_string(),
+            BrowserTabState::Loaded => self.runtime_page_title.as_deref().unwrap_or(&self.title),
+            BrowserTabState::AddressOnly => "New Tab",
         }
     }
 }

@@ -29,6 +29,7 @@ pub(crate) fn browser() -> Section {
         vec![
             row("webLinkOpenTarget", "Open links in", "Open web links from terminal output (Command-click), session chat, and detected dev servers in the project Browser view or the system default browser.").options(WEB_LINK_OPEN_TARGET_OPTIONS),
             row("sessionLinkOpenTarget", "Open session links in", "Open a session's pull requests, issues and Linear tickets (the chips after its title and its links list) in the project Browser view or the system default browser. The phone follows this setting too.").options(SESSION_LINK_OPEN_TARGET_OPTIONS),
+            row("browserPagesInViewRow", "Show pages in their own row", "Show the Browser as one tab in the side panel's tab bar, with its pages as a row of tabs under it, instead of each page as a tab beside the views. Pages open, close, sleep and drag as before."),
         ],
     )
 }

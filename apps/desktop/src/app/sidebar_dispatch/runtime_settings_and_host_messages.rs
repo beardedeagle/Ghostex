@@ -141,6 +141,14 @@ impl GhostexGpuiApp {
             self.docs_open_files_as_tabs = docs_tabs_on;
             cx.notify();
         }
+        let browser_row_on = settings.browser_pages_in_view_row();
+        if self.browser_pages_in_view_row != browser_row_on {
+            self.browser_pages_in_view_row = browser_row_on;
+            // The shown tab moves between the strip and the row, so both scroll to it again.
+            self.browser_page_tab_revealed = None;
+            self.scroll_all_active_tab_strips();
+            cx.notify();
+        }
         let next_snapshot = sidebar_runtime_settings_snapshot_from_shared_settings(settings);
         let Some(next_snapshot) = changed_sidebar_runtime_settings_snapshot(
             &self.sidebar_runtime_settings_snapshot,

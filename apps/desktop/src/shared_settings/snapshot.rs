@@ -483,6 +483,11 @@ impl SharedSidebarSettingsSnapshot {
         strict_bool_field(&self.object, "docsOpenFilesAsTabs").unwrap_or(false)
     }
 
+    /// The Browser is one tab in the side panel's strip, with its pages in a row under it.
+    pub fn browser_pages_in_view_row(&self) -> bool {
+        strict_bool_field(&self.object, "browserPagesInViewRow").unwrap_or(false)
+    }
+
     pub fn video_file_open_target(&self) -> SharedMediaFileOpenTarget {
         SharedMediaFileOpenTarget::from_settings_value(
             self.object

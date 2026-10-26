@@ -40,6 +40,10 @@ impl GhostexGpuiApp {
             showing: active.is_none(),
             closable: false,
             unsaved: false,
+            icon: None,
+            asleep: false,
+            pinned: false,
+            drag: None,
         };
         let tabs =
             std::iter::once(own).chain(self.code_windows.windows.iter().map(|code_window| {
@@ -51,6 +55,10 @@ impl GhostexGpuiApp {
                     showing: active == Some(code_window.id),
                     closable: true,
                     unsaved: false,
+                    icon: None,
+                    asleep: false,
+                    pinned: false,
+                    drag: None,
                 }
             }));
         Some(self.render_view_instance_tab_row(

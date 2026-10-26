@@ -47,7 +47,9 @@ impl GhostexGpuiApp {
     /// User: the `+` sits right after the last tab of the whole row, the Browser's page tabs
     /// included, with no gap before it and no divider between the view tabs and the page tabs
     /// (this supersedes the same day's placements left of Open Externally and between the two
-    /// groups). The Code view shows no Open Externally button at all.
+    /// groups). The Code view shows no Open Externally button at all. With
+    /// `browserPagesInViewRow` on (off by default) the page tabs are in their own row under the
+    /// strip instead (`browser_page_tabs.rs`).
     pub(crate) fn render_view_tab_strip(
         &self,
         active_mode: TitlebarMode,
@@ -323,39 +325,52 @@ impl GhostexGpuiApp {
     }
 
     /// Every tab takes every kind of tab: views and browser pages share one order, so a drag of
-    /// either lands wherever the pointer is.
+    /// either lands wherever the pointer is. While the pages have a row of their own they are
+    /// dragged within that row only, so the strip takes view tabs alone.
     pub(crate) fn with_view_strip_drop_target(
         &self,
         tab: gpui::Stateful<gpui::Div>,
         index: usize,
         cx: &mut gpui::Context<Self>,
     ) -> gpui::Stateful<gpui::Div> {
+        let takes_pages = !self.browser_pages_in_view_row;
         tab.on_drag_move::<DraggedViewTab>(cx.listener(
             move |this, event: &gpui::DragMoveEvent<DraggedViewTab>, _window, cx| {
                 this.update_view_strip_drop_feedback(event.bounds, event.event.position, index, cx);
             },
         ))
-        .on_drag_move::<DraggedBrowserTab>(cx.listener(
-            move |this, event: &gpui::DragMoveEvent<DraggedBrowserTab>, _window, cx| {
-                this.update_view_strip_drop_feedback(event.bounds, event.event.position, index, cx);
-            },
-        ))
-        .can_drop(|value, _window, _cx| {
+        .can_drop(move |value, _window, _cx| {
             value.downcast_ref::<DraggedViewTab>().is_some()
-                || value.downcast_ref::<DraggedBrowserTab>().is_some()
+                || takes_pages && value.downcast_ref::<DraggedBrowserTab>().is_some()
         })
         .on_drop(
             cx.listener(move |this, dragged: &DraggedViewTab, _window, cx| {
                 this.handle_view_strip_drop(ViewStripTabKey::View(dragged.mode), index, cx);
             }),
         )
-        .on_drop(
-            cx.listener(move |this, dragged: &DraggedBrowserTab, window, cx| {
-                window.prevent_default();
-                cx.stop_propagation();
-                this.handle_view_strip_drop(ViewStripTabKey::Browser(dragged.tab_id), index, cx);
-            }),
-        )
+        .when(takes_pages, |tab| {
+            tab.on_drag_move::<DraggedBrowserTab>(cx.listener(
+                move |this, event: &gpui::DragMoveEvent<DraggedBrowserTab>, _window, cx| {
+                    this.update_view_strip_drop_feedback(
+                        event.bounds,
+                        event.event.position,
+                        index,
+                        cx,
+                    );
+                },
+            ))
+            .on_drop(cx.listener(
+                move |this, dragged: &DraggedBrowserTab, window, cx| {
+                    window.prevent_default();
+                    cx.stop_propagation();
+                    this.handle_view_strip_drop(
+                        ViewStripTabKey::Browser(dragged.tab_id),
+                        index,
+                        cx,
+                    );
+                },
+            ))
+        })
     }
 
     /// The close control. It is always drawn on the active tab, as the mockup does, and appears on
@@ -474,6 +489,7 @@ impl GhostexGpuiApp {
             this.relative().child(view_strip_drop_line(false))
         });
         let trigger_bounds = std::rc::Rc::new(std::cell::Cell::new(None));
+        let takes_pages = !self.browser_pages_in_view_row;
         // Anywhere on the `+` is "after the last tab", so both halves mean the same index.
         button
             .on_prepaint({
@@ -487,33 +503,36 @@ impl GhostexGpuiApp {
                     }
                 },
             ))
-            .on_drag_move::<DraggedBrowserTab>(cx.listener(
-                move |this, event: &gpui::DragMoveEvent<DraggedBrowserTab>, _window, cx| {
-                    if event.bounds.contains(&event.event.position) {
-                        this.set_view_strip_drop_index(Some(tab_count), cx);
-                    }
-                },
-            ))
-            .can_drop(|value, _window, _cx| {
+            .can_drop(move |value, _window, _cx| {
                 value.downcast_ref::<DraggedViewTab>().is_some()
-                    || value.downcast_ref::<DraggedBrowserTab>().is_some()
+                    || takes_pages && value.downcast_ref::<DraggedBrowserTab>().is_some()
             })
             .on_drop(
                 cx.listener(move |this, dragged: &DraggedViewTab, _window, cx| {
                     this.handle_view_strip_drop(ViewStripTabKey::View(dragged.mode), tab_count, cx);
                 }),
             )
-            .on_drop(
-                cx.listener(move |this, dragged: &DraggedBrowserTab, window, cx| {
-                    window.prevent_default();
-                    cx.stop_propagation();
-                    this.handle_view_strip_drop(
-                        ViewStripTabKey::Browser(dragged.tab_id),
-                        tab_count,
-                        cx,
-                    );
-                }),
-            )
+            .when(takes_pages, |button| {
+                button
+                    .on_drag_move::<DraggedBrowserTab>(cx.listener(
+                        move |this, event: &gpui::DragMoveEvent<DraggedBrowserTab>, _window, cx| {
+                            if event.bounds.contains(&event.event.position) {
+                                this.set_view_strip_drop_index(Some(tab_count), cx);
+                            }
+                        },
+                    ))
+                    .on_drop(
+                        cx.listener(move |this, dragged: &DraggedBrowserTab, window, cx| {
+                            window.prevent_default();
+                            cx.stop_propagation();
+                            this.handle_view_strip_drop(
+                                ViewStripTabKey::Browser(dragged.tab_id),
+                                tab_count,
+                                cx,
+                            );
+                        }),
+                    )
+            })
             .on_mouse_down(
                 MouseButton::Left,
                 cx.listener(move |this, _: &MouseDownEvent, window, cx| {
@@ -709,7 +728,7 @@ impl GhostexGpuiApp {
 /// the `+` for the end of the row) and replaces the recoloured tab outline the drop used to show.
 /// The first tab has no gap before it inside the scroller, so its line sits on its own leading
 /// edge instead of being clipped.
-fn view_strip_drop_line(first_in_row: bool) -> gpui::Div {
+pub(crate) fn view_strip_drop_line(first_in_row: bool) -> gpui::Div {
     div()
         .absolute()
         .top(px(2.0))

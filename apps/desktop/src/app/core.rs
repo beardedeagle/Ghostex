@@ -348,6 +348,9 @@ pub struct GhostexGpuiApp {
     /// Where a tab being dragged along the view panel's strip would land, as an index into the
     /// drawn row.
     pub(crate) view_strip_drop_index: Option<usize>,
+    /// The same for a page being dragged along the Browser's page row
+    /// (`render/browser_page_tabs.rs`).
+    pub(crate) browser_page_row_drop_index: Option<usize>,
     /// The drawn order of the strip's tabs and which are pinned. See `GpuiViewStripLayout`.
     pub(crate) view_strip_layout: GpuiViewStripLayout,
     /// The active project's extra Code windows (`app/workarea/code_windows.rs`). Swapped with the
@@ -362,6 +365,9 @@ pub struct GhostexGpuiApp {
     /// `docsOpenFilesAsTabs`: Files draws its open files as a tab row above the document
     /// (`native_docs/open_file_tabs.rs`) instead of the files sidebar's Open Files list.
     pub(crate) docs_open_files_as_tabs: bool,
+    /// `browserPagesInViewRow`: the strip shows one Browser tab and the Browser draws its pages
+    /// in a row of their own (`render/browser_page_tabs.rs`).
+    pub(crate) browser_pages_in_view_row: bool,
     /// The view the active project last had open, so closing the panel and reopening it comes back
     /// to the same view. Swapped with the rest of the project's view state on a project switch.
     pub(crate) last_open_view_mode: Option<TitlebarMode>,
@@ -774,6 +780,12 @@ pub struct GhostexGpuiApp {
     pub(crate) view_tab_scroll_handle: ScrollHandle,
     /// The Code view's window tab row (`render/code_window_tabs.rs`).
     pub(crate) code_window_tab_scroll_handle: ScrollHandle,
+    /// The Browser's page row, and the project, page and place it last scrolled to, so it scrolls
+    /// again only when the shown page or its place changes (`render/browser_page_tabs.rs`).
+    pub(crate) browser_page_tab_scroll_handle: ScrollHandle,
+    pub(crate) browser_page_tab_revealed: Option<(Option<String>, BrowserTabId, usize)>,
+    /// The Browser's page row takes the keyboard when a page tab is clicked, as Files' tab row does.
+    pub(crate) browser_page_row_focus_handle: FocusHandle,
     pub(crate) command_tab_scroll_handles: HashMap<CommandPaneGroupId, ScrollHandle>,
     pub(crate) command_collapsed_tab_scroll_handle: ScrollHandle,
     pub(crate) workspace_split_layout_metrics: HashMap<WorkspaceSplitId, SplitResizeMetrics>,

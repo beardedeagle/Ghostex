@@ -505,6 +505,7 @@ pub const MAIN_SETTINGS_SCROLL_TARGET_SETTING_KEYS: &[(&str, &[&str])] = &[
         &[
             "webLinkOpenTarget",
             "sessionLinkOpenTarget",
+            "browserPagesInViewRow",
             "codeServerLinkVscodeUserConfig",
             "codeServerUseVscodeInsidersUserConfig",
             "codeServerNewWindowsAsTabs",
@@ -648,7 +649,14 @@ pub const MAIN_SETTINGS_SCROLL_TARGET_SETTING_KEYS: &[(&str, &[&str])] = &[
             "docsOpenFilesAsTabs",
         ],
     ),
-    ("browser", &["webLinkOpenTarget", "sessionLinkOpenTarget"]),
+    (
+        "browser",
+        &[
+            "webLinkOpenTarget",
+            "sessionLinkOpenTarget",
+            "browserPagesInViewRow",
+        ],
+    ),
     (
         "editor",
         &[
@@ -860,6 +868,7 @@ pub const MAIN_SETTINGS_SECTION_SETTING_KEYS: &[(&str, &[&str])] = &[
         &[
             "webLinkOpenTarget",
             "sessionLinkOpenTarget",
+            "browserPagesInViewRow",
             "codeServerLinkVscodeUserConfig",
             "codeServerUseVscodeInsidersUserConfig",
             "codeServerNewWindowsAsTabs",

@@ -92,7 +92,7 @@ pub(crate) struct DraggedBrowserTab {
     pub(crate) source_pane_id: BrowserPaneId,
     pub(crate) tab_id: BrowserTabId,
     pub(crate) profile_id: BrowserProfileId,
-    pub(crate) title: String,
+    pub(crate) title: gpui::SharedString,
     pub(crate) runtime_favicon_image: Option<BrowserFaviconImage>,
     pub(crate) runtime_favicon_fetch: Option<BrowserFaviconFetchSource>,
     pub(crate) state: BrowserTabState,
@@ -101,7 +101,7 @@ pub(crate) struct DraggedBrowserTab {
 
 pub(crate) struct BrowserTabDragPreview {
     pub(crate) profile_id: BrowserProfileId,
-    pub(crate) title: String,
+    pub(crate) title: gpui::SharedString,
     pub(crate) runtime_favicon_image: Option<BrowserFaviconImage>,
     pub(crate) runtime_favicon_fetch: Option<BrowserFaviconFetchSource>,
     pub(crate) state: BrowserTabState,

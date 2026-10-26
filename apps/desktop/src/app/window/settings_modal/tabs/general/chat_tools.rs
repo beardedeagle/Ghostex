@@ -274,6 +274,15 @@ fn browser_section(
         window,
         cx,
     ));
+    rows.extend(page.toggle(
+        g,
+        "browser",
+        "browserPagesInViewRow",
+        "Show pages in their own row",
+        "Show the Browser as one tab in the side panel's tab bar, with its pages as a row of tabs under it, instead of each page as a tab beside the views.",
+        false,
+        cx,
+    ));
     settings_section(&g.p, "Browser", None, None, rows)
         .map(|section| PageBlock::section("browser", section))
 }
