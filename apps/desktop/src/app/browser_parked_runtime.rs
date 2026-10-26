@@ -407,7 +407,13 @@ impl GhostexGpuiApp {
         );
         // A parked page's history entries carry the project name it was made under.
         let live_project_name = std::mem::replace(&mut self.project_name, project_name);
-        self.ensure_browser_surface_for_tab_in_profile(tab_id, url, profile_id, Some(profile), cx);
+        let surface = self.ensure_browser_surface_for_tab_in_profile(
+            tab_id,
+            url,
+            profile_id,
+            Some(profile),
+            cx,
+        );
         runtime.surfaces = std::mem::replace(&mut self.browser_surfaces, live_surfaces);
         self.project_name = live_project_name;
         self.browser_tabs_runtime_key = live_runtime_key;
@@ -418,6 +424,56 @@ impl GhostexGpuiApp {
             self.parked_browser_runtimes_by_project
                 .insert(project_id.to_string(), runtime);
         }
+        if let Some(surface) = surface {
+            self.size_background_browser_page(surface, cx);
+        }
+    }
+
+    /// CDXC:Browser 2026-10-26 WHY:
+    /// A CEF page is made 1×1 and only gets its frame when it is painted, so a page made in the background laid out in a 1px window and `ghostex_screenshot` returned a 2×2 blank image until the page had been shown once. It gets the size the Browser panel would give it instead: the side panel's width at its saved split and the window's height. The frame is set after this update, when the window can be read, and only while the page has still not been placed by a paint.
+    fn size_background_browser_page(
+        &mut self,
+        surface: Entity<CefSurface>,
+        cx: &mut gpui::Context<Self>,
+    ) {
+        let Some(window) = self.main_window_handle else {
+            return;
+        };
+        let app = cx.entity().downgrade();
+        cx.defer(move |cx| {
+            let _ = app.update(cx, |this, cx| {
+                let Ok((bounds, scale_factor)) = window.update(cx, |_, window, _| {
+                    (
+                        this.background_browser_page_bounds(window),
+                        window.scale_factor(),
+                    )
+                }) else {
+                    return;
+                };
+                surface.read(cx).set_background_bounds(bounds, scale_factor);
+            });
+        });
+    }
+
+    /// Where the Browser panel would sit at rest in this window: right of the Agents column at the
+    /// saved split, left of a right-docked command pane, the window's full height.
+    fn background_browser_page_bounds(&self, window: &gpui::Window) -> Bounds<Pixels> {
+        let window_size = window.bounds().size;
+        let workspace_width = crate::app::model::command_pane_workspace_width(
+            window,
+            self.sidebar_width,
+            self.sidebar_collapsed,
+        );
+        let (x, width) = background_browser_page_columns(
+            window_size.width.as_f32(),
+            workspace_width,
+            self.workarea_header_trailing_dock_reserve_at_rest(window),
+            self.project_editor_shell.workarea_split_ratio,
+        );
+        Bounds::new(
+            gpui::point(px(x), px(0.0)),
+            gpui::size(px(width), window_size.height),
+        )
     }
 
     /// The pages opened for parked projects that could not be made at the time, made now: called
@@ -545,5 +601,134 @@ impl GhostexGpuiApp {
             self.parked_browser_runtimes_by_project.remove(project_id);
         }
         dropped
+    }
+}
+
+impl GhostexGpuiApp {
+    /// CDXC:Browser 2026-10-26 WHY:
+    /// A removed project, and a removed worktree (which is a project of its own), leaves its computer's presentation, and nothing else tells this window: its parked pages, the Browser pages an agent opened in the background included, kept running until the idle sleep. They close as soon as a live presentation of that computer no longer lists the project. A computer that is not live (starting, reconnecting, offline) never counts as having removed anything, so a gxserver restart closes nothing.
+    pub(crate) fn close_parked_pages_of_removed_projects(&mut self, cx: &mut gpui::Context<Self>) {
+        let mut candidates = self
+            .parked_browser_runtimes_by_project
+            .keys()
+            .chain(self.pending_parked_browser_opens.keys())
+            .map(String::as_str)
+            .collect::<Vec<_>>();
+        candidates.extend(
+            self.project_views
+                .parked_views()
+                .map(|(_, project_id, ..)| project_id),
+        );
+        candidates.extend(
+            self.parked_project_workarea_surfaces
+                .iter()
+                .filter_map(|parked| parked.project_id.as_deref()),
+        );
+        if candidates.is_empty() {
+            return;
+        }
+        let presentation = self.gx_store.core.presentation();
+        let removed = removed_project_ids(candidates, |project_id| {
+            let key = ProjectKey::parse_workspace_project_id(project_id)?;
+            let machine = presentation.machine(&key.machine)?;
+            if machine.connection().phase != ghostex_gx_core::ConnectionPhase::Live {
+                return None;
+            }
+            let loaded = presentation.loaded_live(&key.machine)?;
+            Some(loaded.project(&key.project_id).is_some())
+        });
+        if removed.is_empty() {
+            return;
+        }
+        for project_id in &removed {
+            self.pending_parked_browser_opens.remove(project_id);
+            self.sleep_parked_browser_project(project_id, cx);
+            let views = self
+                .project_views
+                .parked_views()
+                .filter(|(_, owner, ..)| owner == project_id)
+                .map(|(key, ..)| key.to_owned())
+                .collect::<Vec<_>>();
+            for key in views {
+                self.project_views.close_parked_view(&key);
+            }
+            // Dropping the entity closes the page.
+            self.parked_project_workarea_surfaces
+                .retain(|parked| parked.project_id.as_deref() != Some(project_id.as_str()));
+        }
+        cx.notify();
+    }
+}
+
+/// The candidates `listed` says their computer's live presentation no longer has, once each.
+/// `listed` answers `None` when it cannot tell (the computer is not live).
+fn removed_project_ids<'a>(
+    candidates: impl IntoIterator<Item = &'a str>,
+    listed: impl Fn(&str) -> Option<bool>,
+) -> Vec<String> {
+    let mut removed = candidates
+        .into_iter()
+        .filter(|project_id| listed(project_id) == Some(false))
+        .map(str::to_string)
+        .collect::<Vec<_>>();
+    removed.sort();
+    removed.dedup();
+    removed
+}
+
+/// The x and width of the Browser panel at rest: what is left of the band (the workspace less a
+/// right-docked command pane) after the split's rail and the Agents column at the saved ratio,
+/// against the band's right edge.
+fn background_browser_page_columns(
+    window_width: f32,
+    workspace_width: f32,
+    trailing_reserve: f32,
+    split_ratio: f32,
+) -> (f32, f32) {
+    let band = (workspace_width - trailing_reserve).max(0.0);
+    let split_span = (band - crate::app::consts::WORKSPACE_SPLIT_HANDLE_THICKNESS).max(0.0);
+    let agents =
+        split_span * crate::app::model::workarea_split_ratio_for_span(split_ratio, split_span);
+    let width = (split_span - agents).max(1.0);
+    let x = (window_width - trailing_reserve - width).max(0.0);
+    (x, width)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn a_project_the_live_presentation_dropped_is_removed_once() {
+        let removed = removed_project_ids(["gone", "kept", "gone", "offline"], |id| match id {
+            "gone" => Some(false),
+            "kept" => Some(true),
+            _ => None,
+        });
+        assert_eq!(removed, vec!["gone".to_string()]);
+    }
+
+    #[test]
+    fn nothing_counts_as_removed_while_its_computer_is_not_live() {
+        assert!(removed_project_ids(["a", "b"], |_| None).is_empty());
+    }
+
+    #[test]
+    fn a_background_page_gets_the_panel_column_not_one_pixel() {
+        // A 1600pt window, a 280pt sidebar and its divider, no right dock, an even split.
+        let workspace = 1600.0 - 281.0;
+        let (x, width) = background_browser_page_columns(1600.0, workspace, 0.0, 0.5);
+        let span = workspace - crate::app::consts::WORKSPACE_SPLIT_HANDLE_THICKNESS;
+        let agents = span * crate::app::model::workarea_split_ratio_for_span(0.5, span);
+        assert!((width - (span - agents)).abs() < 0.01);
+        assert!(width > 300.0);
+        assert!((x + width - 1600.0).abs() < 0.01);
+    }
+
+    #[test]
+    fn a_right_docked_command_pane_keeps_its_column() {
+        let (x, width) = background_browser_page_columns(1600.0, 1319.0, 400.0, 0.5);
+        assert!((x + width - 1200.0).abs() < 0.01);
+        assert!(width >= 1.0);
     }
 }

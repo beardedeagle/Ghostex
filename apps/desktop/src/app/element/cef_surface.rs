@@ -342,6 +342,14 @@ impl CefSurface {
         self.browser.set_bounds(bounds, scale_factor);
     }
 
+    /// Gives a page that is made hidden a frame to lay out and render in; nothing once it is on
+    /// screen, where painting places it.
+    pub(crate) fn set_background_bounds(&self, bounds: Bounds<Pixels>, scale_factor: f32) {
+        if !self.visible {
+            self.browser.set_bounds(bounds, scale_factor);
+        }
+    }
+
     pub(crate) fn set_visible(&mut self, visible: bool) {
         if visible && !self.visible && crate::app::panel_motion::view_panel_would_slide_open() {
             self.browser

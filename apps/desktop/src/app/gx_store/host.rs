@@ -528,6 +528,8 @@ impl GhostexGpuiApp {
         // asked on every `createSidebarGroups`. Asked here on the same cadence, and free for the
         // users who have no user-made groups at all: the document's project map is empty.
         self.gx_store_prune_workspace_groups(cx);
+        // A project the daemon stopped listing takes its parked pages with it.
+        self.close_parked_pages_of_removed_projects(cx);
         if self.gx_store_after_pump(outcome.tab_lists_changed, cx) {
             cx.notify();
         }
